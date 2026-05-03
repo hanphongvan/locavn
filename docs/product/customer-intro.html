@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>LocaVN — Giới Thiệu Tính Năng Theo Vai Trò</title>
+<style>
+  body {
+    font-family: 'Segoe UI', 'Calibri', 'Arial', sans-serif;
+    font-size: 11pt;
+    line-height: 1.65;
+    color: #1f2937;
+    max-width: 760px;
+    margin: 40px auto;
+  }
+  h1 {
+    font-size: 26pt;
+    color: #0b3a6f;
+    text-align: center;
+    margin-bottom: 4pt;
+    border-bottom: 3px solid #0b3a6f;
+    padding-bottom: 12pt;
+  }
+  .tagline {
+    text-align: center;
+    font-size: 13pt;
+    color: #4b5563;
+    font-style: italic;
+    margin-top: 0;
+    margin-bottom: 20pt;
+  }
+  h2 {
+    font-size: 16pt;
+    color: #0b3a6f;
+    border-bottom: 1px solid #cfd8e3;
+    padding-bottom: 4pt;
+    margin-top: 28pt;
+    margin-bottom: 12pt;
+  }
+  h3 {
+    font-size: 13pt;
+    color: #1d4ed8;
+    margin-top: 18pt;
+    margin-bottom: 8pt;
+  }
+  h4 {
+    font-size: 11.5pt;
+    color: #1f2937;
+    margin-top: 12pt;
+    margin-bottom: 4pt;
+  }
+  p { margin: 8pt 0; text-align: justify; }
+  ul, ol { margin: 8pt 0 8pt 24pt; padding: 0; }
+  li { margin-bottom: 4pt; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12pt 0;
+    font-size: 10.5pt;
+  }
+  th {
+    background-color: #0b3a6f;
+    color: #ffffff;
+    padding: 8pt 10pt;
+    text-align: left;
+    border: 1px solid #0b3a6f;
+  }
+  td {
+    padding: 6pt 10pt;
+    border: 1px solid #cfd8e3;
+    vertical-align: top;
+  }
+  tr:nth-child(even) td { background-color: #f4f7fb; }
+  th.center, td.center { text-align: center; }
+  .highlight {
+    background-color: #eaf2fb;
+    border-left: 4px solid #0b3a6f;
+    padding: 12pt 16pt;
+    margin: 16pt 0;
+  }
+  .info-box {
+    background-color: #fff8e1;
+    border: 1px solid #f5c542;
+    padding: 12pt 16pt;
+    margin: 16pt 0;
+  }
+  .image-placeholder {
+    border: 2px dashed #94a3b8;
+    background-color: #f8fafc;
+    padding: 24pt 20pt;
+    text-align: center;
+    color: #64748b;
+    font-style: italic;
+    margin: 12pt 0;
+    border-radius: 4pt;
+  }
+  .image-placeholder strong {
+    display: block;
+    color: #475569;
+    margin-bottom: 4pt;
+    font-style: normal;
+  }
+  .meta-table {
+    width: auto;
+    margin: 0 auto 24pt auto;
+    font-size: 10pt;
+  }
+  .meta-table td { background-color: #f4f7fb !important; padding: 4pt 12pt; }
+  .footer {
+    margin-top: 40pt;
+    padding-top: 16pt;
+    border-top: 2px solid #0b3a6f;
+    text-align: center;
+    color: #4b5563;
+    font-size: 10pt;
+  }
+
+  /* Banner riêng cho từng phần vai trò */
+  .role-banner {
+    margin-top: 32pt;
+    margin-bottom: 16pt;
+    padding: 16pt 20pt;
+    border-radius: 6pt;
+    color: #ffffff;
+  }
+  .role-banner h2 {
+    color: #ffffff;
+    border-bottom: none;
+    margin: 0;
+    padding: 0;
+    font-size: 20pt;
+  }
+  .role-banner p {
+    margin: 6pt 0 0 0;
+    color: #f1f5f9;
+    font-size: 11pt;
+  }
+  .role-citizen { background-color: #047857; }
+  .role-store   { background-color: #b45309; }
+  .role-leader  { background-color: #6d28d9; }
+
+  .feedback-table th { background-color: #166534; border-color: #166534; }
+</style>
+</head>
+<body>
+
+<h1>LocaVN</h1>
+<p class="tagline">Ứng dụng di động trong hệ thống Cơ sở dữ liệu Xăng dầu — Giới thiệu tính năng theo 3 vai trò</p>
+
+<table class="meta-table">
+  <tr><td><strong>Phiên bản</strong></td><td>1.0 (MVP)</td></tr>
+  <tr><td><strong>Nền tảng</strong></td><td>iOS &amp; Android</td></tr>
+  <tr><td><strong>Backend</strong></td><td>ASP.NET Core + SQL Server</td></tr>
+  <tr><td><strong>Cập nhật</strong></td><td>2026</td></tr>
+</table>
+
+<div class="highlight">
+  <strong>Mục đích &amp; cách đọc tài liệu</strong>
+  <p style="margin: 6pt 0 0 0;">Tài liệu giới thiệu các tính năng của <strong>LocaVN</strong> — ứng dụng di động trong hệ thống Cơ sở dữ liệu Xăng dầu — và lý do xây dựng. Nội dung được tổ chức thành <strong>3 phần chính tương ứng 3 vai trò người dùng</strong>:</p>
+  <ul style="margin-top: 6pt;">
+    <li><strong>Phần A — Người dân (Citizen):</strong> các tính năng phục vụ người dân tra cứu, phản ánh và quản lý chi phí nhiên liệu cá nhân.</li>
+    <li><strong>Phần B — Cửa hàng (Store):</strong> các tính năng phục vụ cửa hàng xăng dầu cập nhật dữ liệu nghiệp vụ.</li>
+    <li><strong>Phần C — Lãnh đạo (Leader):</strong> các tính năng phục vụ cán bộ quản lý và lãnh đạo theo dõi, điều hành thị trường.</li>
+  </ul>
+  <p style="margin: 6pt 0 0 0;">Mỗi tính năng có chỗ chèn ảnh minh họa để bổ sung sau. Cuối tài liệu có phần <strong>phụ lục</strong> và <strong>phiếu góp ý theo 3 vai trò</strong>.</p>
+</div>
+
+<h2>1. Tổng Quan Ứng Dụng</h2>
+
+<p><strong>LocaVN</strong> là ứng dụng di động thuộc hệ thống <strong>Cơ sở dữ liệu Xăng dầu</strong>, phục vụ công tác tra cứu, cập nhật, giám sát và phản ánh thông tin liên quan đến hoạt động kinh doanh xăng dầu trên cả nước.</p>
+
+<p>Ứng dụng đóng vai trò là <strong>điểm chạm di động</strong> kết nối các bên trong hệ sinh thái xăng dầu, đồng thời cung cấp các <strong>tiện ích cá nhân</strong> giúp người dân quản lý xe và theo dõi chi phí đổ nhiên liệu của bản thân.</p>
+
+<div class="image-placeholder">
+  <strong>[Ảnh minh họa 1]</strong>
+  Ảnh tổng thể app — màn hình chính / bản đồ cửa hàng xăng dầu
+</div>
+
+<h2>2. Vì Sao Cần Xây Dựng LocaVN?</h2>
+
+<p>Thị trường xăng dầu là lĩnh vực <strong>thiết yếu, có biến động cao và liên quan trực tiếp đến đời sống người dân cũng như an ninh năng lượng quốc gia</strong>. Tuy nhiên, thực tế hiện nay vẫn tồn tại nhiều khoảng trống thông tin nhìn từ ba góc nhìn:</p>
+
+<h3>2.1 Góc nhìn Người dân</h3>
+<ul>
+  <li>Không có công cụ chính thống để tra cứu cửa hàng xăng dầu gần nhất, đặc biệt trong các tình huống thiếu nguồn cung cục bộ.</li>
+  <li>Khó biết cửa hàng có đang hoạt động hay không, có cung cấp loại nhiên liệu cần dùng hay không.</li>
+  <li>Khi gặp tình huống bất thường (bán sai giá, không bán hàng, chất lượng nhiên liệu kém), chưa có kênh phản ánh nhanh và minh bạch.</li>
+  <li>Không có công cụ thuận tiện để <strong>ghi lại lịch sử đổ nhiên liệu</strong> và <strong>theo dõi chi phí thực tế</strong> — phần lớn người dân không biết chính xác mỗi tháng tốn bao nhiêu tiền xăng dầu, dẫn đến lãng phí mà không nhận ra.</li>
+</ul>
+
+<h3>2.2 Góc nhìn Cửa hàng</h3>
+<ul>
+  <li>Việc cập nhật giá bán, tồn kho, nhập xuất kho thường phải qua nhiều kênh giấy tờ hoặc hệ thống nội bộ phân tán.</li>
+  <li>Thông tin về dịch vụ cửa hàng cung cấp cho người dân chưa được công bố một cách thống nhất.</li>
+  <li>Khó tiếp cận và phản hồi kịp thời các phản ánh từ phía khách hàng.</li>
+</ul>
+
+<h3>2.3 Góc nhìn Cán bộ &amp; Lãnh đạo</h3>
+<ul>
+  <li>Dữ liệu hoạt động cửa hàng xăng dầu phân mảnh, không cập nhật theo thời gian thực, gây khó khăn cho công tác giám sát địa bàn.</li>
+  <li>Việc kiểm tra tình trạng cập nhật dữ liệu của các đơn vị thường thủ công, mất thời gian.</li>
+  <li>Thiếu một dashboard tổng quan đa chiều: tồn kho, nhập xuất, giá bán, phân bố cửa hàng, phản ánh người dân.</li>
+  <li>Khó nhận diện kịp thời các khu vực có rủi ro thiếu nguồn cung hoặc biến động bất thường.</li>
+</ul>
+
+<div class="highlight">
+  <strong>LocaVN giải quyết các khoảng trống trên bằng cách:</strong>
+  <ul style="margin-top: 6pt;">
+    <li>Cung cấp <strong>kênh thông tin thống nhất</strong> giữa người dân, cửa hàng, cán bộ quản lý và lãnh đạo.</li>
+    <li>Đưa dữ liệu xăng dầu lên <strong>nền tảng di động</strong> — tra cứu mọi lúc, mọi nơi.</li>
+    <li>Mở <strong>kênh phản ánh hai chiều</strong> để tăng tính minh bạch của thị trường.</li>
+    <li>Tổng hợp dữ liệu thành <strong>báo cáo và dashboard điều hành</strong>.</li>
+    <li>Cung cấp <strong>tiện ích cá nhân</strong> giúp người dân theo dõi chi phí nhiên liệu, tránh lãng phí.</li>
+  </ul>
+</div>
+
+<h2>3. Ba Vai Trò Người Dùng</h2>
+
+<table>
+  <thead>
+    <tr><th style="width: 22%;">Vai trò</th><th style="width: 28%;">Đối tượng cụ thể</th><th>Mục đích sử dụng</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Người dân<br>(Citizen)</strong></td>
+      <td>Người dân, khách hàng cá nhân sử dụng xăng dầu</td>
+      <td>Tra cứu cửa hàng, xem giá &amp; dịch vụ, gửi phản ánh, đánh giá; quản lý xe và theo dõi chi phí đổ nhiên liệu của bản thân.</td>
+    </tr>
+    <tr>
+      <td><strong>Cửa hàng<br>(Store)</strong></td>
+      <td>Cửa hàng bán lẻ xăng dầu, doanh nghiệp đầu mối, thương nhân phân phối</td>
+      <td>Cập nhật thông tin cửa hàng, giá bán, tồn kho, nhập xuất kho, dịch vụ; quản lý phản ánh từ khách hàng.</td>
+    </tr>
+    <tr>
+      <td><strong>Lãnh đạo<br>(Leader)</strong></td>
+      <td>Cán bộ quản lý nhà nước, lãnh đạo theo dõi và điều hành thị trường xăng dầu</td>
+      <td>Xem dashboard tổng quan, theo dõi giá – tồn kho – cân đối cung cầu, giám sát địa bàn, xử lý phản ánh, ra quyết định điều hành.</td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- ===================================================== -->
+<!-- PHẦN A — NGƯỜI DÂN -->
+<!-- ===================================================== -->
+
+<div class="role-banner role-citizen">
+  <h2>PHẦN A — DÀNH CHO NGƯỜI DÂN (CITIZEN)</h2>
+  <p>Tính năng phục vụ người dân tra cứu thông tin xăng dầu, phản ánh tình huống bất thường và quản lý chi phí nhiên liệu cá nhân.</p>
+</div>
+
+<p><strong>Tóm tắt vai trò:</strong> Người dân là nhóm người dùng đông đảo nhất, có nhu cầu tra cứu nhanh, thao tác đơn giản và minh bạch. LocaVN cung cấp 6 nhóm tính năng cho người dân:</p>
+
+<ol>
+  <li>Bản đồ cửa hàng xăng dầu.</li>
+  <li>Tra cứu chi tiết cửa hàng.</li>
+  <li>Gửi phản ánh vi phạm.</li>
+  <li>Đánh giá cửa hàng.</li>
+  <li>Quản lý xe của tôi.</li>
+  <li>Theo dõi chi phí đổ nhiên liệu (tránh lãng phí).</li>
+</ol>
+
+<h3>A.1 Bản Đồ Cửa Hàng Xăng Dầu</h3>
+
+<p><strong>Mục đích:</strong> Giúp người dân tìm cửa hàng xăng dầu gần nhất một cách trực quan, đặc biệt hữu ích khi đi đường xa hoặc trong các tình huống thiếu nguồn cung cục bộ.</p>
+
+<p><strong>Chức năng chính:</strong></p>
+<ul>
+  <li>Hiển thị marker cửa hàng theo vị trí thực tế trên bản đồ.</li>
+  <li>Tự động tìm cửa hàng gần vị trí hiện tại của người dùng.</li>
+  <li>Lọc theo tỉnh/thành phố, loại nhiên liệu (Xăng RON 95, E5 RON 92, Dầu DO...), trạng thái hoạt động.</li>
+  <li>Phân biệt rõ trạng thái: đang hoạt động, tạm dừng, ngừng hoạt động, có cảnh báo/phản ánh.</li>
+  <li>Nhấn marker để xem thông tin nhanh: tên, địa chỉ, khoảng cách, dịch vụ nổi bật, giá bán (nếu được phép hiển thị).</li>
+  <li>Mở chi tiết cửa hàng hoặc chỉ đường đến cửa hàng.</li>
+</ul>
+
+<div class="image-placeholder">
+  <strong>[Ảnh minh họa A.1]</strong>
+  Màn hình bản đồ với các marker cửa hàng và bảng filter
+</div>
+
+<h3>A.2 Tra Cứu Chi Tiết Cửa Hàng</h3>
+
+<p><strong>Mục đích:</strong> Cung cấp đầy đủ thông tin về một cửa hàng cụ thể trước khi người dân đến giao dịch.</p>
+
+<p><strong>Chức năng chính:</strong></p>
+<ul>
+  <li>Tìm kiếm cửa hàng theo tên, địa chỉ.</li>
+  <li>Lọc danh sách theo tỉnh, huyện, xã, dịch vụ, loại nhiên liệu.</li>
+  <li>Hiển thị danh sách dạng card thân thiện trên di động.</li>
+  <li>Mở chi tiết để xem: thông tin chung, vị trí trên bản đồ, trạng thái hoạt động, giá bán hiện hành, dịch vụ cung cấp, hình ảnh cửa hàng (nếu có).</li>
+  <li>Chỉ đường nhanh tới cửa hàng qua tích hợp bản đồ ngoài.</li>
+</ul>
+
+<div class="image-placeholder">
+  <strong>[Ảnh minh họa A.2]</strong>
+  Màn hình danh sách cửa hàng và màn hình chi tiết cửa hàng phía người dân
+</div>
+
+<h3>A.3 Gửi Phản Ánh Vi Phạm</h3>
+
+<p><strong>Mục đích:</strong> Mở kênh phản ánh nhanh, minh bạch để người dân báo các tình huống bất thường tại cửa hàng — góp phần làm minh bạch thị trường xăng dầu.</p>
+
+<p><strong>Các loại phản ánh:</strong> Bán sai giá; không bán hàng/đóng cửa bất thường; hạn chế lượng bán; chất lượng nhiên liệu; thái độ phục vụ; không xuất hóa đơn; an toàn phòng cháy chữa cháy; vệ sinh môi trường; khác.</p>
+
+<p><strong>Chức năng chính:</strong></p>
+<ul>
+  <li>Chọn cửa hàng liên quan (lấy từ bản đồ hoặc danh sách).</li>
+  <li>Chọn loại phản ánh.</li>
+  <li>Nhập mô tả chi tiết.</li>
+  <li>Gửi phản ánh và nhận mã theo dõi.</li>
+  <li>Theo dõi danh sách phản ánh đã gửi và trạng thái xử lý.</li>
+  <li>Tính năng đính kèm ảnh sẽ được bổ sung khi backend hỗ trợ upload (Phase 2).</li>
+</ul>
+
+<div class="image-placeholder">
+  <strong>[Ảnh minh họa A.3]</strong>
+  Màn hình form gửi phản ánh và màn hình theo dõi phản ánh đã gửi
+</div>
+
+<h3>A.4 Đánh Giá Cửa Hàng</h3>
+
+<p><strong>Mục đích:</strong> Cho phép người dân đánh giá trải nghiệm tại cửa hàng (khác với phản ánh vi phạm — đánh giá phục vụ trải nghiệm chung, không phải dữ liệu nghiệp vụ cần xử lý).</p>
+
+<p><strong>Chức năng chính:</strong></p>
+<ul>
+  <li>Gửi đánh giá kèm chấm điểm (1–5 sao) và nội dung nhận xét.</li>
+  <li>Xem danh sách đánh giá tại cửa hàng do người dùng khác để lại.</li>
+  <li>Quản lý đánh giá của bản thân (xem, chỉnh sửa, xóa).</li>
+</ul>
+
+<div class="image-placeholder">
+  <strong>[Ảnh minh họa A.4]</strong>
+  Màn hình gửi đánh giá và xem đánh giá tại cửa hàng
+</div>
+
+<h3>A.5 Quản Lý Xe Của Tôi</h3>
+
+<p><strong>Mục đích:</strong> Cho phép người dân lưu danh sách xe cá nhân (ô tô, xe máy, xe tải nhỏ...), làm <strong>cơ sở dữ liệu nền</strong> để ghi nhận chi phí đổ nhiên liệu và tính toán mức tiêu hao theo từng xe. Một tài khoản có thể quản lý nhiều xe.</p>
+
+<p><strong>Chức năng chính:</strong></p>
+<ul>
+  <li>Thêm xe mới với các thông tin: tên xe, biển số, loại xe, hãng, dòng, năm sản xuất, số km hiện tại (odometer).</li>
+  <li>Sửa, xóa xe (có cảnh báo nếu xe đang có dữ liệu nhiên liệu liên quan).</li>
+  <li>Đặt một xe làm <strong>xe mặc định</strong> để tăng tốc thao tác hằng ngày.</li>
+  <li>Xem chi tiết xe kèm tổng quan chi phí nhiên liệu đã ghi nhận.</li>
+</ul>
+
+<div class="image-placeholder">
+  <strong>[Ảnh minh họa A.5]</strong>
+  Màn hình danh sách xe và form thêm/sửa xe
+</div>
+
+<h3>A.6 Theo Dõi Chi Phí Đổ Nhiên Liệu (Tránh Lãng Phí)</h3>
+
+<p><strong>Mục đích:</strong> Giúp người dân ghi lại từng lần đổ nhiên liệu và tự động tổng hợp chi phí — qua đó <strong>theo dõi chi phí nhiên liệu thực tế, phát hiện các khoản chi bất thường và tránh lãng phí</strong>. Tính năng tận dụng tối đa dữ liệu cửa hàng và giá bán đã có sẵn trong LocaVN.</p>
+
+<p><strong>Tích hợp với hệ sinh thái LocaVN:</strong></p>
+<ul>
+  <li><strong>Chọn cửa hàng từ bản đồ</strong> — không phải nhập tay địa điểm.</li>
+  <li><strong>Tự đề xuất đơn giá</strong> dựa trên giá bán mà cửa hàng đăng tại thời điểm đó — người dùng chỉ việc xác nhận hoặc điều chỉnh.</li>
+  <li><strong>Đối chiếu giá thực tế</strong> với giá đã đăng — phát hiện chênh lệch để gửi phản ánh nếu cần (mục A.3).</li>
+</ul>
+
+<p><strong>Chức năng chính:</strong></p>
+<ul>
+  <li>Ghi nhận lần đổ: chọn xe, chọn cửa hàng, loại nhiên liệu, số lít, đơn giá, tổng tiền, số km hiện tại của xe.</li>
+  <li>Tự động tính toán: tổng tiền = số lít × đơn giá, hoặc đơn giá = tổng tiền ÷ số lít.</li>
+  <li>Xem lịch sử đổ nhiên liệu theo từng xe.</li>
+  <li>Sửa, xóa bản ghi nếu nhập sai.</li>
+</ul>
+
+<p><strong>Chỉ số tự động tổng hợp:</strong></p>
+<ul>
+  <li><strong>Tổng chi phí nhiên liệu</strong> theo tháng / theo xe.</li>
+  <li><strong>Mức tiêu hao trung bình</strong> (lít / 100 km) — tính giữa hai lần đổ liên tiếp.</li>
+  <li><strong>Chi phí nhiên liệu trên mỗi km</strong> — chỉ số quan trọng phát hiện lãng phí.</li>
+  <li><strong>Biến động chi phí theo thời gian</strong> — xu hướng tăng/giảm.</li>
+</ul>
+
+<p><strong>Cảnh báo lãng phí (Phase sau):</strong></p>
+<ul>
+  <li>Cảnh báo khi mức tiêu hao tăng đột biến → xe có thể cần kiểm tra kỹ thuật.</li>
+  <li>Cảnh báo khi đơn giá đổ thực tế cao hơn giá đăng tại cửa hàng → có thể là dấu hiệu bán sai giá.</li>
+  <li>Cảnh báo khi chi phí nhiên liệu tháng tăng bất thường so với trung bình.</li>
+</ul>
+
+<div class="highlight">
+  <strong>Lợi ích kép cho hệ sinh thái:</strong> Tính năng tạo giá trị thiết thực cho người dân, đồng thời cung cấp <strong>nguồn dữ liệu thực tế (sau khi ẩn danh)</strong> để cơ quan quản lý đối chiếu giá bán thực tế tại các cửa hàng — góp phần tăng tính minh bạch của thị trường xăng dầu.
+</div>
+
+<div class="image-placeholder">
+  <strong>[Ảnh minh họa A.6]</strong>
+  Màn hình ghi nhận lần đổ nhiên liệu, lịch sử đổ và biểu đồ chi phí theo tháng
+</div>
+
+<!-- ===================================================== -->
+<!-- PHẦN B — CỬA HÀNG -->
+<!-- ===================================================== -->
+
+<div class="role-banner role-store">
+  <h2>PHẦN B — DÀNH CHO CỬA HÀNG (STORE)</h2>
+  <p>Tính năng phục vụ cửa hàng xăng dầu, doanh nghiệp đầu mối và thương nhân phân phối cập nhật dữ liệu nghiệp vụ, quản lý phản ánh khách hàng.</p>
+</div>
+
+<p><strong>Tóm tắt vai trò:</strong> Cửa hàng cần thao tác nhập liệu nhanh, chính xác và truy cập được lịch sử để đối chiếu. LocaVN cung cấp 5 nhóm tính năng cho cửa hàng:</p>
+
+<ol>
+  <li>Quản lý thông tin cửa hàng.</li>
+  <li>Cập nhật giá bán xăng dầu.</li>
+  <li>Quản lý tồn kho và nhập xuất kho.</li>
+  <li>Khai báo dịch vụ cung cấp.</li>
+  <li>Quản lý phản ánh về cửa hàng.</li>
+</ol>
+
+<h3>B.1 Quản Lý Thông Tin Cửa Hàng</h3>
+
+<p><strong>Mục đích:</strong> Đảm bảo thông tin cửa hàng hiển thị tới người dân và lãnh đạo luôn chính xác, kịp thời.</p>
+
+<p><strong>Chức năng chính:</strong></p>
+<ul>
+  <li>Cập nhật thông tin chung: tên cửa hàng, địa chỉ, số điện thoại, đơn vị quản lý.</li>
+  <li>Cập nhật vị trí (tọa độ) trên bản đồ.</li>
+  <li>Cập nhật trạng thái hoạt động: đang hoạt động, tạm dừng, ngừng hoạt động.</li>
+  <li>Cập nhật ảnh cửa hàng (khi backend hỗ trợ upload).</li>
+</ul>
+
+<div class="image-placeholder">
+  <strong>[Ảnh minh họa B.1]</strong>
+  Màn hình hồ sơ cửa hàng và form cập nhật thông tin
+</div>
+
+<h3>B.2 Cập Nhật Giá Bán Xăng Dầu</h3>
+
+<p><strong>Mục đích:</strong> Cho phép cửa hàng cập nhật giá bán nhanh chóng, đảm bảo dữ liệu giá luôn chính xác và minh bạch với người dân.</p>
+
+<p><strong>Chức năng chính:</strong></p>
+<ul>
+  <li>Xem danh sách giá bán hiện tại theo từng mặt hàng (Xăng RON 95, Xăng E5 RON 92, Dầu DO, Dầu hỏa, các mặt hàng khác).</li>
+  <li>Thêm mới và cập nhật giá bán.</li>
+  <li>Ghi nhận thời gian cập nhật và lý do điều chỉnh (nếu có).</li>
+  <li>Hiển thị lịch sử thay đổi giá để tra cứu và đối chiếu.</li>
+</ul>
+
+<div class="image-placeholder">
+  <strong>[Ảnh minh họa B.2]</strong>
+  Màn hình nhập giá bán và lịch sử thay đổi giá
+</div>
+
+<h3>B.3 Quản Lý Tồn Kho &amp; Nhập Xuất Kho</h3>
+
+<p><strong>Mục đích:</strong> Quản lý dữ liệu tồn kho, nhập kho, xuất kho tại cửa hàng — là dữ liệu nền cho dashboard cân đối cung cầu của lãnh đạo.</p>
+
+<p><strong>Chức năng chính:</strong></p>
+<ul>
+  <li>Nhập phiếu nhập kho và phiếu xuất kho. Một phiếu có thể có nhiều mặt hàng.</li>
+  <li>Xem tồn kho hiện tại theo từng loại nhiên liệu.</li>
+  <li>Xem lịch sử nhập xuất, lọc theo thời gian, mặt hàng, loại giao dịch.</li>
+  <li>Tổng hợp dữ liệu phục vụ báo cáo tồn kho.</li>
+</ul>
+
+<p><strong>Thông tin một phiếu nhập/xuất:</strong> Cửa hàng, ngày giao dịch, loại giao dịch (nhập/xuất), danh sách mặt hàng (mặt hàng, số lượng, đơn vị tính), ghi chú.</p>
+
+<div class="image-placeholder">
+  <strong>[Ảnh minh họa B.3]</strong>
+  Màn hình nhập phiếu nhập/xuất và màn hình tồn kho hiện tại
+</div>
+
+<h3>B.4 Khai Báo Dịch Vụ Cung Cấp</h3>
+
+<p><strong>Mục đích:</strong> Cho phép cửa hàng khai báo các dịch vụ cung cấp, giúp người dân biết trước trước khi đến cửa hàng.</p>
+
+<p><strong>Ví dụ dịch vụ:</strong> Rửa xe, thay dầu, bơm lốp, cửa hàng tiện ích, nhà vệ sinh, café/nghỉ chân, thanh toán điện tử, sạc xe điện (nếu có).</p>
+
+<p><strong>Chức năng chính:</strong></p>
+<ul>
+  <li>Thêm / sửa / xóa dịch vụ.</li>
+  <li>Khai báo giá dịch vụ nếu có.</li>
+  <li>Bật/tắt trạng thái dịch vụ (có cung cấp / tạm ngừng).</li>
+  <li>Hiển thị dịch vụ trên trang chi tiết cửa hàng để người dân tham khảo.</li>
+</ul>
+
+<div class="image-placeholder">
+  <strong>[Ảnh minh họa B.4]</strong>
+  Màn hình quản lý dịch vụ tại cửa hàng
+</div>
+
+<h3>B.5 Quản Lý Phản Ánh Về Cửa Hàng</h3>
+
+<p><strong>Mục đích:</strong> Cho phép cửa hàng theo dõi các phản ánh người dân gửi liên quan đến mình, kịp thời xử lý và phản hồi.</p>
+
+<p><strong>Chức năng chính:</strong></p>
+<ul>
+  <li>Xem danh sách phản ánh liên quan đến cửa hàng.</li>
+  <li>Lọc theo loại phản ánh, trạng thái, thời gian.</li>
+  <li>Xem chi tiết phản ánh và lịch sử cập nhật trạng thái.</li>
+  <li>Phản hồi/ghi chú nội bộ để gửi tới cán bộ quản lý.</li>
+</ul>
+
+<div class="image-placeholder">
+  <strong>[Ảnh minh họa B.5]</strong>
+  Màn hình danh sách phản ánh phía cửa hàng và chi tiết phản ánh
+</div>
+
+<!-- ===================================================== -->
+<!-- PHẦN C — LÃNH ĐẠO -->
+<!-- ===================================================== -->
+
+<div class="role-banner role-leader">
+  <h2>PHẦN C — DÀNH CHO LÃNH ĐẠO (LEADER)</h2>
+  <p>Tính năng phục vụ cán bộ quản lý nhà nước và lãnh đạo theo dõi, giám sát, ra quyết định điều hành thị trường xăng dầu.</p>
+</div>
+
+<p><strong>Tóm tắt vai trò:</strong> Lãnh đạo cần góc nhìn tổng quan đa chiều, dữ liệu chính xác và khả năng drill-down để xử lý từng tình huống cụ thể. LocaVN cung cấp 5 nhóm tính năng cho lãnh đạo:</p>
+
+<ol>
+  <li>Dashboard lãnh đạo.</li>
+  <li>Bản đồ điều hành &amp; phân bố cửa hàng.</li>
+  <li>Báo cáo &amp; thống kê chuyên đề.</li>
+  <li>Theo dõi &amp; xử lý phản ánh tổng hợp.</li>
+  <li>Giám sát tình trạng cập nhật dữ liệu.</li>
+</ol>
+
+<h3>C.1 Dashboard Lãnh Đạo</h3>
+
+<p><strong>Mục đích:</strong> Cung cấp góc nhìn tổng quan đa chiều, hỗ trợ ra quyết định điều hành thị trường xăng dầu trong thời gian ngắn.</p>
+
+<p><strong>Nội dung chính:</strong></p>
+<ul>
+  <li>Tổng quan tồn kho xăng dầu (theo nhóm xăng / dầu / khí).</li>
+  <li>Nhập xuất trong kỳ, cân đối cung cầu.</li>
+  <li>Biến động giá bán theo thời gian.</li>
+  <li>Bản đồ phân bố cửa hàng và doanh nghiệp.</li>
+  <li>Cảnh báo bất thường về tồn kho hoặc phản ánh.</li>
+  <li>Tổng hợp phản ánh người dân.</li>
+</ul>
+
+<p><strong>Các KPI chính:</strong></p>
+<table>
+  <thead>
+    <tr><th style="width: 32%;">KPI</th><th>Mô tả</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Tổng tồn kho</td><td>Tổng tồn kho theo nhóm xăng/dầu/khí</td></tr>
+    <tr><td>Nhập trong kỳ</td><td>Lượng nhập theo kỳ</td></tr>
+    <tr><td>Xuất trong kỳ</td><td>Lượng xuất theo kỳ</td></tr>
+    <tr><td>Cân đối</td><td>Chênh lệch nhập – xuất – tồn</td></tr>
+    <tr><td>Số cửa hàng hoạt động</td><td>Tổng cửa hàng đang hoạt động</td></tr>
+    <tr><td>Số phản ánh mới</td><td>Phản ánh chưa xử lý</td></tr>
+    <tr><td>Khu vực rủi ro</td><td>Địa bàn có tồn kho thấp hoặc phản ánh tăng</td></tr>
+  </tbody>
+</table>
+
+<div class="image-placeholder">
+  <strong>[Ảnh minh họa C.1]</strong>
+  Dashboard lãnh đạo với KPI cards, bản đồ và biểu đồ tổng hợp
+</div>
+
+<h3>C.2 Bản Đồ Điều Hành &amp; Phân Bố Cửa Hàng</h3>
+
+<p><strong>Mục đích:</strong> Cho lãnh đạo và cán bộ quản lý cái nhìn không gian về phân bố cửa hàng, trạng thái hoạt động, vùng có cảnh báo.</p>
+
+<p><strong>Chức năng chính:</strong></p>
+<ul>
+  <li>Hiển thị toàn bộ cửa hàng trên bản đồ với phân loại trạng thái bằng màu sắc.</li>
+  <li>Lọc theo địa bàn (tỉnh/huyện/xã), loại nhiên liệu, trạng thái, đơn vị quản lý.</li>
+  <li>Hiển thị marker chuyên đề: cửa hàng có phản ánh, cửa hàng tồn kho thấp, cửa hàng tạm dừng bất thường.</li>
+  <li>Drill-down từ bản đồ về chi tiết cửa hàng.</li>
+</ul>
+
+<div class="image-placeholder">
+  <strong>[Ảnh minh họa C.2]</strong>
+  Bản đồ điều hành với marker chuyên đề và bộ lọc địa bàn
+</div>
+
+<h3>C.3 Báo Cáo &amp; Thống Kê Chuyên Đề</h3>
+
+<p><strong>Mục đích:</strong> Cung cấp các báo cáo chi tiết theo nhiều chiều dữ liệu phục vụ giám sát, đối chiếu và truyền thông.</p>
+
+<p><strong>Nhóm báo cáo:</strong></p>
+<ul>
+  <li>Tổng số cửa hàng xăng dầu, phân loại theo trạng thái.</li>
+  <li>Phân bố cửa hàng theo tỉnh/thành phố.</li>
+  <li>Dữ liệu giá bán theo khu vực.</li>
+  <li>Dữ liệu tồn kho theo mặt hàng.</li>
+  <li>Dữ liệu nhập/xuất theo kỳ.</li>
+  <li>Thống kê phản ánh và dịch vụ cửa hàng.</li>
+</ul>
+
+<p><strong>Dạng hiển thị:</strong> KPI cards, biểu đồ cột, biểu đồ đường, biểu đồ tròn, bảng số liệu, bản đồ chuyên đề. Có bộ lọc theo địa bàn và khoảng thời gian.</p>
+
+<div class="image-placeholder">
+  <strong>[Ảnh minh họa C.3]</strong>
+  Màn hình báo cáo thống kê với KPI và các biểu đồ
+</div>
+
+<h3>C.4 Theo Dõi &amp; Xử Lý Phản Ánh Tổng Hợp</h3>
+
+<p><strong>Mục đích:</strong> Tiếp nhận, phân loại, xử lý các phản ánh người dân gửi tới — đảm bảo không bỏ sót và xử lý theo trọng điểm.</p>
+
+<p><strong>Chức năng chính:</strong></p>
+<ul>
+  <li>Xem toàn bộ danh sách phản ánh trên hệ thống.</li>
+  <li>Lọc theo cửa hàng, địa bàn, loại phản ánh, trạng thái, thời gian.</li>
+  <li>Xem chi tiết phản ánh và toàn bộ lịch sử trao đổi.</li>
+  <li>Cập nhật trạng thái xử lý: tiếp nhận → đang xử lý → đã xử lý → đóng phản ánh.</li>
+  <li>Ghi chú kết quả xử lý để lưu hồ sơ.</li>
+  <li>Thống kê tỷ lệ xử lý phản ánh theo địa bàn.</li>
+</ul>
+
+<div class="image-placeholder">
+  <strong>[Ảnh minh họa C.4]</strong>
+  Màn hình danh sách phản ánh tổng hợp và chi tiết xử lý
+</div>
+
+<h3>C.5 Giám Sát Tình Trạng Cập Nhật Dữ Liệu</h3>
+
+<p><strong>Mục đích:</strong> Theo dõi mức độ tuân thủ của các cửa hàng trong việc cập nhật giá, tồn kho, nhập xuất kho — phát hiện sớm các đơn vị chậm cập nhật.</p>
+
+<p><strong>Chức năng chính:</strong></p>
+<ul>
+  <li>Xem danh sách cửa hàng kèm thời điểm cập nhật gần nhất từng loại dữ liệu.</li>
+  <li>Cảnh báo các cửa hàng quá hạn cập nhật.</li>
+  <li>Lọc theo địa bàn, đơn vị quản lý, mức độ trễ.</li>
+  <li>Xuất danh sách để phục vụ kiểm tra/nhắc việc.</li>
+</ul>
+
+<div class="image-placeholder">
+  <strong>[Ảnh minh họa C.5]</strong>
+  Màn hình giám sát tình trạng cập nhật dữ liệu của các cửa hàng
+</div>
+
+<!-- ===================================================== -->
+<!-- PHỤ LỤC -->
+<!-- ===================================================== -->
+
+<h2>4. Phụ Lục</h2>
+
+<h3>4.1 Đăng Nhập &amp; Phân Quyền (Áp Dụng Cho 3 Vai Trò)</h3>
+
+<p><strong>Mục đích:</strong> Đảm bảo mỗi người dùng chỉ truy cập chức năng phù hợp với vai trò của mình, bảo vệ tính toàn vẹn của dữ liệu xăng dầu.</p>
+
+<p><strong>Chức năng chính:</strong></p>
+<ul>
+  <li>Đăng nhập, đăng ký (nếu hệ thống cho phép), quên mật khẩu, đổi mật khẩu.</li>
+  <li>Tự động lưu phiên đăng nhập, điều hướng theo loại tài khoản.</li>
+  <li>Chặn truy cập chức năng không có quyền với thông báo rõ ràng.</li>
+  <li>Sử dụng JWT Bearer Token; token lưu trên thiết bị bằng secure storage.</li>
+</ul>
+
+<h3>4.2 Bảng Tổng Hợp Phân Quyền</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Chức năng</th>
+      <th class="center">Người dân</th>
+      <th class="center">Cửa hàng</th>
+      <th class="center">Lãnh đạo</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td>Xem bản đồ cửa hàng</td><td class="center">✓</td><td class="center">✓</td><td class="center">✓</td></tr>
+    <tr><td>Xem chi tiết cửa hàng</td><td class="center">✓</td><td class="center">✓</td><td class="center">✓</td></tr>
+    <tr><td>Gửi phản ánh vi phạm</td><td class="center">✓</td><td class="center">—</td><td class="center">—</td></tr>
+    <tr><td>Đánh giá cửa hàng</td><td class="center">✓</td><td class="center">—</td><td class="center">—</td></tr>
+    <tr><td>Quản lý xe của tôi</td><td class="center">✓</td><td class="center">—</td><td class="center">—</td></tr>
+    <tr><td>Ghi chi phí đổ nhiên liệu</td><td class="center">✓</td><td class="center">—</td><td class="center">—</td></tr>
+    <tr><td>Cập nhật thông tin cửa hàng</td><td class="center">—</td><td class="center">✓</td><td class="center">—</td></tr>
+    <tr><td>Cập nhật giá bán</td><td class="center">—</td><td class="center">✓</td><td class="center">—</td></tr>
+    <tr><td>Quản lý tồn kho / nhập xuất</td><td class="center">—</td><td class="center">✓</td><td class="center">—</td></tr>
+    <tr><td>Khai báo dịch vụ cửa hàng</td><td class="center">—</td><td class="center">✓</td><td class="center">—</td></tr>
+    <tr><td>Quản lý phản ánh về cửa hàng</td><td class="center">—</td><td class="center">✓</td><td class="center">—</td></tr>
+    <tr><td>Dashboard lãnh đạo</td><td class="center">—</td><td class="center">—</td><td class="center">✓</td></tr>
+    <tr><td>Bản đồ điều hành</td><td class="center">—</td><td class="center">—</td><td class="center">✓</td></tr>
+    <tr><td>Báo cáo &amp; thống kê chuyên đề</td><td class="center">—</td><td class="center">—</td><td class="center">✓</td></tr>
+    <tr><td>Xử lý phản ánh tổng hợp</td><td class="center">—</td><td class="center">—</td><td class="center">✓</td></tr>
+    <tr><td>Giám sát cập nhật dữ liệu</td><td class="center">—</td><td class="center">—</td><td class="center">✓</td></tr>
+  </tbody>
+</table>
+
+<h3>4.3 Yêu Cầu Kỹ Thuật</h3>
+
+<table>
+  <thead>
+    <tr><th style="width: 32%;">Hạng mục</th><th>Yêu cầu</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Nền tảng di động</td><td>iOS 13 trở lên, Android 5.0 (API 21) trở lên</td></tr>
+    <tr><td>Ngôn ngữ phát triển</td><td>Flutter / Dart</td></tr>
+    <tr><td>Backend</td><td>ASP.NET Core + SQL Server</td></tr>
+    <tr><td>Xác thực</td><td>JWT Bearer Token</td></tr>
+    <tr><td>Bản đồ</td><td>Google Maps hoặc nhà cung cấp tương đương</td></tr>
+    <tr><td>Lưu trữ thiết bị</td><td>Secure storage cho token đăng nhập</td></tr>
+    <tr><td>Kết nối</td><td>Internet (Wi-Fi hoặc 3G/4G/5G)</td></tr>
+  </tbody>
+</table>
+
+<h3>4.4 Phạm Vi MVP &amp; Lộ Trình Phát Triển</h3>
+
+<h4>Phạm vi MVP (Phiên bản 1.0)</h4>
+<p><strong>Người dân:</strong> Bản đồ; danh sách &amp; chi tiết cửa hàng; gửi phản ánh; đánh giá cửa hàng; quản lý xe; theo dõi chi phí đổ nhiên liệu.</p>
+<p><strong>Cửa hàng:</strong> Quản lý thông tin cửa hàng; cập nhật giá bán; tồn kho &amp; nhập xuất; dịch vụ cửa hàng; quản lý phản ánh.</p>
+<p><strong>Lãnh đạo:</strong> Dashboard cơ bản; bản đồ điều hành; báo cáo cơ bản; xử lý phản ánh.</p>
+
+<h4>Định hướng phase sau</h4>
+<ul>
+  <li>Đính kèm ảnh đầy đủ cho phản ánh và đánh giá.</li>
+  <li>Thông báo đẩy (push notification).</li>
+  <li>Chế độ ngoại tuyến (offline mode).</li>
+  <li>Refresh token đầy đủ.</li>
+  <li>AI cảnh báo bất thường về tồn kho, giá bán, phản ánh.</li>
+  <li>Dự báo cung cầu trên địa bàn.</li>
+  <li>Cảnh báo lãng phí nhiên liệu cho người dân (mục A.6).</li>
+  <li>Tối ưu bản đồ ở quy mô lớn (clustering).</li>
+</ul>
+
+<h2>5. Đóng Góp Ý Kiến (Theo 3 Vai Trò)</h2>
+
+<p>Quý đơn vị/cá nhân có thể góp ý theo từng vai trò sử dụng. Mỗi câu hỏi giúp chúng tôi đánh giá tính năng đã phù hợp với thực tiễn hay chưa.</p>
+
+<h3>5.1 Câu hỏi gợi ý cho góc nhìn Người dân</h3>
+<div class="info-box">
+  <ul>
+    <li>Bản đồ cửa hàng và bộ lọc đã đủ thuận tiện cho việc tra cứu hằng ngày chưa?</li>
+    <li>Các loại phản ánh (mục A.3) đã đầy đủ hay cần bổ sung?</li>
+    <li>Tính năng quản lý xe và theo dõi chi phí nhiên liệu (A.5–A.6) có thực sự cần thiết với người dân Việt Nam không? Hay nên ưu tiên các nhóm tính năng khác?</li>
+    <li>Có lo ngại nào về quyền riêng tư khi người dân ghi nhận thông tin xe và lịch sử đổ nhiên liệu không?</li>
+  </ul>
+</div>
+
+<h3>5.2 Câu hỏi gợi ý cho góc nhìn Cửa hàng</h3>
+<div class="info-box">
+  <ul>
+    <li>Form nhập giá bán, tồn kho có đủ nhanh để cửa hàng cập nhật hằng ngày không?</li>
+    <li>Có chức năng nghiệp vụ nào của cửa hàng còn thiếu so với quy trình thực tế?</li>
+    <li>Cách hiển thị phản ánh từ phía cửa hàng (mục B.5) đã đủ rõ ràng chưa?</li>
+    <li>Cửa hàng có cần tính năng xuất dữ liệu để đối chiếu với hệ thống nội bộ riêng không?</li>
+  </ul>
+</div>
+
+<h3>5.3 Câu hỏi gợi ý cho góc nhìn Lãnh đạo</h3>
+<div class="info-box">
+  <ul>
+    <li>Bộ KPI trên dashboard (mục C.1) đã phản ánh đúng nhu cầu điều hành chưa?</li>
+    <li>Bản đồ điều hành (C.2) cần thêm lớp dữ liệu chuyên đề nào?</li>
+    <li>Các báo cáo (C.3) cần thêm chiều dữ liệu hoặc tiêu chí lọc nào?</li>
+    <li>Quy trình xử lý phản ánh (C.4) đã phù hợp với quy trình hành chính hiện hành chưa?</li>
+    <li>Cảnh báo cập nhật dữ liệu (C.5) cần cấu hình ngưỡng như thế nào?</li>
+  </ul>
+</div>
+
+<h3>5.4 Phiếu Góp Ý Theo Tính Năng</h3>
+
+<p>Quý vị có thể sử dụng bảng dưới đây để ghi nhận góp ý theo từng tính năng:</p>
+
+<table class="feedback-table">
+  <thead>
+    <tr>
+      <th style="width: 26%;">Tính năng</th>
+      <th style="width: 18%;">Mức độ ưu tiên</th>
+      <th>Nội dung góp ý</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td colspan="3" style="background-color: #ecfdf5; font-weight: bold; color: #047857;">Phần A — Người dân (Citizen)</td></tr>
+    <tr><td>A.1 Bản đồ cửa hàng</td><td>Cao / Trung bình / Thấp</td><td>&nbsp;</td></tr>
+    <tr><td>A.2 Chi tiết cửa hàng</td><td>Cao / Trung bình / Thấp</td><td>&nbsp;</td></tr>
+    <tr><td>A.3 Gửi phản ánh</td><td>Cao / Trung bình / Thấp</td><td>&nbsp;</td></tr>
+    <tr><td>A.4 Đánh giá cửa hàng</td><td>Cao / Trung bình / Thấp</td><td>&nbsp;</td></tr>
+    <tr><td>A.5 Quản lý xe của tôi</td><td>Cao / Trung bình / Thấp</td><td>&nbsp;</td></tr>
+    <tr><td>A.6 Chi phí đổ nhiên liệu</td><td>Cao / Trung bình / Thấp</td><td>&nbsp;</td></tr>
+
+    <tr><td colspan="3" style="background-color: #fffbeb; font-weight: bold; color: #b45309;">Phần B — Cửa hàng (Store)</td></tr>
+    <tr><td>B.1 Thông tin cửa hàng</td><td>Cao / Trung bình / Thấp</td><td>&nbsp;</td></tr>
+    <tr><td>B.2 Cập nhật giá bán</td><td>Cao / Trung bình / Thấp</td><td>&nbsp;</td></tr>
+    <tr><td>B.3 Tồn kho / Nhập xuất</td><td>Cao / Trung bình / Thấp</td><td>&nbsp;</td></tr>
+    <tr><td>B.4 Khai báo dịch vụ</td><td>Cao / Trung bình / Thấp</td><td>&nbsp;</td></tr>
+    <tr><td>B.5 Phản ánh về cửa hàng</td><td>Cao / Trung bình / Thấp</td><td>&nbsp;</td></tr>
+
+    <tr><td colspan="3" style="background-color: #f5f3ff; font-weight: bold; color: #6d28d9;">Phần C — Lãnh đạo (Leader)</td></tr>
+    <tr><td>C.1 Dashboard lãnh đạo</td><td>Cao / Trung bình / Thấp</td><td>&nbsp;</td></tr>
+    <tr><td>C.2 Bản đồ điều hành</td><td>Cao / Trung bình / Thấp</td><td>&nbsp;</td></tr>
+    <tr><td>C.3 Báo cáo / Thống kê</td><td>Cao / Trung bình / Thấp</td><td>&nbsp;</td></tr>
+    <tr><td>C.4 Xử lý phản ánh tổng hợp</td><td>Cao / Trung bình / Thấp</td><td>&nbsp;</td></tr>
+    <tr><td>C.5 Giám sát cập nhật dữ liệu</td><td>Cao / Trung bình / Thấp</td><td>&nbsp;</td></tr>
+
+    <tr><td colspan="3" style="background-color: #f8fafc; font-weight: bold; color: #475569;">Đề xuất mới</td></tr>
+    <tr><td>Đề xuất tính năng mới</td><td>Cao / Trung bình / Thấp</td><td>&nbsp;</td></tr>
+  </tbody>
+</table>
+
+<h2>6. Liên Hệ</h2>
+
+<div class="info-box">
+  <p style="margin-top: 0;"><strong>Để gửi góp ý hoặc trao đổi thêm về LocaVN, vui lòng liên hệ:</strong></p>
+  <table style="border: none; width: auto;">
+    <tr><td style="border: none;"><strong>Đơn vị phát triển</strong></td><td style="border: none;">[Tên đơn vị]</td></tr>
+    <tr><td style="border: none;"><strong>Email</strong></td><td style="border: none;">[Email liên hệ]</td></tr>
+    <tr><td style="border: none;"><strong>Hotline</strong></td><td style="border: none;">[Số điện thoại hỗ trợ]</td></tr>
+    <tr><td style="border: none;"><strong>Website</strong></td><td style="border: none;">[Website]</td></tr>
+    <tr><td style="border: none;"><strong>Địa chỉ</strong></td><td style="border: none;">[Địa chỉ làm việc]</td></tr>
+  </table>
+</div>
+
+<div class="footer">
+  <p><strong>LocaVN</strong> — Ứng dụng di động trong hệ thống Cơ sở dữ liệu Xăng dầu</p>
+  <p>Tài liệu nội bộ phục vụ trao đổi và lấy ý kiến — © 2026.</p>
+</div>
+
+</body>
+</html>

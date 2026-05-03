@@ -1,0 +1,124 @@
+<div class="stack">
+  <app-page-header title="Cửa hàng">
+    <p appPageHeaderDesc>Trạm bán lẻ xăng dầu (<code>DM_DonVi</code>). Danh sách theo phạm vi tài khoản; chỉ quản trị viên thêm cửa hàng mới.</p>
+  </app-page-header>
+
+  @if (errorMessage(); as err) {
+    <div class="banner banner--error" role="alert">{{ err }}</div>
+  }
+
+  <app-filter-panel title="Tìm kiếm &amp; bộ lọc">
+    <form class="filters" [formGroup]="filterForm" (ngSubmit)="applyFilters()">
+      <div class="form-grid form-grid--2">
+        <div class="form-field">
+          <label class="form-label" for="flt-ma">Mã (Ma)</label>
+          <input id="flt-ma" class="form-control" type="text" formControlName="ma" autocomplete="off" />
+          @if (filterForm.controls.ma.invalid && filterForm.controls.ma.touched) {
+            <span class="field-error">Tối đa {{ STORE_FIELD_MAX.ma }} ký tự.</span>
+          }
+        </div>
+        <div class="form-field">
+          <label class="form-label" for="flt-ten">Tên (Ten)</label>
+          <input id="flt-ten" class="form-control" type="text" formControlName="ten" autocomplete="off" />
+          @if (filterForm.controls.ten.invalid && filterForm.controls.ten.touched) {
+            <span class="field-error">Tối đa {{ STORE_FIELD_MAX.ten }} ký tự.</span>
+          }
+        </div>
+        <div class="form-field">
+          <label class="form-label" for="flt-tinh">Tỉnh (Tinh)</label>
+          <input id="flt-tinh" class="form-control" type="number" formControlName="tinh" />
+        </div>
+        <div class="form-field">
+          <label class="form-label" for="flt-tt">Trạng thái (TrangThai)</label>
+          <select id="flt-tt" class="form-control" formControlName="trangThai">
+            <option value="any">Tất cả</option>
+            <option value="true">Đang hoạt động</option>
+            <option value="false">Ngưng</option>
+          </select>
+        </div>
+      </div>
+      <div class="btn-row filters__actions">
+        <button type="submit" class="btn btn--primary" [disabled]="filterForm.invalid">Áp dụng</button>
+        <button type="button" class="btn btn--secondary" (click)="clearFilters()">Xóa lọc</button>
+        @if (showCreateStore()) {
+          <a routerLink="/stores/new" class="btn btn--primary">Thêm cửa hàng</a>
+        }
+      </div>
+    </form>
+  </app-filter-panel>
+
+  <app-section-card title="Kết quả">
+    <div appSectionCardActions class="list-header__meta">
+      <span class="muted">{{ rangeLabel() }}</span>
+      <label class="page-size">
+        Số dòng/trang
+        <select
+          class="form-control form-control--inline"
+          [value]="take()"
+          (change)="setTake(+$any($event.target).value)"
+        >
+          @for (n of takeOptions; track n) {
+            <option [value]="n">{{ n }}</option>
+          }
+        </select>
+      </label>
+    </div>
+    @if (loading()) {
+      <p class="muted loading-msg">Đang tải…</p>
+    } @else {
+      <app-table-wrapper>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Ma</th>
+              <th>Ten</th>
+              <th>Điện thoại</th>
+              <th>Tỉnh</th>
+              <th>Trạng thái</th>
+              <th class="col-actions">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (s of items(); track s.id) {
+              <tr>
+                <td>{{ s.ma }}</td>
+                <td>{{ s.ten }}</td>
+                <td>{{ s.dienThoai ?? '—' }}</td>
+                <td>{{ s.tinh ?? '—' }}</td>
+                <td>
+                  @if (s.trangThai === true) {
+                    <app-status-badge label="Hoạt động" variant="success" />
+                  } @else if (s.trangThai === false) {
+                    <app-status-badge label="Ngưng" variant="neutral" />
+                  } @else {
+                    <span class="muted">—</span>
+                  }
+                </td>
+                <td class="col-actions">
+                  <a class="link" [routerLink]="['/stores', s.id, 'edit']">Sửa</a>
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="6" class="muted empty-row">Không có cửa hàng phù hợp bộ lọc.</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </app-table-wrapper>
+    }
+    <div appSectionCardFooter>
+      <button type="button" class="btn btn--secondary btn--sm" (click)="prevPage()" [disabled]="loading() || skip() <= 0">
+        Trước
+      </button>
+      <button
+        type="button"
+        class="btn btn--secondary btn--sm"
+        (click)="nextPage()"
+        [disabled]="loading() || skip() + take() >= totalCount()"
+      >
+        Sau
+      </button>
+    </div>
+  </app-section-card>
+</div>

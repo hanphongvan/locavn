@@ -1,0 +1,5 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Httm.XangDau.Api/Httm.XangDau.Api.csproj" />
+  </Folder>
+</Solution>

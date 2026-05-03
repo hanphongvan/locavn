@@ -1,0 +1,14 @@
+<section class="app-section-card" [class.app-section-card--flush]="flushBody()">
+  <header class="app-section-card__header">
+    <h2 class="app-section-card__title">{{ title() }}</h2>
+    <div class="app-section-card__tools">
+      <ng-content select="[appSectionCardActions]" />
+    </div>
+  </header>
+  <div class="app-section-card__body">
+    <ng-content />
+  </div>
+  <footer class="app-section-card__footer">
+    <ng-content select="[appSectionCardFooter]" />
+  </footer>
+</section>

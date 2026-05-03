@@ -1,0 +1,252 @@
+$brand: #1f3c93;
+$brand-mid: #2747a8;
+$brand-dark: #152a6a;
+$muted: #5c6578;
+$surface: #eef1f8;
+$card: #fff;
+$border: #d1d9e8;
+$mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+:host {
+  display: block;
+  min-height: 100vh;
+  background: $surface;
+  background-image: radial-gradient(ellipse 120% 80% at 50% -20%, rgb(31 60 147 / 12%), transparent),
+    linear-gradient(180deg, #f8f9fc 0%, $surface 40%, #e4e9f4 100%);
+}
+
+.access-denied-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.access-denied-page__brand-bar {
+  height: 4px;
+  flex-shrink: 0;
+  background: linear-gradient(90deg, $brand-dark 0%, $brand 40%, $brand-mid 100%);
+}
+
+.access-denied-page__wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1.25rem 2.5rem;
+}
+
+.access-denied-page__panel {
+  width: 100%;
+  max-width: 32rem;
+  background: $card;
+  border-radius: 14px;
+  box-shadow: 0 12px 28px rgb(15 23 42 / 9%);
+  border: 1px solid $border;
+  padding: 2.25rem 2rem 1.5rem;
+}
+
+.access-denied-page__header {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  margin-bottom: 1.5rem;
+}
+
+.access-denied-page__mark {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 12px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(145deg, $brand 0%, $brand-dark 100%);
+  box-shadow: 0 6px 16px rgb(31 60 147 / 38%);
+}
+
+.access-denied-page__mark-icon {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1;
+}
+
+.access-denied-page__headlines {
+  min-width: 0;
+}
+
+.access-denied-page__title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: #0f172a;
+  line-height: 1.2;
+}
+
+.access-denied-page__subtitle {
+  margin: 0.4rem 0 0;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: $muted;
+}
+
+.access-denied-page__notice {
+  text-align: left;
+  border-radius: 10px;
+  padding: 1rem 1.1rem;
+  margin-bottom: 1.25rem;
+  background: #eef2fb;
+  border: 1px solid rgb(31 60 147 / 22%);
+}
+
+.access-denied-page__lead {
+  margin: 0 0 0.65rem;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: #0f172a;
+}
+
+.access-denied-page__detail {
+  margin: 0 0 0.65rem;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: #334155;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+
+  code {
+    font-family: $mono;
+    font-size: 0.8125em;
+    padding: 0.08rem 0.35rem;
+    border-radius: 4px;
+    background: rgb(255 255 255 / 75%);
+    color: #1e293b;
+    border: 1px solid rgb(31 60 147 / 12%);
+  }
+}
+
+.access-denied-page__path {
+  margin: 0.75rem 0 0;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgb(31 60 147 / 12%);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.access-denied-page__path-label {
+  display: block;
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: 0.25rem;
+}
+
+.access-denied-page__path-value {
+  display: block;
+  word-break: break-all;
+  font-family: $mono;
+  font-size: 0.78rem;
+  color: #1e293b;
+  background: #fff;
+  padding: 0.45rem 0.55rem;
+  border-radius: 6px;
+  border: 1px solid $border;
+}
+
+.access-denied-page__roles {
+  margin-bottom: 1.5rem;
+  padding: 0.85rem 1rem;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.access-denied-page__roles-title {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+}
+
+.access-denied-page__roles-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.875rem;
+  line-height: 1.65;
+  color: #334155;
+
+  code {
+    font-family: $mono;
+    font-size: 0.8125em;
+  }
+}
+
+.access-denied-page__role-pill {
+  display: inline-block;
+  font-weight: 700;
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
+  color: $brand-dark;
+  background: rgb(31 60 147 / 10%);
+  border: 1px solid rgb(31 60 147 / 22%);
+  padding: 0.12rem 0.45rem;
+  border-radius: 4px;
+}
+
+.access-denied-page__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.access-denied-page__btn {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.8rem 1rem;
+  border-radius: 9px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+
+  &--primary {
+    border: none;
+    color: #fff;
+    background: linear-gradient(180deg, $brand 0%, $brand-dark 100%);
+    box-shadow: 0 4px 12px rgb(31 60 147 / 28%);
+  }
+
+  &--secondary {
+    border: 1px solid rgb(31 60 147 / 45%);
+    color: $brand;
+    background: #fff;
+  }
+}
+
+.access-denied-page__footer {
+  margin: 1.25rem 0 0;
+  padding-top: 1rem;
+  border-top: 1px solid #e8edf4;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: #64748b;
+  text-align: center;
+}
+
+.access-denied-page__footer-sep {
+  margin: 0 0.35rem;
+  color: #94a3b8;
+}
+
+.access-denied-page__link {
+  color: $brand;
+  font-weight: 600;
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}

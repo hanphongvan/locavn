@@ -1,0 +1,12 @@
+<article class="app-stat-card">
+  <h3 class="app-stat-card__label">{{ title() }}</h3>
+  <div class="app-stat-card__value-wrap">
+    <ng-content />
+  </div>
+  @if (hint()) {
+    <p class="app-stat-card__hint">{{ hint() }}</p>
+  }
+  @if (linkText() && linkRouterLink()) {
+    <a [routerLink]="linkRouterLink()" class="app-stat-card__link">{{ linkText() }}</a>
+  }
+</article>

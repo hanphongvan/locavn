@@ -1,0 +1,23 @@
+using Microsoft.EntityFrameworkCore.Migrations;
+
+#nullable disable
+
+namespace Httm.XangDau.Api.Shared.Persistence.Migrations
+{
+    /// <inheritdoc />
+    public partial class LeaderMapDistributorUnitGetByIdStoredProcedure : Migration
+    {
+        /// <inheritdoc />
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.Sql(LeaderMapStoredProceduresSql.CreateDistributorUnitGetById);
+        }
+
+        /// <inheritdoc />
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.Sql(
+                "DROP PROCEDURE IF EXISTS dbo.sp_Leader_Map_DistributorUnit_GetById;");
+        }
+    }
+}

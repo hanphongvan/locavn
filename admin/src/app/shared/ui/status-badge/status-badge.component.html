@@ -1,0 +1,10 @@
+<span
+  class="app-status-badge"
+  [class.app-status-badge--success]="variant() === 'success'"
+  [class.app-status-badge--warning]="variant() === 'warning'"
+  [class.app-status-badge--neutral]="variant() === 'neutral'"
+  [class.app-status-badge--danger]="variant() === 'danger'"
+  [class.app-status-badge--info]="variant() === 'info'"
+>
+  {{ label() }}
+</span>

@@ -1,0 +1,4 @@
+#include "Generated.xcconfig"
+// Optional include — `Local.xcconfig` (gitignored) chứa API key per-dev (vd GMS_API_KEY).
+// Trường hợp CI build, set biến qua xcodebuild: `xcodebuild ... GMS_API_KEY=AIza...`
+#include? "Local.xcconfig"

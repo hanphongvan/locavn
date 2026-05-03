@@ -1,0 +1,111 @@
+<div class="dash">
+  <app-page-header title="Bảng điều khiển — Quản trị">
+    <p appPageHeaderDesc>
+      Số liệu từ API quản trị (<code>totalCount</code> / danh sách thật). Không có API tổng hợp riêng cho «nhà phân phối
+      (Loai=3)» nên mục đó không hiển thị.
+    </p>
+  </app-page-header>
+
+  @if (model(); as m) {
+    <div class="dash__kpis">
+      <app-stat-card
+        title="Tổng cửa hàng"
+        hint="GET /api/admin/stores"
+        linkText="Danh sách cửa hàng"
+        linkRouterLink="/stores"
+      >
+        @if (m.storesTotal.kind === 'ok') {
+          <span class="app-stat-metric">{{ m.storesTotal.total | number }}</span>
+        } @else {
+          <span class="app-stat-metric app-stat-metric--muted">—</span>
+          <span class="app-stat-err">{{ m.storesTotal.message }}</span>
+        }
+      </app-stat-card>
+
+      <app-stat-card
+        title="Dòng giá hiện hành"
+        hint="GET /api/admin/store-prices?isCurrent=true · totalCount"
+        linkText="Giá cửa hàng"
+        linkRouterLink="/store-prices"
+      >
+        @if (m.currentPriceRowsTotal.kind === 'ok') {
+          <span class="app-stat-metric">{{ m.currentPriceRowsTotal.total | number }}</span>
+        } @else {
+          <span class="app-stat-metric app-stat-metric--muted">—</span>
+          <span class="app-stat-err">{{ m.currentPriceRowsTotal.message }}</span>
+        }
+      </app-stat-card>
+
+      <app-stat-card
+        title="Giao dịch kho"
+        hint="GET /api/admin/inventory-transactions · totalCount"
+        linkText="Nhập xuất kho"
+        linkRouterLink="/inventory-transactions"
+      >
+        @if (m.inventoryTransactionsTotal.kind === 'ok') {
+          <span class="app-stat-metric">{{ m.inventoryTransactionsTotal.total | number }}</span>
+        } @else {
+          <span class="app-stat-metric app-stat-metric--muted">—</span>
+          <span class="app-stat-err">{{ m.inventoryTransactionsTotal.message }}</span>
+        }
+      </app-stat-card>
+
+      <app-stat-card
+        title="Tồn kho (tổng dòng gộp)"
+        hint="GET /api/admin/inventories/current · totalCount"
+        linkText="Chi tiết tồn kho"
+        linkRouterLink="/inventory-current"
+      >
+        @if (m.inventoryCurrent.kind === 'ok') {
+          <span class="app-stat-metric">{{ m.inventoryCurrent.total | number }}</span>
+        } @else {
+          <span class="app-stat-metric app-stat-metric--muted">—</span>
+          <span class="app-stat-err">{{ m.inventoryCurrent.message }}</span>
+        }
+      </app-stat-card>
+    </div>
+
+    <app-section-card title="Tồn kho hiện tại — xem nhanh" [flushBody]="true">
+      <div appSectionCardActions>
+        <a routerLink="/inventory-current" class="btn btn--secondary btn--sm">Mở đầy đủ</a>
+      </div>
+      @if (m.inventoryCurrent.kind === 'ok') {
+        <app-table-wrapper [caption]="'GET /api/admin/inventories/current — tối đa ' + invPreviewTake + ' dòng'">
+          <table class="data-table dash-preview__table">
+            <thead>
+              <tr>
+                <th>Cửa hàng</th>
+                <th>Mặt hàng</th>
+                <th class="num">Tồn</th>
+                <th>Đơn vị</th>
+                <th>Giao dịch cuối</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (r of m.inventoryCurrent.preview; track r.donViId + '-' + r.productId) {
+                <tr>
+                  <td>{{ m.storeLabel(r.donViId) }}</td>
+                  <td>
+                    <span class="dash-preview__code">{{ r.productCode }}</span>
+                    <span class="muted">{{ r.productName }}</span>
+                  </td>
+                  <td class="num">{{ r.currentQuantity | number: '1.0-4' }}</td>
+                  <td>{{ formatUnit(r) }}</td>
+                  <td>{{ r.lastTransactionDate | date: 'short' }}</td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="5" class="muted empty-row">Không có dữ liệu.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </app-table-wrapper>
+      } @else {
+        <p class="app-stat-err u-pad" role="alert">{{ m.inventoryCurrent.message }}</p>
+      }
+    </app-section-card>
+  } @else {
+    <p class="muted dash__loading">Đang tải…</p>
+  }
+</div>

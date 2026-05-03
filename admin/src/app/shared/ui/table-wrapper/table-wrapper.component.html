@@ -1,0 +1,8 @@
+<div class="app-table-wrapper">
+  @if (caption()) {
+    <div class="app-table-wrapper__caption" role="status">{{ caption() }}</div>
+  }
+  <div class="app-table-wrapper__scroll">
+    <ng-content />
+  </div>
+</div>

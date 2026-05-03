@@ -1,0 +1,92 @@
+/* Dashboard page layout — composes with <app-page-header>, <app-stat-card>, shared primitives */
+.dash {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-space-6);
+}
+
+.dash__kpis {
+  display: grid;
+  gap: var(--app-space-4);
+  grid-template-columns: 1fr;
+
+  @media (min-width: 720px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  @media (min-width: 1100px) {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.dash__loading {
+  margin: var(--app-space-4) 0 0;
+}
+
+.dash-preview__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--app-space-3);
+}
+
+.dash-preview__title {
+  margin: 0 0 0.2rem;
+  font-size: var(--app-text-md);
+  font-weight: 600;
+  color: var(--app-text);
+}
+
+.dash-preview__sub {
+  margin: 0;
+  font-size: var(--app-text-sm);
+}
+
+.dash-preview__table thead th {
+  font-size: var(--app-text-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--app-tracking-label);
+  color: var(--app-text-muted);
+}
+
+.dash-preview__code {
+  font-weight: 600;
+  color: var(--app-brand);
+  margin-right: var(--app-space-2);
+}
+
+.dash-card {
+  border-radius: var(--app-radius-lg);
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  box-shadow: var(--app-shadow-card);
+  padding: var(--app-space-5);
+}
+
+.dash-card__title {
+  margin: 0 0 var(--app-space-3);
+  font-size: var(--app-text-md);
+  font-weight: 600;
+  color: var(--app-text);
+}
+
+.dash-card__body {
+  font-size: var(--app-text-sm);
+  line-height: var(--app-leading-normal);
+}
+
+.dash-stat-hint {
+  margin: var(--app-space-2) 0 0;
+  font-size: var(--app-text-xs);
+  font-weight: 500;
+  color: var(--app-text-muted);
+  line-height: var(--app-leading-snug);
+}
+
+.dash-section-lede {
+  margin: 0;
+  padding: var(--app-space-4) var(--app-space-5) 0;
+  font-size: var(--app-text-sm);
+  color: var(--app-text-muted);
+}

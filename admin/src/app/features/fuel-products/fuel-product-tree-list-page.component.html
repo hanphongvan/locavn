@@ -1,0 +1,135 @@
+<div class="stack">
+  <header class="page-header">
+    <h1>Mặt hàng xăng dầu</h1>
+    <p>Cây phân cấp từ <code>GET /api/admin/fuel-products/tree</code>; danh sách phẳng từ <code>GET /api/admin/fuel-products</code> (có phân trang).</p>
+  </header>
+
+  <div class="card">
+    <div class="card__header toolbar">
+      <div class="tabs" role="tablist">
+        <button
+          type="button"
+          class="tabs__btn"
+          [class.tabs__btn--active]="view() === 'tree'"
+          role="tab"
+          [attr.aria-selected]="view() === 'tree'"
+          (click)="setView('tree')"
+        >
+          Cây
+        </button>
+        <button
+          type="button"
+          class="tabs__btn"
+          [class.tabs__btn--active]="view() === 'list'"
+          role="tab"
+          [attr.aria-selected]="view() === 'list'"
+          (click)="setView('list')"
+        >
+          Danh sách
+        </button>
+      </div>
+      <div class="toolbar__actions">
+        <button type="button" class="btn btn--secondary btn--sm" (click)="reloadAll()">Làm mới</button>
+        <a routerLink="/fuel-products/new" class="btn btn--primary btn--sm">Thêm mặt hàng</a>
+      </div>
+    </div>
+
+    <div class="card__body">
+      @if (view() === 'tree') {
+        @if (treeError(); as te) {
+          <div class="banner banner--error" role="alert">{{ te }}</div>
+        }
+        @if (treeLoading()) {
+          <p class="muted">Đang tải cây…</p>
+        } @else if (tree().length === 0) {
+          <p class="muted">Chưa có mặt hàng. Hãy tạo mới.</p>
+        } @else {
+          <div class="tree-panel">
+            <app-fuel-product-tree-view [nodes]="tree()" />
+          </div>
+        }
+      } @else {
+        @if (listError(); as le) {
+          <div class="banner banner--error" role="alert">{{ le }}</div>
+        }
+        <div class="list-toolbar">
+          <span class="muted">{{ listRangeLabel() }}</span>
+          <label class="page-size">
+            Số dòng/trang
+            <select
+              class="form-control form-control--inline"
+              [value]="listTake()"
+              (change)="setTake(+$any($event.target).value)"
+            >
+              @for (n of takeOptions; track n) {
+                <option [value]="n">{{ n }}</option>
+              }
+            </select>
+          </label>
+        </div>
+        @if (listLoading()) {
+          <p class="muted">Đang tải danh sách…</p>
+        } @else {
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Mã</th>
+                  <th>Tên</th>
+                  <th>Cha</th>
+                  <th>Đơn vị</th>
+                  <th>Hoạt động</th>
+                  <th>Thứ tự</th>
+                  <th class="col-actions">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (p of listItems(); track p.id) {
+                  <tr>
+                    <td>{{ p.code }}</td>
+                    <td>{{ p.name }}</td>
+                    <td>{{ p.parentId ?? '—' }}</td>
+                    <td>{{ p.unitId ?? '—' }}</td>
+                    <td>
+                      @if (p.isActive) {
+                        <span class="pill pill--on">Có</span>
+                      } @else {
+                        <span class="pill pill--off">Không</span>
+                      }
+                    </td>
+                    <td>{{ p.sortOrder ?? '—' }}</td>
+                    <td class="col-actions">
+                      <a class="link" [routerLink]="['/fuel-products', p.id, 'edit']">Sửa</a>
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td colspan="7" class="muted empty-row">Không có mặt hàng.</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+        <div class="list-footer">
+          <button
+            type="button"
+            class="btn btn--secondary btn--sm"
+            (click)="prevPage()"
+            [disabled]="listLoading() || listSkip() <= 0"
+          >
+            Trước
+          </button>
+          <button
+            type="button"
+            class="btn btn--secondary btn--sm"
+            (click)="nextPage()"
+            [disabled]="listLoading() || listSkip() + listTake() >= listTotal()"
+          >
+            Sau
+          </button>
+        </div>
+      }
+    </div>
+  </div>
+</div>

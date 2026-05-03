@@ -1,0 +1,79 @@
+<div class="stack inv-map-page">
+  <app-page-header title="Bản đồ tồn kho">
+    <p appPageHeaderDesc>
+      Vị trí cửa hàng và mức tồn theo nhóm nhiên liệu (Xăng / Dầu); chọn điểm trên bản đồ để xem chi tiết.
+    </p>
+  </app-page-header>
+
+  @if (errorMessage(); as err) {
+    <div class="banner banner--error" role="alert">{{ err }}</div>
+  }
+
+  <section class="card inv-map-page__map-card" aria-label="Bản đồ tồn kho">
+    <div class="card__body card__body--flush inv-map-page__map-body">
+      <div #mapShell class="inv-map-page__map-shell">
+        <div #mapHost class="inv-map-page__map" role="application" aria-label="Bản đồ nền và marker tồn kho"></div>
+
+        <div class="inv-map-page__map-controls-tr">
+          <div class="inv-map-page__group-filter" role="group" aria-label="Nhóm nhiên liệu">
+            <span class="inv-map-page__group-filter-label">Nhóm</span>
+            <div class="inv-map-page__segmented">
+              <button
+                type="button"
+                class="inv-map-page__seg-btn"
+                [class.inv-map-page__seg-btn--active]="groupCode() === 'XANG'"
+                [attr.aria-pressed]="groupCode() === 'XANG'"
+                (click)="setGroup('XANG')"
+              >
+                Xăng
+              </button>
+              <button
+                type="button"
+                class="inv-map-page__seg-btn"
+                [class.inv-map-page__seg-btn--active]="groupCode() === 'DAU'"
+                [attr.aria-pressed]="groupCode() === 'DAU'"
+                (click)="setGroup('DAU')"
+              >
+                Dầu
+              </button>
+            </div>
+            @if (loading()) {
+              <span class="inv-map-page__map-loading muted" aria-live="polite" title="Đang tải">…</span>
+            }
+          </div>
+
+          @if (fullscreenSupported()) {
+            <button
+              type="button"
+              class="inv-map-page__fullscreen-btn"
+              (click)="toggleMapFullscreen()"
+              [attr.aria-pressed]="mapFullscreen()"
+              [attr.aria-label]="mapFullscreen() ? 'Thoát toàn màn hình' : 'Phóng toàn màn hình bản đồ'"
+              [title]="mapFullscreen() ? 'Thoát toàn màn hình' : 'Toàn màn hình'"
+            >
+              <span class="material-icons" aria-hidden="true">{{ mapFullscreen() ? 'fullscreen_exit' : 'fullscreen' }}</span>
+            </button>
+          }
+        </div>
+
+        <aside class="inv-map-page__legend" aria-label="Chú thích màu marker">
+          <div class="inv-map-page__legend-title">Màu marker</div>
+          <ul class="inv-map-page__legend-list">
+            <li>
+              <span class="inv-map-page__legend-swatch inv-map-page__legend-swatch--danger" aria-hidden="true"></span>
+              <span>Đỏ — hết hàng</span>
+            </li>
+            <li>
+              <span class="inv-map-page__legend-swatch inv-map-page__legend-swatch--warning" aria-hidden="true"></span>
+              <span>Vàng — gần hết</span>
+            </li>
+            <li>
+              <span class="inv-map-page__legend-swatch inv-map-page__legend-swatch--success" aria-hidden="true"></span>
+              <span>Xanh — bình thường</span>
+            </li>
+          </ul>
+        </aside>
+      </div>
+    </div>
+  </section>
+</div>

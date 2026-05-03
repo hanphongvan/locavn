@@ -1,0 +1,179 @@
+<div class="inv-report stack">
+  <header class="inv-report__header page-header">
+    <h1>Tồn kho hiện tại</h1>
+    
+  </header>
+
+  <section class="card inv-ic-hub-filters" aria-label="Bộ lọc tồn kho hiện tại">
+    <div class="inv-ic-hub-filters__head">
+      <span class="material-icons inv-ic-hub-filters__head-icon" aria-hidden="true">tune</span>
+      <div class="inv-ic-hub-filters__head-text">
+        <span class="inv-ic-hub-filters__title">Tùy chọn báo cáo</span>
+      </div>
+    </div>
+    <div class="card__body inv-ic-hub-filters__body">
+      <form class="filters inv-ic-hub-filters__form" [formGroup]="filterForm" (ngSubmit)="applyFilters()">
+        <div class="inv-ic-hub-filters__grid">
+          
+          <div class="form-field">
+            <label class="form-label" for="ic-dv">Cửa hàng</label>
+            <select id="ic-dv" class="form-control" formControlName="donViId">
+              <option [ngValue]="null">Mọi cửa hàng</option>
+              @for (s of stores(); track s.id) {
+                <option [ngValue]="s.id">{{ s.ma }} — {{ s.ten }}</option>
+              }
+            </select>
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="ic-pr">Mặt hàng</label>
+            <select id="ic-pr" class="form-control" formControlName="productId">
+              <option [ngValue]="null">Mọi mặt hàng</option>
+              @for (p of products(); track p.id) {
+                <option [ngValue]="p.id">{{ p.code }} — {{ p.name }}</option>
+              }
+            </select>
+          </div>
+        </div>
+        <div class="btn-row inv-ic-hub-filters__actions">
+          <button type="submit" class="btn btn--primary">Áp dụng</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  @if (errorMessage(); as err) {
+    <div class="banner banner--error" role="alert">{{ err }}</div>
+  }
+
+  @if (loading()) {
+    <p class="muted inv-report__loading">Đang tải…</p>
+  } @else if (isFlat()) {
+    <div class="card1 inv-report__sheet">
+     
+      <div class="card__body" style="padding: 0px;">
+        <div class="table-wrap">
+          <table class="data-table data-table--report">
+            <thead>
+              <tr>
+                <th>Cửa hàng</th>
+                <th>Mặt hàng</th>
+                <th class="num">Tồn</th>
+                <th>Đơn vị</th>
+                <th>Giao dịch cuối</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (r of flatItems(); track r.donViId + '-' + r.productId) {
+                <tr>
+                  <td class="cell-store">{{ storeLabel()(r.donViId) }}</td>
+                  <td>                   
+                    <span class="cell-product-name">{{ r.productName }}</span>
+                  </td>
+                  <td class="num cell-qty">{{ r.currentQuantity | number: '1.0-4' }}</td>
+                  <td>{{ unitLabel(r) }}</td>
+                  <td class="cell-date">{{ r.lastTransactionDate | date: 'medium' }}</td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="5" class="muted empty-row">Không có dòng cho truy vấn này.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <div class="list-footer">
+          <label class="page-size">
+            Số dòng/trang
+            <select
+              class="form-control form-control--inline"
+              [value]="flatTake()"
+              (change)="setFlatTake(+$any($event.target).value)"
+            >
+              @for (n of takeOptions; track n) {
+                <option [value]="n">{{ n }}</option>
+              }
+            </select>
+          </label>
+          <span class="list-footer__spacer" aria-hidden="true"></span>
+          <div class="list-footer__nav">
+            <button type="button" class="btn btn--secondary btn--sm" (click)="prevFlatPage()" [disabled]="loading() || flatSkip() <= 0">
+              Trước
+            </button>
+            <button
+              type="button"
+              class="btn btn--secondary btn--sm"
+              (click)="nextFlatPage()"
+              [disabled]="loading() || flatSkip() + flatTake() >= flatTotal()"
+            >
+              Sau
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  } @else {
+    @if (groupedMeta(); as meta) {
+      <div class="inv-report__meta">
+        @if (meta.source === 'by-store') {
+          <p>
+            <span class="badge badge--api">GET /api/admin/inventories/current/by-store/:donViId</span>
+            Hiển thị <strong>{{ meta.rowCount }}</strong> dòng mặt hàng cho cửa hàng đã chọn.
+          </p>
+        } @else {
+          <p>
+            <span class="badge badge--api">GET /api/admin/inventories/current</span>
+            Đã tải <strong>{{ meta.rowCount }}</strong> / <strong>{{ meta.serverTotalCount }}</strong> dòng gộp.
+            @if (meta.capped) {
+              <span class="inv-report__warn">Thu hẹp bộ lọc hoặc dùng chế độ phẳng để xem thêm.</span>
+            }
+          </p>
+        }
+      </div>
+    }
+
+    @for (g of groupedSections(); track g.donViId) {
+      <section class="card inv-report__group">
+        <div class="inv-report__group-head">
+          <h2 class="inv-report__group-title">{{ storeLabel()(g.donViId) }}</h2>
+          <div class="inv-report__group-meta muted">
+            {{ g.lines.length }} mặt hàng · Tổng tồn
+            <strong class="num">{{ groupSubtotal(g.lines) | number: '1.0-4' }}</strong>
+          </div>
+        </div>
+        <div class="card__body card__body--flush">
+          <div class="table-wrap">
+            <table class="data-table data-table--report data-table--group">
+              <thead>
+                <tr>
+                  <th>Mặt hàng</th>
+                  <th class="num">Tồn</th>
+                  <th>Đơn vị</th>
+                  <th>Giao dịch cuối</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (r of g.lines; track r.productId) {
+                  <tr>
+                    <td>
+                      <span class="cell-product-code">{{ r.productCode }}</span>
+                      <span class="cell-product-name">{{ r.productName }}</span>
+                    </td>
+                    <td class="num cell-qty">{{ r.currentQuantity | number: '1.0-4' }}</td>
+                    <td>{{ unitLabel(r) }}</td>
+                    <td class="cell-date">{{ r.lastTransactionDate | date: 'medium' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    } @empty {
+      <div class="card">
+        <div class="card__body">
+          <p class="muted">Không có dòng. Điều chỉnh bộ lọc và nhấn Áp dụng.</p>
+        </div>
+      </div>
+    }
+  }
+</div>

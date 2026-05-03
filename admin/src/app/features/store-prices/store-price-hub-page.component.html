@@ -1,0 +1,291 @@
+<div class="stack">
+  <header class="page-header">
+    <h1>Giá tại cửa hàng</h1>
+   
+  </header>
+
+  <section class="card store-price-hub-filters" aria-label="Bộ lọc giá cửa hàng">
+    <div class="store-price-hub-filters__head">
+      <span class="material-icons store-price-hub-filters__head-icon" aria-hidden="true">tune</span>
+      <div class="store-price-hub-filters__head-text">
+        <span class="store-price-hub-filters__title">Bộ lọc dữ liệu</span>        
+      </div>
+    </div>
+    <div class="card__body store-price-hub-filters__body">
+      <form class="filters store-price-hub-filters__form" [formGroup]="filterForm" (ngSubmit)="applyFilters()">
+        <div class="form-grid form-grid--2">
+          <div class="form-field">
+            <label class="form-label" for="flt-dv-search">Cửa hàng</label>
+            <input
+              id="flt-dv-search"
+              type="text"
+              class="form-control"
+              matInput
+              formControlName="storeSearch"
+              [matAutocomplete]="fltStoreAcp"
+              [placeholder]="filterForm.controls.donViId.disabled ? '' : 'Gõ mã, tên hoặc Id để tìm…'"
+              autocomplete="off"
+              (blur)="onStoreSearchBlur()"
+            />
+            <mat-autocomplete
+              #fltStoreAcp="matAutocomplete"
+              [displayWith]="displayStoreAutocomplete"
+              (optionSelected)="onStorePicked($event)"
+            >
+              @if (!filterForm.controls.donViId.disabled) {
+                <mat-option [value]="clearStoreFilter">— Chưa chọn cửa hàng —</mat-option>
+              }
+              @for (s of storeMatches(filterForm.controls.storeSearch.value); track s.id) {
+                <mat-option [value]="s">{{ storeLine(s) }}</mat-option>
+              }
+            </mat-autocomplete>
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="flt-pr">Mặt hàng</label>
+            <select id="flt-pr" class="form-control" formControlName="productId">
+              <option [ngValue]="null">Tất cả mặt hàng</option>
+              @for (p of products(); track p.id) {
+                <option [ngValue]="p.id">{{ p.code }} — {{ p.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="form-field form-field--wide">
+            <label class="form-label" for="flt-ba">Danh sách bảng giá: IsActive</label>
+            <select id="flt-ba" class="form-control" formControlName="boardIsActive">
+              <option value="any">Tất cả</option>
+              <option value="true">Đang hiệu lực (header)</option>
+              <option value="false">Không hiệu lực</option>
+            </select>
+            <span class="form-hint"></span>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button type="submit" class="btn btn--primary">Áp dụng bộ lọc</button>
+          <button type="button" class="btn btn--secondary" (click)="goToNewStorePrice()">Thêm giá</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  @if (storeScopeError(); as se) {
+    <div class="banner banner--error" role="alert">{{ se }}</div>
+  }
+
+  <div class="split">
+    <div class="card">
+      <div class="card__header split__title">
+        <span>Giá hiện hành</span>
+        <span class="badge badge--current">current/by-store</span>
+      </div>
+      <div class="card__body card__body--flush">
+        @if (storeScopeLoading()) {
+          <p class="muted pad">Đang tải…</p>
+        } @else if (filterForm.controls.donViId.value === null || filterForm.controls.donViId.value === undefined) {
+          <p class="muted pad">Chọn cửa hàng để tải giá hiện hành.</p>
+        } @else {
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Mặt hàng</th>
+                  <th class="num">Giá</th>
+                  <th>UnitId</th>
+                  <th>Hiệu lực</th>
+                  <th>Ghi chú</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (r of currentRows(); track r.id) {
+                  <tr
+                    class="row--clickable"
+                    (click)="onCurrentRowClick(r)"
+                    (keydown.enter)="onCurrentRowClick(r)"
+                    tabindex="0"
+                    role="button"
+                    [attr.aria-label]="'Lọc lịch sử theo ' + productLabel()(r.productId)"
+                  >
+                    <td>{{ productLabel()(r.productId) }}</td>
+                    <td class="num">{{ r.price | number: '1.2-2' }}</td>
+                    <td>{{ r.unitId ?? '—' }}</td>
+                    <td>{{ formatPriceEffective(r.effectiveDate) }}</td>
+                    <td class="cell-note">{{ r.note ?? '—' }}</td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td colspan="5" class="muted empty-row">Không có dòng (kiểm tra bộ lọc mặt hàng).</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card__header split__title">
+        <span>Lịch sử giá</span>
+        <span class="badge badge--hist">by-store · ActiveDate ↓</span>
+      </div>
+      <div class="card__body card__body--flush">
+        @if (historyFocusProductId() !== null) {
+          <div class="pad pad--tight">
+            <span class="muted">Đang lọc mặt hàng #{{ historyFocusProductId() }}.</span>
+            <button type="button" class="btn btn--link btn--sm" (click)="clearHistoryProductFilter()">Bỏ lọc mặt hàng</button>
+          </div>
+        }
+        @if (storeScopeLoading()) {
+          <p class="muted pad">Đang tải…</p>
+        } @else if (filterForm.controls.donViId.value === null || filterForm.controls.donViId.value === undefined) {
+          <p class="muted pad">Chọn cửa hàng để tải lịch sử.</p>
+        } @else {
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Mặt hàng</th>
+                  <th class="num">Giá</th>
+                  <th>Hiện hành</th>
+                  <th>Hiệu lực</th>
+                  <th>Ghi chú</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (r of historyRows(); track r.id) {
+                  <tr [class.row--past]="!r.isCurrent">
+                    <td>{{ productLabel()(r.productId) }}</td>
+                    <td class="num">{{ r.price | number: '1.2-2' }}</td>
+                    <td>
+                      @if (r.isCurrent) {
+                        <span class="pill pill--on">Có</span>
+                      } @else {
+                        <span class="pill pill--off">Không</span>
+                      }
+                    </td>
+                    <td>{{ formatPriceEffective(r.effectiveDate) }}</td>
+                    <td class="cell-note">{{ r.note ?? '—' }}</td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td colspan="5" class="muted empty-row">Không có lịch sử.</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card__header toolbar">
+      <div>
+        <span class="card__title-inline">Danh sách bảng giá</span>
+        
+      </div>
+      <div class="toolbar__meta muted">{{ boardRangeLabel() }}</div>
+    </div>
+    <div class="card__body">
+      @if (boardError(); as be) {
+        <div class="banner banner--error" role="alert">{{ be }}</div>
+      }
+      @if (boardLoading()) {
+        <p class="muted">Đang tải…</p>
+      } @else {
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Cửa hàng</th>
+                <th>Ngày áp dụng</th>
+                <th>Đang hiệu lực</th>
+                <th>Ngày tạo</th>
+                <th>Ngày sửa</th>
+                <th class="col-actions">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (r of boardRows(); track r.id) {
+                <tr>
+                  <td>{{ storeLabel()(r.donViId) }}</td>
+                  <td>{{ formatBoardDate(r.activeDate) }}</td>
+                  <td>
+                    @if (r.isActive) {
+                      <span class="pill pill--on">Có</span>
+                    } @else {
+                      <span class="pill pill--off">Không</span>
+                    }
+                  </td>
+                  <td>{{ formatBoardAudit(r.created) }}</td>
+                  <td>{{ formatBoardAudit(r.modified) }}</td>
+                  <td class="col-actions">
+                    <div class="icon-actions" role="group" [attr.aria-label]="'Thao tác bảng giá #' + r.id">
+                      <button
+                        type="button"
+                        class="btn-icon-action"
+                        (click)="goToEditBoard(r.id)"
+                        [disabled]="boardDeletingId() !== null"
+                        title="Sửa"
+                        aria-label="Sửa bảng giá"
+                      >
+                        <span class="material-icons" aria-hidden="true">edit</span>
+                      </button>
+                      <button
+                        type="button"
+                        class="btn-icon-action btn-icon-action--danger"
+                        (click)="confirmDeleteBoard(r.id)"
+                        [disabled]="boardDeletingId() !== null"
+                        title="Xóa"
+                        aria-label="Xóa bảng giá"
+                      >
+                        <span class="material-icons" aria-hidden="true">delete</span>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="6" class="muted empty-row">Không có bảng giá cho truy vấn này.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+      <div class="list-footer">
+        <label class="page-size">
+          Số dòng/trang
+          <select
+            class="form-control form-control--inline"
+            [value]="boardTake()"
+            (change)="setBoardTake(+$any($event.target).value)"
+          >
+            @for (n of takeOptions; track n) {
+              <option [value]="n">{{ n }}</option>
+            }
+          </select>
+        </label>
+        <span class="list-footer__spacer" aria-hidden="true"></span>
+        <div class="list-footer__nav">
+          <button
+            type="button"
+            class="btn btn--secondary btn--sm"
+            (click)="prevBoardPage()"
+            [disabled]="boardLoading() || boardSkip() <= 0"
+          >
+            Trước
+          </button>
+          <button
+            type="button"
+            class="btn btn--secondary btn--sm"
+            (click)="nextBoardPage()"
+            [disabled]="boardLoading() || boardSkip() + boardTake() >= boardTotal()"
+          >
+            Sau
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

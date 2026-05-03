@@ -1,0 +1,85 @@
+import '../../../../core/network/json_utils.dart';
+
+/// Backend: `StationMapItemDto`
+class StationMapItem {
+  const StationMapItem({
+    required this.stationId,
+    required this.stationName,
+    required this.latitude,
+    required this.longitude,
+    this.shortAddress,
+    this.priceRon95,
+    this.priceDiesel,
+    this.isActive,
+    this.openNow,
+    this.openStatus,
+    this.openingTime,
+    this.closingTime,
+    this.activeServiceCodes = const [],
+  });
+
+  final int stationId;
+  final String stationName;
+  final double latitude;
+  final double longitude;
+  final String? shortAddress;
+
+  /// Đơn giá RON95 (`So_01` dòng báo cáo khớp) — đồng.
+  final double? priceRon95;
+
+  /// Đơn giá diesel / DO (`So_01` dòng báo cáo khớp) — đồng.
+  final double? priceDiesel;
+
+  /// `DM_DonVi.TrangThai` — giấy phép / hoạt động hồ sơ.
+  final bool? isActive;
+
+  /// Giờ mở cửa thực tế (theo `StationOperatingHours`, giờ VN) khi có dữ liệu.
+  final bool? openNow;
+
+  /// `open` | `closed` | `unknown`
+  final String? openStatus;
+
+  final String? openingTime;
+  final String? closingTime;
+
+  /// Active `StationStoreServices.serviceCode` values from the map API.
+  final List<String> activeServiceCodes;
+
+  /// `true` nếu cặp (lat, lng) hữu hạn và nằm trong dải hợp lệ.
+  /// Dùng để filter những trạm có dữ liệu tọa độ hỏng (NaN, Infinity, vượt ±90/±180).
+  static bool isValidCoord(double lat, double lng) =>
+      lat.isFinite &&
+      lng.isFinite &&
+      lat.abs() <= 90 &&
+      lng.abs() <= 180;
+
+  bool get hasValidCoord => isValidCoord(latitude, longitude);
+
+  factory StationMapItem.fromJson(Map<String, dynamic> json) {
+    return StationMapItem(
+      stationId: JsonUtils.readIntRequired(json['stationId'], field: 'stationId'),
+      stationName: JsonUtils.readString(json['stationName']) ?? '',
+      latitude: JsonUtils.readDoubleRequired(json['latitude'], field: 'latitude'),
+      longitude: JsonUtils.readDoubleRequired(json['longitude'], field: 'longitude'),
+      shortAddress: JsonUtils.readString(json['shortAddress']),
+      priceRon95: JsonUtils.readDouble(json['priceRon95']),
+      priceDiesel: JsonUtils.readDouble(json['priceDiesel']),
+      isActive: JsonUtils.readBool(json['isActive']),
+      openNow: JsonUtils.readBool(json['openNow']),
+      openStatus: JsonUtils.readString(json['openStatus']),
+      openingTime: JsonUtils.readString(json['openingTime']),
+      closingTime: JsonUtils.readString(json['closingTime']),
+      activeServiceCodes: _readStringList(json['activeServiceCodes']),
+    );
+  }
+
+  static List<String> _readStringList(Object? raw) {
+    if (raw is! List<dynamic>) return const [];
+    final out = <String>[];
+    for (final e in raw) {
+      final s = JsonUtils.readString(e);
+      if (s != null && s.isNotEmpty) out.add(s);
+    }
+    return out;
+  }
+}

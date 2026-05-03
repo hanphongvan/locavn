@@ -1,0 +1,171 @@
+<div class="stack">
+  <header class="page-header">
+    <h1>Nhập xuất kho</h1>
+  </header>
+
+  <section class="card inv-tx-hub-filters" aria-label="Bộ lọc nhập xuất kho">
+    <div class="inv-tx-hub-filters__head">
+      <span class="material-icons inv-tx-hub-filters__head-icon" aria-hidden="true">tune</span>
+      <div class="inv-tx-hub-filters__head-text">
+        <span class="inv-tx-hub-filters__title">Bộ lọc dữ liệu</span>
+      </div>
+    </div>
+    <div class="card__body inv-tx-hub-filters__body">
+      <form class="filters inv-tx-hub-filters__form" [formGroup]="filterForm" (ngSubmit)="applyFilters()">
+        @if (filterForm.touched && filterForm.hasError('dateRangeOrder')) {
+          <div class="banner banner--error filter-banner" role="alert">
+            Ngày bắt đầu phải nhỏ hơn hoặc bằng ngày kết thúc.
+          </div>
+        }
+        <div class="inv-tx-hub-filters__grid">
+          <div class="form-field">
+            <label class="form-label" for="flt-dv">Cửa hàng</label>
+            <select id="flt-dv" class="form-control" formControlName="donViId">
+              <option [ngValue]="null">Mọi cửa hàng</option>
+              @for (s of stores(); track s.id) {
+                <option [ngValue]="s.id">{{ s.ma }} — {{ s.ten }}</option>
+              }
+            </select>
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="flt-pr">Mặt hàng</label>
+            <select id="flt-pr" class="form-control" formControlName="productId">
+              <option [ngValue]="null">Tất cả mặt hàng</option>
+              @for (p of products(); track p.id) {
+                <option [ngValue]="p.id">{{ p.code }} — {{ p.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="flt-tt">Loại giao dịch</label>
+            <select id="flt-tt" class="form-control" formControlName="transactionType">
+              <option [ngValue]="null">Tất cả</option>
+              <option [ngValue]="1">1 — Nhập kho</option>
+              <option [ngValue]="-1">−1 — Xuất kho</option>
+            </select>
+          </div>
+        </div>
+        <div class="inv-tx-hub-filters__grid-dates">
+          <div class="form-field">
+            <label class="form-label" for="flt-from">Từ ngày</label>
+            <input
+              id="flt-from"
+              class="form-control inv-tx-hub-filters__date-input"
+              type="text"
+              formControlName="transactionDateFrom"
+              placeholder="dd/MM/yyyy"
+              maxlength="10"
+              autocomplete="off"
+            />
+            @if (filterForm.controls.transactionDateFrom.touched && filterForm.controls.transactionDateFrom.hasError('vnDateFormat')) {
+              <span class="field-error">Nhập đúng dd/MM/yyyy.</span>
+            }
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="flt-to">Đến ngày</label>
+            <input
+              id="flt-to"
+              class="form-control inv-tx-hub-filters__date-input"
+              type="text"
+              formControlName="transactionDateTo"
+              placeholder="dd/MM/yyyy"
+              maxlength="10"
+              autocomplete="off"
+            />
+            @if (filterForm.controls.transactionDateTo.touched && filterForm.controls.transactionDateTo.hasError('vnDateFormat')) {
+              <span class="field-error">Nhập đúng dd/MM/yyyy.</span>
+            }
+            <span class="form-hint"></span>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button type="submit" class="btn btn--primary" [disabled]="filterForm.invalid">Áp dụng bộ lọc</button>
+          <button type="button" class="btn btn--secondary" (click)="goToNewInventoryTransaction()">Thêm giao dịch</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <div class="card">
+    <div class="card__header toolbar">
+      <div>
+        <span class="card__title-inline">Giao dịch</span>
+        
+      </div>
+      <div class="toolbar__meta muted">{{ rangeLabel() }}</div>
+    </div>
+    <div class="card__body">
+      @if (pagedError(); as pe) {
+        <div class="banner banner--error" role="alert">{{ pe }}</div>
+      }
+      @if (pagedLoading()) {
+        <p class="muted">Đang tải…</p>
+      } @else {
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Cửa hàng</th>
+                <th>Ngày</th>
+                <th>Loại</th>
+                <th class="num">Số dòng</th>
+                <th>Ghi chú</th>
+                <th class="col-actions">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (r of pagedItems(); track r.id) {
+                <tr [class.row--export]="r.transactionType === -1" [class.row--import]="r.transactionType === 1">
+                  <td>{{ storeLabel()(r.donViId) }}</td>
+                  <td>{{ r.transactionDate | date: 'medium' : 'Asia/Ho_Chi_Minh' }}</td>
+                  <td>
+                    <span class="pill" [class.pill--import]="r.transactionType === 1" [class.pill--export]="r.transactionType === -1">
+                      {{ transactionTypeLabel(r.transactionType) }}
+                    </span>
+                  </td>
+                  <td class="num">{{ r.lineCount }}</td>
+                  <td class="cell-note">{{ r.note ?? '—' }}</td>
+                  <td class="col-actions">
+                    <a class="link" [routerLink]="['/inventory-transactions', r.id, 'edit']">Sửa</a>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="6" class="muted empty-row">Không có dòng cho truy vấn này.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+      <div class="list-footer">
+        <label class="page-size">
+          Số dòng/trang
+          <select
+            class="form-control form-control--inline"
+            [value]="listTake()"
+            (change)="setListTake(+$any($event.target).value)"
+          >
+            @for (n of takeOptions; track n) {
+              <option [value]="n">{{ n }}</option>
+            }
+          </select>
+        </label>
+        <span class="list-footer__spacer" aria-hidden="true"></span>
+        <div class="list-footer__nav">
+          <button type="button" class="btn btn--secondary btn--sm" (click)="prevPage()" [disabled]="pagedLoading() || listSkip() <= 0">
+            Trước
+          </button>
+          <button
+            type="button"
+            class="btn btn--secondary btn--sm"
+            (click)="nextPage()"
+            [disabled]="pagedLoading() || listSkip() + listTake() >= pagedTotal()"
+          >
+            Sau
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,30 @@
+.app-filter-panel {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-lg);
+  box-shadow: var(--app-shadow-card);
+  padding: var(--app-space-5);
+  margin-bottom: var(--app-space-5);
+  transition:
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.app-filter-panel:hover {
+  border-color: rgba(15, 23, 42, 0.1);
+  box-shadow: var(--app-shadow-sm);
+}
+
+.app-filter-panel__title {
+  margin: 0 0 var(--app-space-4);
+  font-size: var(--app-text-base);
+  font-weight: 600;
+  color: var(--app-text);
+  letter-spacing: var(--app-tracking-tight);
+}
+
+.app-filter-panel__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-space-4);
+}

@@ -1,0 +1,28 @@
+.filters__actions {
+  margin-top: var(--app-space-2);
+}
+
+.list-header__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--app-space-4);
+}
+
+.page-size {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--app-space-2);
+  font-size: var(--app-text-sm);
+  color: var(--app-text-muted);
+}
+
+.loading-msg {
+  margin: 0;
+  padding: var(--app-space-5);
+}
+
+.col-actions {
+  width: 5.5rem;
+  white-space: nowrap;
+}

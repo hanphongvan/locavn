@@ -1,0 +1,4 @@
+#include "Generated.xcconfig"
+// Optional include — `Local.xcconfig` (gitignored) chứa API key per-dev (vd GMS_API_KEY).
+// Trường hợp chưa cấu hình, build vẫn chạy nhưng `$(GMS_API_KEY)` rỗng → Maps SDK không init.
+#include? "Local.xcconfig"

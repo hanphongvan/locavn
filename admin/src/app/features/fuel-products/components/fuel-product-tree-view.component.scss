@@ -1,0 +1,85 @@
+.tree {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tree .tree {
+  margin: 0.35rem 0 0.35rem 1rem;
+  padding-left: 0.75rem;
+  border-left: 1px solid var(--app-border);
+}
+
+.tree__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  padding: 0.35rem 0;
+  min-height: 2rem;
+}
+
+.tree__code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--app-brand);
+}
+
+.tree__name {
+  font-weight: 500;
+  color: var(--app-text);
+  flex: 1;
+  min-width: 8rem;
+}
+
+.tree__sort {
+  font-size: 0.75rem;
+  color: var(--app-text-muted);
+}
+
+.tree__actions {
+  display: flex;
+  gap: 0.65rem;
+  align-items: center;
+}
+
+.link {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--app-brand);
+  text-decoration: none;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+.link--muted {
+  color: var(--app-text-muted);
+  font-weight: 400;
+}
+
+.link--muted:hover {
+  color: var(--app-brand);
+}
+
+.pill {
+  display: inline-block;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.pill--on {
+  background: rgba(21, 128, 61, 0.12);
+  color: var(--app-success);
+}
+
+.pill--off {
+  background: rgba(100, 116, 139, 0.15);
+  color: var(--app-text-muted);
+}

@@ -1,0 +1,128 @@
+@use '../auth-portal-layout.shared' as auth;
+
+@include auth.auth-portal-host;
+@include auth.auth-portal-brand-bar;
+@include auth.auth-portal-wrap;
+@include auth.auth-portal-panel(48rem);
+@include auth.auth-portal-header;
+
+.register-page__panel {
+  padding-bottom: var(--app-space-8);
+}
+
+.register-page__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-space-2);
+}
+
+.register-page__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: var(--app-form-grid-gap);
+  align-items: start;
+}
+
+.register-page__full-row {
+  grid-column: 1 / -1;
+}
+
+.register-page__lock-row {
+  padding-top: var(--app-space-2);
+}
+
+.register-page__checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  gap: var(--app-space-3) var(--app-space-5);
+
+  &--scroll {
+    max-height: 14rem;
+    overflow-y: auto;
+    padding-right: var(--app-space-2);
+  }
+}
+
+.register-page__hint-error {
+  color: var(--app-danger);
+}
+
+.register-page__banner {
+  border-radius: var(--app-radius-md);
+  padding: var(--app-space-4);
+  font-size: var(--app-text-sm);
+  line-height: var(--app-leading-normal);
+  margin-bottom: var(--app-space-4);
+
+  &--error {
+    color: #7a271a;
+    background: #fef3f2;
+    border: 1px solid #fecdca;
+  }
+}
+
+.register-page__loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--app-space-4);
+  padding: var(--app-space-10) var(--app-space-4);
+  color: var(--app-text-muted);
+  font-size: var(--app-text-sm);
+}
+
+.register-page__footer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--app-space-3);
+  align-items: center;
+  justify-content: flex-start;
+  margin-top: var(--app-space-4);
+  padding-top: var(--app-space-4);
+  border-top: 1px solid var(--app-border);
+
+  .mat-mdc-raised-button,
+  .mat-mdc-unelevated-button,
+  .mat-mdc-outlined-button,
+  .mat-mdc-button {
+    min-height: 2.75rem;
+  }
+
+  button[mat-flat-button] {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--app-space-2);
+    padding-inline: var(--app-space-6);
+    font-weight: 600;
+  }
+
+  a[mat-stroked-button] {
+    text-decoration: none;
+    font-weight: 600;
+  }
+}
+
+.register-page__btn-spinner {
+  width: 1.1rem;
+  height: 1.1rem;
+  border: 2px solid rgb(255 255 255 / 35%);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: register-page-spin 0.72s linear infinite;
+}
+
+@keyframes register-page-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+// Căn section card trong form sát nhau hơn (section-card có margin-bottom riêng)
+.register-page__form ::ng-deep .app-section-card {
+  margin-bottom: var(--app-space-4);
+}
+
+.register-page__form mat-form-field {
+  width: 100%;
+}

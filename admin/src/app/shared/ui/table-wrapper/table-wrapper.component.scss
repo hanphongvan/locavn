@@ -1,0 +1,35 @@
+.app-table-wrapper {
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-md);
+  background: var(--app-surface);
+  box-shadow: var(--app-shadow-card);
+  overflow: hidden;
+  transition:
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.app-table-wrapper:hover {
+  border-color: rgba(15, 23, 42, 0.1);
+}
+
+.app-table-wrapper__caption {
+  padding: var(--app-space-2) var(--app-space-4);
+  font-size: var(--app-text-xs);
+  font-weight: 500;
+  color: var(--app-text-muted);
+  background: var(--app-surface-muted);
+  border-bottom: 1px solid var(--app-border);
+}
+
+.app-table-wrapper__scroll {
+  overflow: auto;
+  max-width: 100%;
+}
+
+.app-table-wrapper__scroll :where(table) {
+  margin: 0;
+  border-radius: 0;
+  box-shadow: none;
+  border: none;
+}

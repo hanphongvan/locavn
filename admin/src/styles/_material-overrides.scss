@@ -1,0 +1,196 @@
+/* Angular Material — depth + interaction (outlined fields, primary actions) */
+
+/* Select / autocomplete panels render in CDK overlay — force opaque surface (fixes transparent dropdown). */
+:root {
+  --mat-select-panel-background-color: var(--app-surface);
+  --mat-autocomplete-background-color: var(--app-surface);
+}
+
+.mat-mdc-select-panel,
+.mat-mdc-select-panel .mat-mdc-select-scroll-container {
+  background-color: var(--app-surface, #ffffff) !important;
+  background-image: none !important;
+}
+
+.cdk-overlay-container .mat-mdc-select-panel {
+  background-color: var(--app-surface, #ffffff) !important;
+}
+
+.mat-mdc-autocomplete-panel {
+  background-color: var(--app-surface, #ffffff) !important;
+}
+
+.mat-mdc-form-field-subscript-wrapper {
+  margin-top: 0.35rem;
+}
+
+.mat-mdc-form-field-required-marker {
+  color: var(--app-form-required-color, var(--app-danger)) !important;
+}
+
+.mat-mdc-text-field-wrapper {
+  background-color: #ffffff !important;
+  border-radius: var(--app-radius-control, 10px) !important;
+  transition:
+    box-shadow 0.16s ease,
+    background-color 0.16s ease,
+    border-color 0.16s ease !important;
+}
+
+/* Match native controls: ~12px horizontal inset (MDC default is 16px). */
+.mat-mdc-text-field-wrapper.mdc-text-field--outlined {
+  padding-left: var(--app-control-padding-x, 12px) !important;
+  padding-right: var(--app-control-padding-x, 12px) !important;
+}
+
+/* Outline corners — match native 8px */
+.mdc-text-field--outlined {
+  --mdc-outlined-text-field-container-shape: var(--app-radius-control, 10px);
+}
+
+/* Comfortable infix (single-line inputs & mat-select) */
+.mat-mdc-form-field-type-mat-input .mat-mdc-form-field-infix,
+.mat-mdc-form-field-type-mat-select .mat-mdc-form-field-infix {
+  min-height: var(--app-control-min-height, 2.625rem) !important;
+  padding-top: var(--app-control-padding-y, 0.625rem) !important;
+  padding-bottom: var(--app-control-padding-y, 0.625rem) !important;
+}
+
+.mat-mdc-form-field:has(textarea) .mat-mdc-form-field-infix {
+  min-height: unset !important;
+  padding-top: 10px !important;
+  padding-bottom: 10px !important;
+}
+
+.mat-mdc-form-field-infix .mat-mdc-input-element,
+.mat-mdc-form-field-infix .mat-mdc-select-value {
+  font-size: var(--app-text-base) !important;
+  line-height: var(--app-leading-normal) !important;
+}
+
+.mat-mdc-input-element::placeholder {
+  color: var(--app-text-muted);
+  opacity: 0.92;
+}
+
+/* Mat-select: clear “combobox” affordance */
+.mat-mdc-form-field-type-mat-select:not(.mat-form-field-disabled) .mat-mdc-select-trigger {
+  cursor: pointer;
+}
+
+.mat-mdc-select-arrow,
+.mat-mdc-select-arrow svg {
+  color: var(--app-brand) !important;
+  fill: var(--app-brand) !important;
+}
+
+.mat-mdc-select-arrow-wrapper {
+  padding-left: 0.35rem;
+}
+
+/* Default outline */
+.mdc-text-field--outlined:not(.mdc-text-field--disabled) .mat-mdc-notch-piece {
+  border-color: var(--app-border) !important;
+}
+
+/* Hover: clearer affordance */
+.mat-mdc-form-field:not(.mat-form-field-disabled):not(.mat-focused):hover
+  .mdc-text-field--outlined:not(.mdc-text-field--disabled)
+  .mat-mdc-notch-piece {
+  border-color: var(--app-border-hover) !important;
+}
+
+.mat-mdc-form-field:not(.mat-form-field-disabled):not(.mat-focused):hover .mat-mdc-text-field-wrapper {
+  box-shadow: var(--app-shadow-xs) !important;
+}
+
+/* Focus: brand border + soft ring */
+.mat-mdc-form-field.mat-focused .mdc-text-field--outlined:not(.mdc-text-field--disabled) .mat-mdc-notch-piece {
+  border-color: var(--app-brand) !important;
+}
+
+.mat-mdc-form-field.mat-focused .mat-mdc-text-field-wrapper {
+  box-shadow:
+    var(--app-focus-ring),
+    0 1px 2px rgba(15, 23, 42, 0.05) !important;
+}
+
+/* Filled / select appearance consistency */
+.mat-mdc-select-panel {
+  border-radius: var(--app-radius-md) !important;
+  box-shadow: var(--app-shadow-md) !important;
+  border: 1px solid var(--app-border);
+}
+
+.mat-mdc-option.mdc-list-item:hover:not(.mdc-list-item--disabled) {
+  background: rgba(31, 60, 147, 0.06) !important;
+}
+
+/* Primary buttons (e.g. mat-flat-button) */
+.mat-mdc-unelevated-button.mat-primary,
+.mat-mdc-raised-button.mat-primary {
+  box-shadow: var(--app-shadow-primary) !important;
+  transition:
+    box-shadow 0.16s ease,
+    transform 0.14s ease,
+    background-color 0.16s ease !important;
+}
+
+.mat-mdc-unelevated-button.mat-primary:hover:not(:disabled),
+.mat-mdc-raised-button.mat-primary:hover:not(:disabled) {
+  box-shadow: var(--app-shadow-primary-hover) !important;
+  transform: translateY(-1px);
+}
+
+.mat-mdc-unelevated-button.mat-primary:active:not(:disabled),
+.mat-mdc-raised-button.mat-primary:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: var(--app-shadow-inset-press) !important;
+}
+
+.mat-mdc-unelevated-button.mat-primary:focus-visible,
+.mat-mdc-raised-button.mat-primary:focus-visible {
+  box-shadow:
+    var(--app-focus-ring),
+    var(--app-shadow-primary) !important;
+}
+
+/* Stroked buttons */
+.mat-mdc-outlined-button {
+  border-color: var(--app-border-strong) !important;
+  transition:
+    box-shadow 0.16s ease,
+    transform 0.14s ease,
+    border-color 0.16s ease,
+    background-color 0.16s ease !important;
+}
+
+.mat-mdc-outlined-button:hover:not(:disabled) {
+  background-color: var(--app-surface-muted) !important;
+  border-color: var(--app-border-hover) !important;
+  box-shadow: var(--app-shadow-sm) !important;
+  transform: translateY(-1px);
+}
+
+.mat-mdc-outlined-button:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: var(--app-shadow-inset-press) !important;
+}
+
+.mat-mdc-outlined-button:focus-visible {
+  box-shadow: var(--app-focus-ring), var(--app-shadow-xs) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mat-mdc-unelevated-button.mat-primary,
+  .mat-mdc-raised-button.mat-primary,
+  .mat-mdc-outlined-button {
+    transition: none !important;
+  }
+
+  .mat-mdc-unelevated-button.mat-primary:hover:not(:disabled),
+  .mat-mdc-raised-button.mat-primary:hover:not(:disabled),
+  .mat-mdc-outlined-button:hover:not(:disabled) {
+    transform: none;
+  }
+}

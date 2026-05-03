@@ -1,0 +1,89 @@
+.um-page {
+  max-width: var(--app-content-max);
+  margin: 0 auto;
+}
+
+.um-page__banner {
+  padding: var(--app-space-3) var(--app-space-4);
+  border-radius: var(--app-radius-md);
+  margin-bottom: var(--app-space-4);
+  font-size: var(--app-text-sm);
+}
+
+.um-page__banner--error {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.um-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--app-space-3);
+  margin-bottom: var(--app-space-4);
+  align-items: center;
+}
+
+.um-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--app-space-4);
+}
+
+.um-filters__field {
+  width: 100%;
+}
+
+.um-table {
+  width: 100%;
+  background: transparent;
+}
+
+.um-link {
+  color: var(--app-brand);
+  text-decoration: none;
+  font-weight: 500;
+  border-radius: var(--app-radius-sm);
+  transition:
+    color 0.14s ease,
+    box-shadow 0.14s ease;
+}
+
+.um-link:hover {
+  text-decoration: underline;
+  color: var(--app-brand-hover);
+}
+
+.um-link:focus-visible {
+  outline: none;
+  box-shadow: var(--app-focus-ring);
+}
+
+.um-loading,
+.um-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--app-space-3);
+  padding: var(--app-space-10) var(--app-space-4);
+  color: var(--app-text-muted);
+}
+
+.um-paginator {
+  border-top: 1px solid var(--app-border);
+  background: var(--app-surface-muted);
+}
+
+/* Material table density inside shell */
+:host ::ng-deep .um-table .mat-mdc-header-cell,
+:host ::ng-deep .um-table .mat-mdc-cell {
+  padding: 0.75rem 1rem;
+}
+
+:host ::ng-deep .um-table .mat-mdc-header-row {
+  background: var(--app-surface-muted);
+}
+
+:host ::ng-deep .um-table .mat-mdc-row:hover {
+  background: #f8fafc;
+}

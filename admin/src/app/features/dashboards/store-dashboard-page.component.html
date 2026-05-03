@@ -1,0 +1,244 @@
+<div class="dash store-dash">
+  <app-page-header title="Bảng điều khiển — Cửa hàng">
+   
+  </app-page-header>
+
+  @if (state().kind === 'loading') {
+    <p class="muted dash__loading">Đang tải…</p>
+  } @else if (state().kind === 'no_don_vi') {
+    <div class="dash-card" role="alert">
+      <h2 class="dash-card__title">Chưa gán cửa hàng</h2>
+      <p class="dash-card__body muted">
+        Hồ sơ người dùng không có <code>donViId</code> — không thể gọi API theo cửa hàng. Vui lòng kiểm tra tài khoản trên hệ thống nguồn.
+      </p>
+    </div>
+  } @else if (state().kind === 'error') {
+    <div class="dash-card" role="alert">
+      <h2 class="dash-card__title">Không tải được dữ liệu</h2>
+      <p class="dash-card__body app-stat-err">{{ errorMessage() }}</p>
+    </div>
+  } @else if (state().kind === 'ok') {
+    @if (okData(); as d) {
+      @if (analytics(); as an) {
+        <section class="store-dash__intro card">
+          <div class="store-dash__intro-main">
+            <h2 class="store-dash__store-title">
+              <span class="store-dash__store-code">{{ d.store.ma }}</span>
+              {{ d.store.ten }}
+            </h2>
+            @if (d.store.diaChi) {
+              <p class="muted store-dash__store-meta">{{ d.store.diaChi }}</p>
+            }
+            <p class="muted store-dash__store-meta">
+              <a routerLink="/stores/{{ d.store.id }}/edit" class="link">Chỉnh sửa cửa hàng</a>
+            </p>
+          </div>
+          <div class="store-dash__intro-aside muted">
+            Cập nhật nhanh · {{ an.kpis.todayKey }} (VN)
+          </div>
+        </section>
+
+        <section class="store-dash__kpis dash__kpis" aria-label="Chỉ số chính">
+          <app-stat-card title="Tồn cuối ngày (ước lượng)" hint="Tổng tồn các mặt hàng hiện tại" linkText="Tồn kho" linkRouterLink="/inventory-current">
+            <span class="store-dash__kpi-val">{{ an.kpis.eodInventoryTotal | number: '1.0-2' }}</span>
+          </app-stat-card>
+          <app-stat-card title="Đã xuất hôm nay" hint="Theo chi tiết phiếu trong ngày (VN)" linkText="Nhập xuất" linkRouterLink="/inventory-transactions">
+            <span class="store-dash__kpi-val">{{ an.kpis.soldTodayQty | number: '1.0-3' }}</span>
+          </app-stat-card>
+          <app-stat-card title="Doanh thu hôm nay" hint="Tổng tiền trên dòng xuất (nếu có)" linkText="Nhập xuất" linkRouterLink="/inventory-transactions">
+            <span class="store-dash__kpi-val">{{ an.kpis.revenueToday | number: '1.0-0' }}</span>
+            <span class="store-dash__kpi-unit">VNĐ</span>
+          </app-stat-card>
+          <app-stat-card title="Giá trung bình" hint="Trung bình theo mặt hàng (lịch sử giá tới hôm nay)" linkText="Giá cửa hàng" linkRouterLink="/store-prices">
+            <span class="store-dash__kpi-val">{{ an.kpis.avgPriceToday != null ? (an.kpis.avgPriceToday | number: '1.0-0') : '—' }}</span>
+            @if (an.kpis.avgPriceToday != null) {
+              <span class="store-dash__kpi-unit">VNĐ/l</span>
+            }
+          </app-stat-card>
+        </section>
+
+        <div class="store-dash__kpi-wide card">
+          <div class="store-dash__kpi-wide-label">Biến động giá TB vs hôm qua</div>
+          <div class="store-dash__kpi-wide-value" [class]="trendClass(an.kpis.priceChangeVsYesterdayPct)">
+            {{ formatPct(an.kpis.priceChangeVsYesterdayPct) }}
+          </div>
+          <p class="muted store-dash__kpi-wide-hint">So sánh giá TB (theo lịch sử giá) {{ an.kpis.yesterdayKey }} → {{ an.kpis.todayKey }}</p>
+        </div>
+
+        @if (an.alerts.length) {
+          <section class="store-dash__alerts" aria-label="Cảnh báo">
+            @for (al of an.alerts; track al.title + al.detail) {
+              <div class="store-dash__alert" [class.store-dash__alert--danger]="al.severity === 'danger'" [class.store-dash__alert--warn]="al.severity === 'warn'" [class.store-dash__alert--info]="al.severity === 'info'">
+                <span class="store-dash__alert-title">{{ al.title }}</span>
+                <span class="store-dash__alert-detail">{{ al.detail }}</span>
+              </div>
+            }
+          </section>
+        }
+
+        <div class="store-dash__grid-main">
+          <article class="store-dash__chart-card card">
+            <header class="store-dash__chart-head">
+              <h3 class="store-dash__chart-title">Tồn kho &amp; giá (liên hệ)</h3>
+              <p class="store-dash__chart-sub muted">Trục trái: tổng tồn ước lượng cuối ngày · Trục phải: giá TB các mặt hàng</p>
+            </header>
+            <div class="store-dash__canvas-wrap store-dash__canvas-wrap--tall">
+              <canvas #chartInvPrice aria-label="Biểu đồ tồn và giá"></canvas>
+            </div>
+          </article>
+
+          <article class="store-dash__chart-card card">
+            <header class="store-dash__chart-head">
+              <h3 class="store-dash__chart-title">Giá theo từng mặt hàng</h3>
+              <p class="store-dash__chart-sub muted">Đường giá hiệu lực theo ngày (RON95, E5, Diesel, …)</p>
+            </header>
+            <div class="store-dash__canvas-wrap store-dash__canvas-wrap--tall">
+              <canvas #chartPriceLines aria-label="Giá theo mặt hàng"></canvas>
+            </div>
+          </article>
+        </div>
+
+        <div class="store-dash__grid-split">
+          <article class="store-dash__chart-card card">
+            <header class="store-dash__chart-head">
+              <h3 class="store-dash__chart-title">Tồn theo mặt hàng</h3>
+            </header>
+            <div class="store-dash__canvas-wrap">
+              <canvas #chartInvBar aria-label="Tồn theo mặt hàng"></canvas>
+            </div>
+          </article>
+          <article class="store-dash__chart-card card">
+            <header class="store-dash__chart-head">
+              <h3 class="store-dash__chart-title">Cơ cấu tồn</h3>
+            </header>
+            <div class="store-dash__canvas-wrap">
+              <canvas #chartInvPie aria-label="Phân bổ tồn"></canvas>
+            </div>
+          </article>
+        </div>
+
+        <div class="store-dash__grid-split">
+          <article class="store-dash__chart-card card">
+            <header class="store-dash__chart-head">
+              <h3 class="store-dash__chart-title">Biến động tồn theo ngày</h3>
+              <p class="store-dash__chart-sub muted">Chênh lệch so với ngày liền trước (ước lượng)</p>
+            </header>
+            <div class="store-dash__canvas-wrap">
+              <canvas #chartInvDelta aria-label="Delta tồn"></canvas>
+            </div>
+          </article>
+          <article class="store-dash__chart-card card">
+            <header class="store-dash__chart-head">
+              <h3 class="store-dash__chart-title">Biến động giá TB theo ngày</h3>
+              <p class="store-dash__chart-sub muted">VNĐ/l — xanh: giảm, cam: tăng</p>
+            </header>
+            <div class="store-dash__canvas-wrap">
+              <canvas #chartPriceDelta aria-label="Delta giá"></canvas>
+            </div>
+          </article>
+        </div>
+
+        <app-section-card title="Giá hiện hành" [flushBody]="true">
+          <div appSectionCardActions>
+            <a routerLink="/store-prices" class="btn btn--secondary btn--sm">Quản lý giá</a>
+          </div>
+          @if (d.pricesCurrent.length) {
+            <app-table-wrapper>
+              <table class="data-table dash-preview__table">
+                <thead>
+                  <tr>
+                    <th>Mặt hàng</th>
+                    <th class="num">Giá</th>
+                    <th>Hiệu lực</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (p of d.pricesCurrent; track p.id) {
+                    <tr>
+                      <td>{{ productNameForId(d, p.productId) }}</td>
+                      <td class="num">{{ p.price | number: '1.0-2' }}</td>
+                      <td>{{ p.effectiveDate | date: 'short' : 'Asia/Ho_Chi_Minh' }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </app-table-wrapper>
+          } @else {
+            <p class="muted u-pad">Không có dòng giá hiện hành từ API.</p>
+          }
+        </app-section-card>
+
+        <app-section-card title="Tồn kho hiện tại" [flushBody]="true">
+          <div appSectionCardActions>
+            <a routerLink="/inventory-current" class="btn btn--secondary btn--sm">Chi tiết</a>
+          </div>
+          @if (d.inventory.length) {
+            <app-table-wrapper>
+              <table class="data-table dash-preview__table">
+                <thead>
+                  <tr>
+                    <th>Mặt hàng</th>
+                    <th class="num">Tồn</th>
+                    <th>Đơn vị</th>
+                    <th>Giao dịch cuối</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (r of d.inventory; track r.productId) {
+                    <tr>
+                      <td>{{ r.productName }}</td>
+                      <td class="num">{{ r.currentQuantity | number: '1.0-4' }}</td>
+                      <td>{{ formatUnit(r) }}</td>
+                      <td>{{ r.lastTransactionDate | date: 'short' : 'Asia/Ho_Chi_Minh' }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </app-table-wrapper>
+          } @else {
+            <p class="muted u-pad">Không có dòng tồn kho từ API.</p>
+          }
+        </app-section-card>
+
+        <app-section-card title="Giao dịch kho gần đây" [flushBody]="true">
+          <div appSectionCardActions>
+            <a routerLink="/inventory-transactions" class="btn btn--secondary btn--sm">Tất cả</a>
+          </div>
+          @if (d.transactionsPreview.length) {
+            <app-table-wrapper>
+              <table class="data-table dash-preview__table">
+                <thead>
+                  <tr>
+                    <th>Ngày</th>
+                    <th>Loại</th>
+                    <th class="num">Số dòng</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (t of d.transactionsPreview; track t.id) {
+                    <tr>
+                      <td>{{ t.transactionDate | date: 'short' : 'Asia/Ho_Chi_Minh' }}</td>
+                      <td>
+                        <span
+                          class="store-dash__tx-type"
+                          [class.store-dash__tx-type--import]="t.transactionType === 1"
+                          [class.store-dash__tx-type--export]="t.transactionType === -1"
+                          [class.store-dash__tx-type--other]="t.transactionType !== 1 && t.transactionType !== -1"
+                        >
+                          {{ inventoryTxTypeLabel(t.transactionType) }}
+                        </span>
+                      </td>
+                      <td class="num">{{ t.lineCount }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </app-table-wrapper>
+          } @else {
+            <p class="muted u-pad">Không có giao dịch trong phạm vi truy vấn.</p>
+          }
+        </app-section-card>
+      }
+    }
+  }
+</div>

@@ -1,0 +1,3 @@
+String adminApiKeyFromRuntimeEnv() => '';
+
+String adminBearerFromRuntimeEnv() => '';

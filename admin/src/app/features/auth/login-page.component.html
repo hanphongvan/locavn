@@ -1,0 +1,86 @@
+<div class="auth-portal login-page">
+  <div class="auth-portal__brand-bar" aria-hidden="true"></div>
+
+  <div class="auth-portal__wrap">
+    <div class="auth-portal__panel">
+      <header class="auth-portal__header">
+        <div class="auth-portal__mark" aria-hidden="true"></div>
+        <div class="auth-portal__headlines">
+          <h1 class="auth-portal__title">Đăng nhập</h1>
+          <p class="auth-portal__subtitle">Hệ thống quản trị HTTM — xác thực qua máy chủ nội bộ</p>
+        </div>
+      </header>
+
+      @if (registeredNotice(); as regName) {
+        <div class="login-page__notice login-page__notice--unsupported" role="status">
+          <p class="login-page__notice-title">Đăng ký thành công</p>
+          <p class="login-page__notice-body">
+            Tài khoản <span class="login-page__mono">{{ regName }}</span> đã được tạo. Bạn có thể đăng nhập (kể cả trên hệ
+            thống cũ) bằng mật khẩu vừa đặt.
+          </p>
+        </div>
+      }
+
+      <form class="login-page__form" (ngSubmit)="submit()" [formGroup]="form" novalidate>
+        <div class="login-page__field">
+          <label class="login-page__label" for="login-username">Tên đăng nhập</label>
+          <input
+            id="login-username"
+            class="login-page__input"
+            type="text"
+            formControlName="username"
+            name="username"
+            autocomplete="username"
+            [disabled]="loading()"
+            required
+          />
+          @if (form.controls.username.invalid && form.controls.username.touched) {
+            <span class="login-page__hint login-page__hint--error">Vui lòng nhập tên đăng nhập.</span>
+          }
+        </div>
+
+        <div class="login-page__field">
+          <label class="login-page__label" for="login-password">Mật khẩu</label>
+          <input
+            id="login-password"
+            class="login-page__input"
+            type="password"
+            formControlName="password"
+            name="password"
+            autocomplete="current-password"
+            [disabled]="loading()"
+            required
+          />
+          @if (form.controls.password.invalid && form.controls.password.touched) {
+            <span class="login-page__hint login-page__hint--error">Vui lòng nhập mật khẩu.</span>
+          }
+        </div>
+
+        @if (loginError(); as err) {
+          <div class="login-page__notice login-page__notice--error" role="alert">{{ err }}</div>
+        }
+
+        @if (accessDenied(); as denied) {
+          <div class="login-page__notice login-page__notice--denied" role="alert">
+            <strong class="login-page__notice-lead">Không được phép truy cập</strong>
+            <p class="login-page__notice-body">{{ denied }}</p>
+          </div>
+        }
+
+        <div class="login-page__actions">
+          <button mat-flat-button color="primary" class="login-page__primary-btn" type="submit" [disabled]="loading() || form.invalid">
+            @if (loading()) {
+              <span class="login-page__spinner" aria-hidden="true"></span>
+              <span>Đang đăng nhập…</span>
+            } @else {
+              <span>Đăng nhập</span>
+            }
+          </button>
+          <a mat-stroked-button color="primary" class="login-page__register-btn" routerLink="/register">Đăng ký tài khoản</a>
+        </div>
+      </form>
+
+      <p class="login-page__footer">Đăng nhập an toàn qua OAuth2 · Dữ liệu người dùng từ máy chủ</p>
+    </div>
+  </div>
+</div>

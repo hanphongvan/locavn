@@ -1,0 +1,93 @@
+<div class="stack demo-data-page">
+  <header class="page-header demo-data-page__header">
+    <h1>Demo Data</h1>
+    <p>
+      Admin only (<code>Loai = 1</code>). Calls <code>/api/admin/demo-data/*</code> (stored procedures on the server). Province maps to
+      <code>DM_DonVi.Tinh</code> with retail cap <code>248</code>.
+    </p>
+  </header>
+
+  @if (errorMessage(); as err) {
+    <div class="banner banner--error" role="alert">{{ err }}</div>
+  }
+  @if (message(); as ok) {
+    <div class="banner banner--ok" role="status">{{ ok }}</div>
+  }
+
+  <div class="demo-data-page__card">
+    <div class="demo-data-page__card-head">Parameters</div>
+    <div class="demo-data-page__card-body">
+      <form class="form-grid form-grid--2" [formGroup]="form">
+        <div class="form-field form-field--wide">
+          <label class="form-label" for="dd-tinh">Province <span class="req">*</span></label>
+          @if (provincesLoading()) {
+            <p class="muted">Loading provinces…</p>
+          } @else {
+            <select id="dd-tinh" class="form-control" formControlName="tinh" [disabled]="busy()">
+              <option [ngValue]="null">Select province</option>
+              @for (p of provinces(); track p.id) {
+                <option [ngValue]="p.id">{{ p.label }}</option>
+              }
+            </select>
+          }
+          @if (form.controls.tinh.touched && form.controls.tinh.hasError('required')) {
+            <span class="field-error">Province is required.</span>
+          }
+        </div>
+
+        <div class="form-field">
+          <label class="form-check">
+            <input type="checkbox" formControlName="clearOldData" [disabled]="busy()" />
+            Clear old demo data (per operation)
+          </label>
+        </div>
+
+        <div class="form-field">
+          <label class="form-label" for="dd-days">Days</label>
+          <input
+            id="dd-days"
+            class="form-control"
+            type="number"
+            formControlName="days"
+            min="1"
+            max="400"
+            [disabled]="busy()"
+          />
+          @if (form.controls.days.touched && form.controls.days.invalid) {
+            <span class="field-error">Use 1–400.</span>
+          }
+        </div>
+      </form>
+
+      <div class="btn-row demo-data-page__actions">
+        <button
+          type="button"
+          class="btn btn--sm demo-data-page__btn-outline"
+          (click)="generatePrices()"
+          [disabled]="busy()"
+        >
+          Generate Prices
+        </button>
+        <button
+          type="button"
+          class="btn btn--sm demo-data-page__btn-outline"
+          (click)="generateInventory()"
+          [disabled]="busy()"
+        >
+          Generate Inventory
+        </button>
+        <button
+          type="button"
+          class="btn btn--sm demo-data-page__btn-primary"
+          (click)="generateAll()"
+          [disabled]="busy()"
+        >
+          Generate All
+        </button>
+        <button type="button" class="btn btn--sm demo-data-page__btn-danger" (click)="clearData()" [disabled]="busy()">
+          Clear Data
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

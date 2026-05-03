@@ -1,0 +1,25 @@
+<ul class="tree">
+  @for (node of nodes(); track node.id) {
+    <li class="tree__item">
+      <div class="tree__row">
+        <span class="tree__code">{{ node.code }}</span>
+        <span class="tree__name">{{ node.name }}</span>
+        @if (node.isActive) {
+          <span class="pill pill--on">Hoạt động</span>
+        } @else {
+          <span class="pill pill--off">Ngưng</span>
+        }
+        @if (node.sortOrder != null) {
+          <span class="tree__sort">#{{ node.sortOrder }}</span>
+        }
+        <div class="tree__actions">
+          <a [routerLink]="['/fuel-products', node.id, 'edit']" class="link">Sửa</a>
+          <a [routerLink]="['/fuel-products/new']" [queryParams]="{ parentId: node.id }" class="link link--muted">Thêm con</a>
+        </div>
+      </div>
+      @if (node.children.length > 0) {
+        <app-fuel-product-tree-view [nodes]="node.children" />
+      }
+    </li>
+  }
+</ul>

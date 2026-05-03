@@ -1,0 +1,91 @@
+<div class="stack app-form-shell app-form-shell--lg">
+  <div class="app-form-toolbar">
+    <a routerLink="/fuel-products" class="app-form-back">← Mặt hàng xăng dầu</a>
+  </div>
+
+  <header class="page-header">
+    <h1>{{ pageTitle() }}</h1>
+    <p>Bắt buộc: <strong>Mã</strong>, <strong>Tên</strong>. Cha không được tạo chu trình (kiểm tra tại đây và trên API).</p>
+  </header>
+
+  @if (errorMessage(); as err) {
+    <div class="banner banner--error" role="alert">{{ err }}</div>
+  }
+
+  @if (loading()) {
+    <p class="muted">Đang tải…</p>
+  } @else {
+    <form class="app-form-card" [formGroup]="form" (ngSubmit)="submit()">
+      <header class="app-form-card__header">
+        <h2 class="app-form-card__title">Mặt hàng</h2>
+      </header>
+      <div class="app-form-card__body">
+        <div class="form-grid form-grid--2">
+          <div class="form-field">
+            <label class="form-label" for="fp-code">Mã <span class="req">*</span></label>
+            <input id="fp-code" class="form-control" type="text" formControlName="code" autocomplete="off" />
+            @if (form.controls.code.touched && form.controls.code.hasError('required')) {
+              <span class="field-error">Vui lòng nhập mã.</span>
+            }
+            @if (form.controls.code.touched && form.controls.code.hasError('maxlength')) {
+              <span class="field-error">Tối đa {{ FIELD_MAX.code }} ký tự.</span>
+            }
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="fp-name">Tên <span class="req">*</span></label>
+            <input id="fp-name" class="form-control" type="text" formControlName="name" autocomplete="off" />
+            @if (form.controls.name.touched && form.controls.name.hasError('required')) {
+              <span class="field-error">Vui lòng nhập tên.</span>
+            }
+            @if (form.controls.name.touched && form.controls.name.hasError('maxlength')) {
+              <span class="field-error">Tối đa {{ FIELD_MAX.name }} ký tự.</span>
+            }
+          </div>
+
+          <div class="form-field form-field--wide">
+            <label class="form-label" for="fp-parent">Mặt hàng cha</label>
+            <select id="fp-parent" class="form-control" formControlName="parentId">
+              <option [ngValue]="null">Không có (gốc)</option>
+              @for (row of parentRows(); track row.id) {
+                <option [ngValue]="row.id">{{ row.label }}</option>
+              }
+            </select>
+            @if (form.controls.parentId.touched && form.controls.parentId.hasError('cycle')) {
+              <span class="field-error">Cha này tạo chu trình không hợp lệ.</span>
+            }
+          </div>
+
+          <div class="form-field">
+            <label class="form-label" for="fp-unit">Mã đơn vị (UnitId)</label>
+            <input id="fp-unit" class="form-control" type="number" formControlName="unitId" />
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="fp-sort">Thứ tự sắp xếp</label>
+            <input id="fp-sort" class="form-control" type="number" formControlName="sortOrder" />
+          </div>
+
+          <div class="form-field form-field--wide row-active">
+            <label class="form-label checkbox-label">
+              <input type="checkbox" formControlName="isActive" />
+              Đang hoạt động (dùng cho giá và tồn kho)
+            </label>
+          </div>
+
+          <div class="form-field form-field--wide">
+            <label class="form-label" for="fp-desc">Mô tả</label>
+            <textarea id="fp-desc" class="form-control" formControlName="description" rows="3"></textarea>
+            @if (form.controls.description.touched && form.controls.description.hasError('maxlength')) {
+              <span class="field-error">Tối đa {{ FIELD_MAX.description }} ký tự.</span>
+            }
+          </div>
+        </div>
+      </div>
+      <footer class="app-form-card__footer">
+        <button type="button" class="btn btn--secondary" (click)="cancel()" [disabled]="saving()">Hủy</button>
+        <button type="submit" class="btn btn--primary" [disabled]="saving() || form.invalid">
+          {{ saving() ? 'Đang lưu…' : isEditMode() ? 'Lưu thay đổi' : 'Tạo mặt hàng' }}
+        </button>
+      </footer>
+    </form>
+  }
+</div>

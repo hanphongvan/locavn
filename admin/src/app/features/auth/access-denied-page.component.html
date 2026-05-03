@@ -1,0 +1,77 @@
+<div class="access-denied-page">
+  <div class="access-denied-page__brand-bar" aria-hidden="true"></div>
+
+  <div class="access-denied-page__wrap">
+    <div class="access-denied-page__panel">
+      <header class="access-denied-page__header">
+        <div class="access-denied-page__mark" aria-hidden="true">
+          <span class="access-denied-page__mark-icon">!</span>
+        </div>
+        <div class="access-denied-page__headlines">
+          <h1 class="access-denied-page__title">Không thể truy cập</h1>
+          <p class="access-denied-page__subtitle">Hệ thống quản trị HTTM — xăng dầu bán lẻ</p>
+        </div>
+      </header>
+
+      <div class="access-denied-page__notice" role="status">
+        @if (denyReason() === 'unsupported_loai') {
+          <p class="access-denied-page__lead">
+            Tài khoản đã đăng nhập nhưng <strong>loại người dùng (Loai)</strong> không thuộc phạm vi ứng dụng quản trị này.
+          </p>
+          <p class="access-denied-page__detail">
+            Chỉ các tài khoản có <code>Loai</code> tương ứng <strong>ADMIN (1)</strong>, <strong>TRADER (3)</strong> hoặc
+            <strong>STORE (4)</strong> mới được sử dụng cổng quản trị. Vui lòng đăng nhập bằng tài khoản được cấp quyền
+            hoặc liên hệ quản trị hệ thống.
+          </p>
+        } @else {
+          @if (returnUrl(); as blocked) {
+            <p class="access-denied-page__lead">
+              Bạn đã đăng nhập hợp lệ nhưng <strong>không có quyền</strong> mở đường dẫn yêu cầu với vai trò hiện tại.
+            </p>
+            <p class="access-denied-page__detail">
+              Các chức năng trong ứng dụng được gán theo <code>Loai</code> trên hồ sơ người dùng. Nếu bạn cần quyền
+              khác, hãy đăng xuất và đăng nhập bằng tài khoản phù hợp, hoặc liên hệ quản trị để được cập nhật vai trò.
+            </p>
+            <p class="access-denied-page__path" aria-label="Đường dẫn đã chặn">
+              <span class="access-denied-page__path-label">Đường dẫn:</span>
+              <code class="access-denied-page__path-value">{{ displayReturnUrl(blocked) }}</code>
+            </p>
+          } @else {
+            <p class="access-denied-page__lead">
+              Phiên làm việc không hợp lệ cho ứng dụng quản trị này, hoặc <strong>vai trò hiện tại</strong> không được hỗ
+              trợ.
+            </p>
+            <p class="access-denied-page__detail">
+              Có thể hồ sơ trên thiết bị đã lỗi thời, <code>Loai</code> không nằm trong tập được phép, hoặc bạn đang mở
+              một khu vực dành cho vai trò khác. Hãy quay lại trang đăng nhập hoặc đăng xuất và thử lại.
+            </p>
+          }
+        }
+      </div>
+
+      <div class="access-denied-page__roles" aria-label="Vai trò được hỗ trợ">
+        <p class="access-denied-page__roles-title">Vai trò được hỗ trợ trên cổng quản trị</p>
+        <ul class="access-denied-page__roles-list">
+          <li><span class="access-denied-page__role-pill">ADMIN</span> — <code>Loai</code> = 1</li>
+          <li><span class="access-denied-page__role-pill">TRADER</span> — <code>Loai</code> = 3</li>
+          <li><span class="access-denied-page__role-pill">STORE</span> — <code>Loai</code> = 4</li>
+        </ul>
+      </div>
+
+      <div class="access-denied-page__actions">
+        <button type="button" class="access-denied-page__btn access-denied-page__btn--primary" (click)="goToLogin()">
+          Về trang đăng nhập
+        </button>
+        <button type="button" class="access-denied-page__btn access-denied-page__btn--secondary" (click)="logout()">
+          Đăng xuất
+        </button>
+      </div>
+
+      <p class="access-denied-page__footer">
+        <a routerLink="/login" class="access-denied-page__link" (click)="clearTokenBeforeLoginNav()">Mở trang đăng nhập</a>
+        <span class="access-denied-page__footer-sep" aria-hidden="true">·</span>
+        <span>Hai nút phía trên đều kết thúc phiên hiện tại trên trình duyệt.</span>
+      </p>
+    </div>
+  </div>
+</div>

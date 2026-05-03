@@ -1,0 +1,136 @@
+<div class="stack app-form-shell app-form-shell--lg">
+  <div class="app-form-toolbar">
+    <a routerLink="/stores" class="app-form-back">← Cửa hàng</a>
+  </div>
+
+  <header class="page-header">
+    <h1>{{ pageTitle() }}</h1>
+    <p>Bắt buộc: <strong>Ma</strong>, <strong>Ten</strong>. Các trường khác khớp <code>StoreAdminStoreUpsertRequest</code> trên máy chủ.</p>
+  </header>
+
+  @if (errorMessage(); as err) {
+    <div class="banner banner--error" role="alert">{{ err }}</div>
+  }
+
+  @if (loading()) {
+    <p class="muted">Đang tải cửa hàng…</p>
+  } @else {
+    <form class="app-form-card" [formGroup]="form" (ngSubmit)="submit()">
+      <header class="app-form-card__header">
+        <h2 class="app-form-card__title">Thông tin cửa hàng</h2>
+      </header>
+      <div class="app-form-card__body">
+        <div class="form-grid form-grid--2">
+          <div class="form-field">
+            <label class="form-label" for="st-ma">Ma <span class="req">*</span></label>
+            <input id="st-ma" class="form-control" type="text" formControlName="ma" autocomplete="off" />
+            @if (form.controls.ma.touched && form.controls.ma.hasError('required')) {
+              <span class="field-error">Vui lòng nhập Ma.</span>
+            }
+            @if (form.controls.ma.touched && form.controls.ma.hasError('maxlength')) {
+              <span class="field-error">Tối đa {{ STORE_FIELD_MAX.ma }} ký tự.</span>
+            }
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="st-ten">Ten <span class="req">*</span></label>
+            <input id="st-ten" class="form-control" type="text" formControlName="ten" autocomplete="off" />
+            @if (form.controls.ten.touched && form.controls.ten.hasError('required')) {
+              <span class="field-error">Vui lòng nhập Ten.</span>
+            }
+            @if (form.controls.ten.touched && form.controls.ten.hasError('maxlength')) {
+              <span class="field-error">Tối đa {{ STORE_FIELD_MAX.ten }} ký tự.</span>
+            }
+          </div>
+
+          <div class="form-field">
+            <label class="form-label" for="st-phone">Điện thoại</label>
+            <input id="st-phone" class="form-control" type="text" formControlName="dienThoai" autocomplete="tel" />
+            @if (form.controls.dienThoai.touched && form.controls.dienThoai.hasError('maxlength')) {
+              <span class="field-error">Tối đa {{ STORE_FIELD_MAX.dienThoai }} ký tự.</span>
+            }
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="st-email">Email</label>
+            <input id="st-email" class="form-control" type="email" formControlName="email" autocomplete="email" />
+            @if (form.controls.email.touched && form.controls.email.hasError('maxlength')) {
+              <span class="field-error">Tối đa {{ STORE_FIELD_MAX.email }} ký tự.</span>
+            }
+            @if (form.controls.email.touched && form.controls.email.hasError('email')) {
+              <span class="field-error">Email không hợp lệ.</span>
+            }
+          </div>
+
+          <div class="form-field form-field--wide">
+            <label class="form-label" for="st-dc">Địa chỉ</label>
+            <input id="st-dc" class="form-control" type="text" formControlName="diaChi" autocomplete="street-address" />
+            @if (form.controls.diaChi.touched && form.controls.diaChi.hasError('maxlength')) {
+              <span class="field-error">Tối đa {{ STORE_FIELD_MAX.diaChi }} ký tự.</span>
+            }
+          </div>
+
+          <div class="form-field">
+            <label class="form-label" for="st-tt">Trạng thái</label>
+            <select id="st-tt" class="form-control" formControlName="trangThai">
+              <option [ngValue]="null">Chưa chọn</option>
+              <option [ngValue]="true">Hoạt động</option>
+              <option [ngValue]="false">Ngưng</option>
+            </select>
+          </div>
+
+          <div class="form-field">
+            <label class="form-label" for="st-tinh">Tỉnh</label>
+            <input id="st-tinh" class="form-control" type="number" formControlName="tinh" />
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="st-xa">Xã</label>
+            <input id="st-xa" class="form-control" type="number" formControlName="xa" />
+          </div>
+
+          <div class="form-field form-field--wide">
+            <label class="form-label" for="st-ct">Địa chỉ chi tiết</label>
+            <textarea id="st-ct" class="form-control" formControlName="diaChiChiTiet" rows="2"></textarea>
+            @if (form.controls.diaChiChiTiet.touched && form.controls.diaChiChiTiet.hasError('maxlength')) {
+              <span class="field-error">Tối đa {{ STORE_FIELD_MAX.diaChiChiTiet }} ký tự.</span>
+            }
+          </div>
+
+          <div class="form-field">
+            <label class="form-label" for="st-vd">Vĩ độ</label>
+            <input id="st-vd" class="form-control" type="number" step="any" formControlName="viDo" />
+            @if (form.controls.viDo.touched && form.controls.viDo.hasError('latRange')) {
+              <span class="field-error">Giá trị từ −90 đến 90.</span>
+            }
+            @if (form.controls.viDo.touched && form.controls.viDo.hasError('number')) {
+              <span class="field-error">Số không hợp lệ.</span>
+            }
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="st-kd">Kinh độ</label>
+            <input id="st-kd" class="form-control" type="number" step="any" formControlName="kinhDo" />
+            @if (form.controls.kinhDo.touched && form.controls.kinhDo.hasError('lonRange')) {
+              <span class="field-error">Giá trị từ −180 đến 180.</span>
+            }
+            @if (form.controls.kinhDo.touched && form.controls.kinhDo.hasError('number')) {
+              <span class="field-error">Số không hợp lệ.</span>
+            }
+          </div>
+
+          <div class="form-field">
+            <label class="form-label" for="st-ot">Giờ mở cửa</label>
+            <input id="st-ot" class="form-control" type="time" formControlName="openTime" />
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="st-ctm">Giờ đóng cửa</label>
+            <input id="st-ctm" class="form-control" type="time" formControlName="closeTime" />
+          </div>
+        </div>
+      </div>
+      <footer class="app-form-card__footer">
+        <button type="button" class="btn btn--secondary" (click)="cancel()" [disabled]="saving()">Hủy</button>
+        <button type="submit" class="btn btn--primary" [disabled]="saving() || form.invalid">
+          {{ saving() ? 'Đang lưu…' : isEditMode() ? 'Lưu thay đổi' : 'Tạo cửa hàng' }}
+        </button>
+      </footer>
+    </form>
+  }
+</div>

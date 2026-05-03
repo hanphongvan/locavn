@@ -1,0 +1,236 @@
+<div class="stack app-form-shell app-form-shell--lg inv-tx-form-page">
+  <header class="inv-tx-form-page__head">
+    <h1 class="inv-tx-form-page__title">{{ pageTitle() }}</h1>
+    <a routerLink="/inventory-transactions" class="app-form-back inv-tx-form-page__back">← Nhập xuất kho</a>
+  </header>
+
+  @if (errorMessage(); as err) {
+    <div class="banner banner--error" role="alert">{{ err }}</div>
+  }
+
+  @if (details.errors?.['duplicateProducts'] && details.touched) {
+    <div class="banner banner--error" role="alert">Không được chọn trùng mặt hàng (ProductId) trên hai dòng.</div>
+  }
+
+  @if (loading()) {
+    <p class="muted">Đang tải…</p>
+  } @else {
+    <form [formGroup]="form" (ngSubmit)="submit()" class="app-form-card">
+   
+
+      <div class="app-form-card__body">
+        <div class="inv-tx-form-page__meta">
+          <div class="inv-tx-form-page__meta-grid" role="group" aria-label="Thông tin chung phiếu">
+            <div class="form-field inv-tx-form-page__meta-field">
+              <label class="form-label" for="inv-tt">Loại giao dịch <span class="req">*</span></label>
+              <select id="inv-tt" class="form-control" formControlName="transactionType">
+                <option [ngValue]="null">— Chọn loại —</option>
+                <option [ngValue]="1">Nhập kho</option>
+                <option [ngValue]="-1">Xuất kho</option>
+              </select>
+              @if (form.controls.transactionType.touched && form.controls.transactionType.hasError('required')) {
+                <span class="field-error">Vui lòng chọn loại.</span>
+              }
+              @if (form.controls.transactionType.touched && form.controls.transactionType.hasError('transactionTypeInvalid')) {
+                <span class="field-error">Chỉ dùng nhập kho hoặc xuất kho.</span>
+              }
+            </div>
+
+            <div class="form-field inv-tx-form-page__meta-field">
+              <label class="form-label" for="inv-td">Ngày giao dịch <span class="req">*</span></label>
+              <input
+                id="inv-td"
+                class="form-control inv-tx-form-page__meta-date-input"
+                type="text"
+                autocomplete="off"
+                formControlName="transactionDate"
+                placeholder="dd/MM/yyyy HH:mm"
+              />
+              @if (form.controls.transactionDate.touched && form.controls.transactionDate.hasError('required')) {
+                <span class="field-error">Vui lòng nhập ngày giao dịch.</span>
+              }
+              @if (form.controls.transactionDate.touched && form.controls.transactionDate.hasError('vnDateTime')) {
+                <span class="field-error">Nhập đúng định dạng dd/MM/yyyy HH:mm.</span>
+              }
+            </div>
+
+            <div class="form-field inv-tx-form-page__meta-field inv-tx-form-page__meta-field--full">
+              <label class="form-label" for="inv-note">Ghi chú phiếu</label>
+              <textarea id="inv-note" class="form-control" formControlName="note" rows="2"></textarea>
+              @if (form.controls.note.touched && form.controls.note.hasError('maxlength')) {
+                <span class="field-error">Tối đa {{ NOTE_MAX }} ký tự.</span>
+              }
+            </div>
+          </div>
+        </div>
+
+        <section class="app-form-section inv-tx-form-page__batch-section">
+          <div class="price-batch-head">
+            <h3 class="app-form-section__title">Chi tiết mặt hàng</h3>
+            <div class="price-batch-actions">
+              <button
+                type="button"
+                class="btn btn--secondary btn--sm"
+                (click)="loadDefaultProducts()"
+                [disabled]="saving() || copyingLatest() || loadingDefaults()"
+              >
+                {{ loadingDefaults() ? 'Đang tải…' : 'Nạp mặt hàng mặc định' }}
+              </button>
+              @if (!isEditMode()) {
+                <button
+                  type="button"
+                  class="btn btn--secondary btn--sm"
+                  (click)="copyLatest()"
+                  [disabled]="saving() || copyingLatest() || loadingDefaults() || !canCopyLatest()"
+                >
+                  {{ copyingLatest() ? 'Đang tải…' : 'Sao chép phiếu gần nhất' }}
+                </button>
+              }
+              <button type="button" class="btn btn--primary btn--sm" (click)="addLine()" [disabled]="saving() || copyingLatest() || loadingDefaults()">
+                Thêm dòng
+              </button>
+            </div>
+          </div>
+
+          <div class="table-scroll">
+            <table class="price-entry-grid">
+              <thead>
+                <tr>
+                  <th class="col-idx">#</th>
+                  <th class="col-product">Mặt hàng <span class="req">*</span></th>
+                  <th class="col-unit">Đơn vị <span class="req">*</span></th>
+                  <th class="col-qty">Số lượng <span class="req">*</span></th>
+                  <th class="col-amt">Số tiền</th>
+                  <th class="col-note">Ghi chú dòng</th>
+                  <th class="col-act"></th>
+                </tr>
+              </thead>
+              <tbody formArrayName="details">
+                @for (row of details.controls; track trackDetailRow($index, row); let i = $index) {
+                  <tr [formGroupName]="i">
+                    <td class="col-idx muted">{{ i + 1 }}</td>
+                    <td class="col-product">
+                      <input
+                        #invRowProductInput
+                        type="text"
+                        class="form-control form-control--compact"
+                        matInput
+                        [formControl]="$any(row.get('productSearch'))"
+                        [matAutocomplete]="invBatchRowAcp"
+                        (blur)="onDetailProductSearchBlur(i)"
+                        placeholder="Tìm mã, tên hoặc Id…"
+                        autocomplete="off"
+                        (keydown)="onDetailKeydown($event, i, 'product')"
+                      />
+                      <mat-autocomplete #invBatchRowAcp="matAutocomplete" (optionSelected)="onDetailProductPicked(i, $event)">
+                        @for (p of productMatches(row.get('productSearch')?.value); track p.id) {
+                          <mat-option [value]="p">{{ productLine(p) }}</mat-option>
+                        }
+                      </mat-autocomplete>
+                      @if (row.get('productId')?.touched && row.get('productId')?.hasError('required')) {
+                        <div class="field-error">Chọn từ gợi ý.</div>
+                      }
+                    </td>
+                    <td class="col-unit">
+                      <select
+                        class="form-control form-control--compact inv-tx-form-page__unit-select"
+                        formControlName="unitId"
+                        [disabled]="!detailRowHasProduct(row)"
+                        [attr.aria-label]="'Đơn vị dòng ' + (i + 1)"
+                        (keydown)="onDetailKeydown($event, i, 'unit')"
+                      >
+                        <option [ngValue]="null">— Chọn —</option>
+                        @for (u of donViTinhOptions(); track u.id) {
+                          <option [ngValue]="u.id">{{ donViTinhLabel(u) }}</option>
+                        }
+                      </select>
+                      @if (row.touched && row.hasError('lineUnitInvalid')) {
+                        <div class="field-error">Chọn đơn vị.</div>
+                      }
+                    </td>
+                    <td class="col-qty">
+                      <input
+                        [id]="'inv-detail-qty-' + i"
+                        class="form-control form-control--compact"
+                        type="text"
+                        inputmode="decimal"
+                        autocomplete="off"
+                        formControlName="quantity"
+                        vnGroupedNumberInput
+                        [vnMaxFractionDigits]="3"
+                        (keydown)="onDetailKeydown($event, i, 'qty')"
+                      />
+                      @if (row.get('quantity')?.touched && row.get('quantity')?.hasError('required')) {
+                        <div class="field-error">Bắt buộc</div>
+                      }
+                      @if (row.get('quantity')?.touched && row.get('quantity')?.hasError('positiveQuantity')) {
+                        <div class="field-error">&gt; 0</div>
+                      }
+                    </td>
+                    <td class="col-amt">
+                      <input
+                        [id]="'inv-detail-amt-' + i"
+                        class="form-control form-control--compact"
+                        type="text"
+                        inputmode="decimal"
+                        autocomplete="off"
+                        formControlName="amount"
+                        vnGroupedNumberInput
+                        (keydown)="onDetailKeydown($event, i, 'amt')"
+                      />
+                      @if (row.get('amount')?.touched && row.get('amount')?.hasError('amountMin')) {
+                        <div class="field-error">≥ 0</div>
+                      }
+                    </td>
+                    <td class="col-note">
+                      <input
+                        class="form-control form-control--compact"
+                        type="text"
+                        maxlength="500"
+                        formControlName="lineNote"
+                        (keydown)="onDetailKeydown($event, i, 'note')"
+                      />
+                    </td>
+                    <td class="col-act">
+                      <div class="inv-row-actions">
+                        @if (i > 0) {
+                          <button
+                            type="button"
+                            mat-icon-button
+                            class="inv-row-icon-btn"
+                            (click)="copyPreviousRow(i)"
+                            aria-label="Giống dòng trên"
+                          >
+                            <mat-icon>content_copy</mat-icon>
+                          </button>
+                        }
+                        <button
+                          type="button"
+                          mat-icon-button
+                          class="inv-row-icon-btn"
+                          color="warn"
+                          (click)="removeLine(i)"
+                          [disabled]="details.length <= 1"
+                          aria-label="Xóa dòng"
+                        >
+                          <mat-icon>delete_outline</mat-icon>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+
+      <footer class="app-form-card__footer">
+        <button type="button" class="btn btn--secondary" (click)="cancel()" [disabled]="saving()">Hủy</button>
+        <button type="submit" class="btn btn--primary" [disabled]="saving() || copyingLatest() || loadingDefaults() || form.invalid">
+          {{ saving() ? 'Đang lưu…' : isEditMode() ? 'Lưu thay đổi' : 'Tạo phiếu' }}
+        </button>
+      </footer>
+    </form>
+  }
+</div>

@@ -1,0 +1,28 @@
+@use './styles/tokens';
+@use './styles/primitives';
+@use './styles/forms';
+@use './styles/material-overrides';
+
+/* Leaflet base styles (map panes, controls, tiles). Loaded globally so dynamic map DOM is styled. */
+@import 'leaflet/dist/leaflet.css';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--app-font-sans);
+  font-size: var(--app-text-base);
+  line-height: var(--app-leading-normal);
+  color: var(--app-text);
+  background: var(--app-surface-muted);
+  -webkit-font-smoothing: antialiased;
+}

@@ -1,0 +1,125 @@
+.store-price-form-page__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;  
+}
+
+.store-price-form-page__title {
+  margin: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--app-text-2xl);
+  font-weight: 650;
+  letter-spacing: var(--app-tracking-tight);
+  color: var(--app-text);
+  line-height: var(--app-leading-tight);
+}
+
+.store-price-form-page__back {
+  flex-shrink: 0;
+  line-height: var(--app-leading-tight);
+  padding-block: 0.2rem;
+}
+
+.store-price-form-page__meta {
+  margin-bottom: var(--app-space-6);
+  padding: var(--app-space-4);
+  border-radius: var(--app-radius-md, 6px);
+  border: 1px solid var(--app-border, #e8e8e8);
+  background: var(--app-surface-muted, #f6f7f9);
+}
+
+.store-price-form-page__batch-section {
+  margin-top: 0;
+  padding-top: var(--app-space-6);
+  border-top: 2px solid var(--app-border, #e8e8e8);
+}
+
+.store-price-form-page__field-hint {
+  margin: 0.25rem 0 0;
+  font-size: var(--app-text-sm, 0.875rem);
+}
+
+.store-readonly {
+  margin: 0.15rem 0 0;
+  font-weight: 600;
+}
+
+.price-batch-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.price-batch-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.price-batch-warn {
+  margin: 0.5rem 0 0.75rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--app-radius-md, 6px);
+  border: 1px solid color-mix(in srgb, var(--app-warning, #b45309) 35%, transparent);
+  background: color-mix(in srgb, var(--app-warning, #b45309) 12%, var(--app-surface, #fff));
+  font-size: var(--app-text-sm, 0.875rem);
+}
+
+.table-scroll {
+  overflow-x: auto;
+  margin-top: 0.35rem;
+}
+
+.price-entry-grid {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.price-entry-grid th,
+.price-entry-grid td {
+  padding: 0.35rem 0.4rem;
+  border-bottom: 1px solid var(--app-border, #e8e8e8);
+  vertical-align: middle;
+}
+
+.price-entry-grid th {
+  text-align: left;
+  font-weight: 650;
+  color: var(--app-text-secondary, #555);
+  white-space: nowrap;
+}
+
+.col-idx {
+  width: 2rem;
+  text-align: right;
+}
+
+.col-product {
+  min-width: 12rem;
+}
+
+.col-price {
+  width: 7.5rem;
+}
+
+.col-unit {
+  width: 5rem;
+}
+
+.col-act {
+  width: 2.5rem;
+  text-align: center;
+}
+
+.form-control--compact {
+  min-height: 2.1rem;
+  padding-block: 0.2rem;
+  font-size: 0.9rem;
+}

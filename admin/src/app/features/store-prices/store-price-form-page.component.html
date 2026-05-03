@@ -1,0 +1,297 @@
+<div class="stack app-form-shell app-form-shell--lg store-price-form-page">
+  <header class="store-price-form-page__head">
+    <h1 class="store-price-form-page__title">{{ pageTitle() }}</h1>
+    <a routerLink="/store-prices" class="app-form-back store-price-form-page__back">← Giá cửa hàng</a>
+  </header>
+
+  @if (errorMessage(); as err) {
+    <div class="banner banner--error" role="alert">{{ err }}</div>
+  }
+
+  @if (loading()) {
+    <p class="muted">Đang tải…</p>
+  } @else if (isEditMode()) {
+    <form class="app-form-card" [formGroup]="form" (ngSubmit)="submit()">
+      <header class="app-form-card__header">
+        <h2 class="app-form-card__title">Bản ghi giá</h2>
+      </header>
+      <div class="app-form-card__body">
+        <div class="form-grid form-grid--2">
+          <div class="form-field">
+            <label class="form-label" for="sp-dv">DonViId <span class="req">*</span></label>
+            <select id="sp-dv" class="form-control" formControlName="donViId">
+              <option [ngValue]="null">— Chọn cửa hàng —</option>
+              @for (s of stores(); track s.id) {
+                <option [ngValue]="s.id">{{ s.ma }} — {{ s.ten }}</option>
+              }
+            </select>
+            @if (form.controls.donViId.touched && form.controls.donViId.hasError('required')) {
+              <span class="field-error">Vui lòng chọn cửa hàng.</span>
+            }
+          </div>
+          <div class="form-field form-field--wide">
+            <label class="form-label" for="sp-pr">Mặt hàng <span class="req">*</span></label>
+            <input
+              id="sp-pr"
+              type="text"
+              class="form-control"
+              matInput
+              formControlName="productSearch"
+              [matAutocomplete]="editProductAcp"
+              (blur)="onEditProductSearchBlur()"
+              placeholder="Gõ mã, tên hoặc Id…"
+              autocomplete="off"
+            />
+            <mat-autocomplete #editProductAcp="matAutocomplete" (optionSelected)="onEditProductPicked($event)">
+              @for (p of productMatches(form.controls.productSearch.value); track p.id) {
+                <mat-option [value]="p">{{ productLine(p) }}</mat-option>
+              }
+            </mat-autocomplete>
+            @if (form.controls.productId.touched && form.controls.productId.hasError('required')) {
+              <span class="field-error">Vui lòng chọn mặt hàng từ danh sách gợi ý.</span>
+            }
+          </div>
+
+          <div class="form-field">
+            <label class="form-label" for="sp-price">Giá <span class="req">*</span></label>
+            <input
+              id="sp-price"
+              class="form-control"
+              type="text"
+              inputmode="decimal"
+              autocomplete="off"
+              formControlName="price"
+              vnGroupedNumberInput
+            />
+            @if (form.controls.price.touched && form.controls.price.hasError('required')) {
+              <span class="field-error">Vui lòng nhập giá.</span>
+            }
+            @if (form.controls.price.touched && form.controls.price.hasError('min')) {
+              <span class="field-error">Giá phải ≥ 0.</span>
+            }
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="sp-unit">Đơn vị tính</label>
+            <select id="sp-unit" class="form-control" formControlName="unitId">
+              <option [ngValue]="null">— (không chọn) —</option>
+              @for (u of donViTinhOptions(); track u.id) {
+                <option [ngValue]="u.id">{{ donViTinhLabel(u) }}</option>
+              }
+            </select>
+          </div>
+
+          <div class="form-field form-field--wide">
+            <label class="form-label" for="sp-ed">Ngày hiệu lực <span class="req">*</span></label>
+            <input
+              id="sp-ed"
+              class="form-control"
+              type="text"
+              autocomplete="off"
+              formControlName="effectiveDate"
+              placeholder="dd/MM/yyyy HH:mm"
+            />
+            <p class="muted store-price-form-page__field-hint">Định dạng 24 giờ, ví dụ 19/04/2026 14:30</p>
+            @if (form.controls.effectiveDate.touched && form.controls.effectiveDate.hasError('required')) {
+              <span class="field-error">Vui lòng nhập ngày hiệu lực.</span>
+            }
+            @if (form.controls.effectiveDate.touched && form.controls.effectiveDate.hasError('vnDateTime')) {
+              <span class="field-error">Nhập đúng định dạng dd/MM/yyyy HH:mm.</span>
+            }
+          </div>
+
+          <div class="form-field form-field--wide row-flag">
+            <label class="form-label checkbox-label">
+              <input type="checkbox" formControlName="isCurrent" />
+              IsCurrent (máy chủ đảm bảo tối đa một dòng hiện hành cho mỗi cặp cửa hàng + mặt hàng khi bật)
+            </label>
+          </div>
+
+          <div class="form-field form-field--wide">
+            <label class="form-label" for="sp-note">Ghi chú</label>
+            <textarea id="sp-note" class="form-control" formControlName="note" rows="2"></textarea>
+            @if (form.controls.note.touched && form.controls.note.hasError('maxlength')) {
+              <span class="field-error">Tối đa {{ NOTE_MAX }} ký tự.</span>
+            }
+          </div>
+        </div>
+      </div>
+      <footer class="app-form-card__footer">
+        <button type="button" class="btn btn--secondary" (click)="cancel()" [disabled]="saving()">Hủy</button>
+        <button type="submit" class="btn btn--primary" [disabled]="saving() || form.invalid">
+          {{ saving() ? 'Đang lưu…' : 'Lưu thay đổi' }}
+        </button>
+      </footer>
+    </form>
+  } @else {
+    <form class="app-form-card" [formGroup]="batchForm" (ngSubmit)="submit()">
+     
+      <div class="app-form-card__body">
+        <div class="store-price-form-page__meta">
+          <div class="form-grid form-grid--2">
+          <div class="form-field form-field--wide">
+            <span class="form-label">Cửa hàng</span>
+            @if (createBatchStoreSummary(); as storeLabel) {
+              <p class="muted store-readonly">{{ storeLabel }}</p>
+            } @else {
+              <p class="field-error">Tài khoản chưa gắn DonViId (cửa hàng). Không thể lưu giá.</p>
+            }
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="bf-ed">Ngày hiệu lực <span class="req">*</span></label>
+            <input
+              id="bf-ed"
+              class="form-control"
+              type="text"
+              autocomplete="off"
+              formControlName="effectiveDate"
+              placeholder="dd/MM/yyyy HH:mm"
+            />
+            <p class="muted store-price-form-page__field-hint">Định dạng 24 giờ, ví dụ 19/04/2026 14:30</p>
+            @if (batchForm.controls.effectiveDate.touched && batchForm.controls.effectiveDate.hasError('required')) {
+              <span class="field-error">Vui lòng nhập ngày hiệu lực.</span>
+            }
+            @if (batchForm.controls.effectiveDate.touched && batchForm.controls.effectiveDate.hasError('vnDateTime')) {
+              <span class="field-error">Nhập đúng định dạng dd/MM/yyyy HH:mm.</span>
+            }
+          </div>
+          <div class="form-field form-field--wide row-flag">
+            <label class="form-label checkbox-label">
+              <input type="checkbox" formControlName="isCurrent" />
+              Bảng giá đang áp dụng
+            </label>
+          </div>
+          </div>
+        </div>
+
+        <section class="app-form-section store-price-form-page__batch-section">
+          <div class="price-batch-head">
+            <h3 class="app-form-section__title">Chi tiết giá theo mặt hàng</h3>
+            <div class="price-batch-actions">
+              <button
+                type="button"
+                class="btn btn--secondary btn--sm"
+                (click)="loadDefaultProducts()"
+                [disabled]="loadingDefaults() || isBoardEditorMode()"
+              >
+                {{ loadingDefaults() ? 'Đang tải…' : 'Tải mặt hàng mặc định' }}
+              </button>
+              <button
+                type="button"
+                class="btn btn--secondary btn--sm"
+                (click)="copyFromLatest()"
+                [disabled]="loadingLatest() || isBoardEditorMode()"
+              >
+                {{ loadingLatest() ? 'Đang tải…' : 'Sao chép lần gần nhất' }}
+              </button>
+              <button type="button" class="btn btn--secondary btn--sm" (click)="addPriceRow(true)" [disabled]="isBoardEditorMode()">
+                + Thêm dòng
+              </button>
+            </div>
+          </div>
+
+          @if (missingDefaultProductNames().length > 0) {
+            <div class="price-batch-warn" role="status">
+              Chưa nhập giá cho các mặt hàng thường dùng:
+              {{ missingDefaultProductNames().join('; ') }}
+            </div>
+          }
+
+          @if (batchRows.touched && batchRows.hasError('duplicateProducts')) {
+            <span class="field-error">Không được chọn trùng mặt hàng trong cùng một lần lưu.</span>
+          }
+
+          <div class="table-scroll">
+            <table class="price-entry-grid">
+              <thead>
+                <tr>
+                  <th class="col-idx">#</th>
+                  <th>Mặt hàng <span class="req">*</span></th>
+                  <th class="col-price">Giá <span class="req">*</span></th>
+                  <th class="col-unit">Đơn vị tính</th>
+                  <th>Ghi chú</th>
+                  <th class="col-act"></th>
+                </tr>
+              </thead>
+              <tbody formArrayName="rows">
+                @for (row of batchRows.controls; track row; let i = $index) {
+                  <tr [formGroupName]="i">
+                    <td class="col-idx muted">{{ i + 1 }}</td>
+                    <td class="col-product">
+                      <input
+                        #rowProductInput
+                        type="text"
+                        class="form-control form-control--compact"
+                        matInput
+                        [formControl]="$any(row.get('productSearch'))"
+                        [matAutocomplete]="batchRowAcp"
+                        (blur)="onBatchProductSearchBlur(i)"
+                        placeholder="Tìm mặt hàng…"
+                        autocomplete="off"
+                      />
+                      <mat-autocomplete #batchRowAcp="matAutocomplete" (optionSelected)="onBatchProductPicked(i, $event)">
+                        @for (p of productMatches(row.get('productSearch')?.value); track p.id) {
+                          <mat-option [value]="p">{{ productLine(p) }}</mat-option>
+                        }
+                      </mat-autocomplete>
+                      @if (row.get('productId')?.touched && row.get('productId')?.hasError('required')) {
+                        <div class="field-error">Chọn từ gợi ý.</div>
+                      }
+                    </td>
+                    <td class="col-price">
+                      <input
+                        class="form-control form-control--compact"
+                        type="text"
+                        inputmode="decimal"
+                        autocomplete="off"
+                        formControlName="price"
+                        vnGroupedNumberInput
+                        (keydown)="onPriceEnter(i, $event)"
+                      />
+                      @if (row.get('price')?.touched && row.get('price')?.hasError('required')) {
+                        <div class="field-error">Bắt buộc.</div>
+                      }
+                      @if (row.get('price')?.touched && row.get('price')?.hasError('min')) {
+                        <div class="field-error">≥ 0</div>
+                      }
+                    </td>
+                    <td class="col-unit">
+                      <select class="form-control form-control--compact" formControlName="unitId">
+                        <option [ngValue]="null">—</option>
+                        @for (u of donViTinhOptions(); track u.id) {
+                          <option [ngValue]="u.id">{{ donViTinhLabel(u) }}</option>
+                        }
+                      </select>
+                    </td>
+                    <td>
+                      <input class="form-control form-control--compact" type="text" formControlName="note" maxlength="500" />
+                      @if (row.get('note')?.touched && row.get('note')?.hasError('maxlength')) {
+                        <div class="field-error">Tối đa {{ NOTE_MAX }}</div>
+                      }
+                    </td>
+                    <td class="col-act">
+                      <button
+                        type="button"
+                        class="btn btn--ghost btn--sm"
+                        (click)="removePriceRow(i)"
+                        [disabled]="batchRows.length <= 1 || isBoardEditorMode()"
+                        title="Xóa dòng"
+                      >
+                        ✕
+                      </button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+      <footer class="app-form-card__footer">
+        <button type="button" class="btn btn--secondary" (click)="cancel()" [disabled]="saving()">Hủy</button>
+        <button type="submit" class="btn btn--primary" [disabled]="saving() || batchForm.invalid">
+          {{ saving() ? 'Đang lưu…' : isBoardEditorMode() ? 'Lưu bảng giá' : 'Lưu tất cả' }}
+        </button>
+      </footer>
+    </form>
+  }
+</div>

@@ -1,0 +1,158 @@
+# -----------------------------------------------------------------------------
+# Monorepo root — .NET, Angular, SQL Server, Flutter/mobile, tooling
+# Subprojects may keep their own .gitignore (admin/, mobile/); rules here
+# apply from repository root and complement them.
+# -----------------------------------------------------------------------------
+
+# --- Operating system ---
+.DS_Store
+Thumbs.db
+Desktop.ini
+**/~$*
+
+# --- Visual Studio / MSBuild / .NET ---
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+out/
+artifacts/
+publish/
+*.user
+*.userosscache
+*.suo
+*.cachefile
+*.VC.db
+*.VC.VC.opendb
+*.pidb
+*.svclog
+*.plg
+*.opt
+*.aps
+*.ncb
+*.opensdf
+*.sdf
+*.cache
+*.ilk
+*.meta
+*.pdb
+*.mdb
+*.opendb
+TestResults/
+[Tt]est[Rr]esult*/
+*.trx
+*.coverage
+*.coveragexml
+coverage*.json
+coverage*.xml
+*.DotSettings.user
+*.ncrunch*
+*.ncrunchsolution
+_NCrunch_*
+.*crunch*.local.xml
+nCrunchTemp_*
+project.lock.json
+project.fragment.lock.json
+Generated\ Files/
+*.Designer.cs.bak
+
+# Visual Studio folder
+.vs/
+
+# Rider / JetBrains
+.idea/
+*.sln.iml
+
+# NuGet (legacy / local)
+**/packages/*
+!**/packages/build/
+*.nupkg
+*.snupkg
+.nuget/
+project.assets.json.bak
+
+# User secrets & local env (never commit real secrets)
+**/appsettings.*.local.json
+**/appsettings.Local.json
+*.secrets.json
+secrets.json
+
+# --- SQL Server / local database files ---
+*.mdf
+*.ldf
+*.ndf
+*.bak
+*.trn
+*.bacpac
+*.dacpac.bak
+
+# --- Node / Angular (any path under repo) ---
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+.npm
+.eslintcache
+*.tsbuildinfo
+.angular/
+dist/
+tmp/
+out-tsc/
+bazel-out/
+
+# --- Environment & certificates ---
+.env
+.env.*
+!.env.example
+*.pfx
+*.p12
+*.pem
+!**/certs/.gitkeep
+
+# --- Terraform / Docker local (if added later) ---
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# --- Product docs: Word binaries not versioned ---
+docs/product/*.docx
+
+# --- API runtime uploads (bad-report images; created at runtime) ---
+backend/src/Httm.XangDau.Api/wwwroot/uploads/
+
+# --- Flutter (paths from monorepo root; mobile/.gitignore still applies in mobile/) ---
+mobile/**/.dart_tool/
+mobile/**/build/
+
+# --- Misc tooling ---
+*.log
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+.cache/
+.turbo/
+.parcel-cache/
+
+# --- Cursor / local AI (optional; uncomment if you do not want local rules in repo) ---
+# .cursor/
+
+# --- Legacy code (không push) ---
+DMPPortal/
+
+# --- Backend ad-hoc build/output folders (root-level) ---
+backend/_*/
+backend/out-*/
+backend/ef-build-out/
+
+# --- Real appsettings (chỉ commit file *.example.json đi kèm) ---
+backend/src/Httm.XangDau.Api/appsettings.json
+backend/src/Httm.XangDau.Api/appsettings.Development.json
+backend/src/Httm.XangDau.Api/appsettings.Production.json
+!backend/src/Httm.XangDau.Api/appsettings.example.json
+!backend/src/Httm.XangDau.Api/appsettings.Development.example.json
+!backend/src/Httm.XangDau.Api/appsettings.Production.example.json

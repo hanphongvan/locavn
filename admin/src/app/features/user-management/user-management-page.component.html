@@ -1,0 +1,150 @@
+<div class="um-page">
+  <app-page-header title="Quản lý người dùng">
+    <p appPageHeaderDesc>
+      Chỉ tài khoản Admin. Dữ liệu từ stored procedure legacy + khóa/mở trên <code>AspNetUsers</code>.
+    </p>
+  </app-page-header>
+
+  @if (error()) {
+    <div class="um-page__banner um-page__banner--error" role="alert">{{ error() }}</div>
+  }
+
+  <div class="um-toolbar">
+    <button mat-flat-button color="primary" type="button" (click)="addNew()">Thêm mới</button>
+    <button mat-stroked-button type="button" (click)="exportExcel()">Xuất Excel (CSV)</button>
+    <button mat-stroked-button type="button" (click)="lockSelected()">Khóa</button>
+    <button mat-stroked-button type="button" (click)="unlockSelected()">Mở khóa</button>
+    <button mat-stroked-button type="button" (click)="syncAccounts()">Đồng bộ tài khoản</button>
+  </div>
+
+  <app-filter-panel title="Bộ lọc">
+    <div class="um-filters">
+      <mat-form-field appearance="outline" class="um-filters__field">
+        <mat-label>Tìm UserName / DisplayName</mat-label>
+        <input matInput [(ngModel)]="keyword" (ngModelChange)="onKeywordInput()" />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="um-filters__field">
+        <mat-label>Trạng thái khóa</mat-label>
+        <mat-select [(ngModel)]="locked" (ngModelChange)="onFilterChange()">
+          <mat-option [value]="null">Tất cả</mat-option>
+          <mat-option [value]="true">Đang khóa</mat-option>
+          <mat-option [value]="false">Đang mở</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="um-filters__field">
+        <mat-label>Đơn vị</mat-label>
+        <mat-select [(ngModel)]="donViId" (ngModelChange)="onFilterChange()">
+          <mat-option [value]="null">Tất cả</mat-option>
+          @for (d of donViOptions(); track d.id) {
+            <mat-option [value]="d.id">{{ d.ma }} — {{ d.ten }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="um-filters__field">
+        <mat-label>Loại (Loai)</mat-label>
+        <mat-select [(ngModel)]="loai" (ngModelChange)="onFilterChange()">
+          <mat-option [value]="null">Tất cả</mat-option>
+          <mat-option [value]="1">1 — Admin</mat-option>
+          <mat-option [value]="3">3 — Trader</mat-option>
+          <mat-option [value]="4">4 — Store</mat-option>
+        </mat-select>
+      </mat-form-field>
+    </div>
+  </app-filter-panel>
+
+  <app-section-card title="Danh sách người dùng">
+    @if (loading()) {
+      <div class="um-loading">
+        <mat-spinner diameter="40" />
+        <span>Đang tải…</span>
+      </div>
+    } @else if (items().length === 0) {
+      <div class="um-empty">Không có người dùng phù hợp bộ lọc.</div>
+    } @else {
+      <app-table-wrapper>
+        <table mat-table [dataSource]="items()" class="um-table mat-elevation-z0">
+          <ng-container matColumnDef="select">
+            <th mat-header-cell *matHeaderCellDef>
+              <mat-checkbox
+                (change)="$event ? masterToggle() : null"
+                [checked]="selection.hasValue() && isAllSelected()"
+                [indeterminate]="selection.hasValue() && !isAllSelected()"
+                [aria-label]="checkboxLabel()"
+              />
+            </th>
+            <td mat-cell *matCellDef="let row">
+              <mat-checkbox
+                (click)="$event.stopPropagation()"
+                (change)="$event ? selection.toggle(row) : null"
+                [checked]="selection.isSelected(row)"
+                [aria-label]="checkboxLabel(row)"
+              />
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="userName">
+            <th mat-header-cell *matHeaderCellDef>UserName</th>
+            <td mat-cell *matCellDef="let row">
+              <a class="um-link" [routerLink]="['/users', row.id]">{{ row.userName }}</a>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="displayName">
+            <th mat-header-cell *matHeaderCellDef>DisplayName</th>
+            <td mat-cell *matCellDef="let row">
+              <a class="um-link" [routerLink]="['/users', row.id]">{{ row.displayName || '—' }}</a>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="loaiLabel">
+            <th mat-header-cell *matHeaderCellDef>Nhóm (Loai)</th>
+            <td mat-cell *matCellDef="let row">{{ row.loaiLabel || (row.loai != null ? row.loai : '—') }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="donViDisplayName">
+            <th mat-header-cell *matHeaderCellDef>Đơn vị</th>
+            <td mat-cell *matCellDef="let row">{{ row.donViDisplayName || '—' }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="isLocked">
+            <th mat-header-cell *matHeaderCellDef>Khóa</th>
+            <td mat-cell *matCellDef="let row">
+              <app-status-badge
+                [label]="row.isLocked ? 'Khóa' : 'Mở'"
+                [variant]="row.isLocked ? 'warning' : 'success'"
+              />
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="actions">
+            <th mat-header-cell *matHeaderCellDef></th>
+            <td mat-cell *matCellDef="let row">
+              <button mat-icon-button type="button" matTooltip="Sửa" (click)="edit(row)">
+                <mat-icon>edit</mat-icon>
+              </button>
+              <button mat-icon-button type="button" matTooltip="Xóa" color="warn" (click)="deleteOne(row)">
+                <mat-icon>delete</mat-icon>
+              </button>
+            </td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+        </table>
+      </app-table-wrapper>
+
+      <mat-paginator
+        class="um-paginator"
+        [length]="totalCount()"
+        [pageIndex]="pageIndex()"
+        [pageSize]="pageSize()"
+        [pageSizeOptions]="[10, 20, 50, 100]"
+        (page)="onPage($event)"
+        showFirstLastButtons
+      />
+    }
+  </app-section-card>
+</div>

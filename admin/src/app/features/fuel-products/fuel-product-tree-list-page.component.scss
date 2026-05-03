@@ -1,0 +1,135 @@
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.toolbar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.tabs {
+  display: inline-flex;
+  border-radius: var(--app-radius-md);
+  border: 1px solid var(--app-border);
+  overflow: hidden;
+  background: var(--app-surface-muted);
+}
+
+.tabs__btn {
+  border: none;
+  background: transparent;
+  padding: 0.45rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--app-text-muted);
+  cursor: pointer;
+  font-family: inherit;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+
+.tabs__btn:hover {
+  color: var(--app-text);
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.tabs__btn--active {
+  background: #fff;
+  color: var(--app-brand);
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.06);
+}
+
+.tree-panel {
+  padding: 0.25rem 0;
+}
+
+.list-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.page-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8125rem;
+  color: var(--app-text-muted);
+}
+
+.form-control--inline {
+  width: auto;
+  min-width: 4.5rem;
+}
+
+.muted {
+  color: var(--app-text-muted);
+  font-size: 0.875rem;
+}
+
+.banner {
+  padding: 0.75rem 1rem;
+  border-radius: var(--app-radius-md);
+  font-size: 0.875rem;
+  margin-bottom: 0.75rem;
+}
+
+.banner--error {
+  background: rgba(185, 28, 28, 0.08);
+  border: 1px solid rgba(185, 28, 28, 0.25);
+  color: var(--app-danger);
+}
+
+.pill {
+  display: inline-block;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+
+.pill--on {
+  background: rgba(21, 128, 61, 0.12);
+  color: var(--app-success);
+}
+
+.pill--off {
+  background: rgba(100, 116, 139, 0.15);
+  color: var(--app-text-muted);
+}
+
+.link {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--app-brand);
+  text-decoration: none;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+.empty-row {
+  text-align: center;
+  padding: 1.25rem !important;
+}
+
+.col-actions {
+  width: 5rem;
+}
+
+.list-footer {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}

@@ -1,0 +1,13 @@
+// Local iOS build settings — sao chép file này thành `Local.xcconfig` (cùng thư mục) và
+// thay placeholder bằng API key thật. `Local.xcconfig` đã được gitignore — KHÔNG commit.
+//
+// Setup nhanh (mỗi máy dev làm 1 lần):
+//   cd mobile/ios/Flutter
+//   cp Local.xcconfig.example Local.xcconfig
+//   # Mở Local.xcconfig, thay GMS_API_KEY bằng iOS Maps SDK key thật
+//
+// Key lấy ở Google Cloud Console:
+//   https://console.cloud.google.com/google/maps-apis/credentials
+// Restrict by **iOS bundle ID** + chỉ enable **Maps SDK for iOS**.
+
+GMS_API_KEY = REPLACE_WITH_YOUR_IOS_GOOGLE_MAPS_API_KEY

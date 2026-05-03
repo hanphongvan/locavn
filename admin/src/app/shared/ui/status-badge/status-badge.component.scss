@@ -1,0 +1,46 @@
+.app-status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.24rem 0.65rem;
+  border-radius: var(--app-radius-pill);
+  font-size: var(--app-text-xs);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.25;
+  border: 1px solid transparent;
+  box-shadow: 0 1px 1px rgba(15, 23, 42, 0.04);
+  transition:
+    background-color 0.14s ease,
+    border-color 0.14s ease,
+    box-shadow 0.14s ease;
+}
+
+.app-status-badge--neutral {
+  background: rgba(100, 116, 139, 0.09);
+  color: var(--app-text-secondary);
+  border-color: rgba(100, 116, 139, 0.2);
+}
+
+.app-status-badge--success {
+  background: rgba(15, 118, 110, 0.09);
+  color: var(--app-success);
+  border-color: rgba(15, 118, 110, 0.22);
+}
+
+.app-status-badge--warning {
+  background: rgba(180, 83, 9, 0.09);
+  color: var(--app-warning);
+  border-color: rgba(180, 83, 9, 0.22);
+}
+
+.app-status-badge--danger {
+  background: rgba(185, 28, 28, 0.08);
+  color: var(--app-danger);
+  border-color: rgba(185, 28, 28, 0.2);
+}
+
+.app-status-badge--info {
+  background: rgba(3, 105, 161, 0.08);
+  color: var(--app-info);
+  border-color: rgba(3, 105, 161, 0.2);
+}
