@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../../../core/map/app_map_marker.dart';
+import '../../../core/map/providers/google/google_marker_bridge.dart';
 import '../../map/presentation/map_station_marker_factory.dart';
 import '../domain/stock_map_stock_status.dart';
 import 'inventory_stock_map_config.dart';
@@ -196,11 +198,11 @@ class _InventoryStockMapGoogleViewState extends State<InventoryStockMapGoogleVie
         final pin = slice[j];
         final globalIndex = i + j;
         final kind = _markerKindForStock(pin.status);
-        BitmapDescriptor? icon = MapStationMarkerFactory.descriptorFromCache(
+        AppMapMarkerIcon? icon = MapStationMarkerFactory.iconFromCache(
           kind: kind,
           devicePixelRatio: dpr,
         );
-        icon ??= await MapStationMarkerFactory.descriptorFor(kind: kind, devicePixelRatio: dpr);
+        icon ??= await MapStationMarkerFactory.iconFor(kind: kind, devicePixelRatio: dpr);
         if (!mounted) return markers;
         final markerKey = pin.stationId?.toString() ??
             '${pin.point.latitude}_${pin.point.longitude}_$globalIndex';
@@ -208,8 +210,8 @@ class _InventoryStockMapGoogleViewState extends State<InventoryStockMapGoogleVie
           Marker(
             markerId: MarkerId('inv_stock_$markerKey'),
             position: pin.point,
-            icon: icon,
-            anchor: MapStationMarkerFactory.anchor,
+            icon: googleBitmapFromAppIcon(icon),
+            anchor: googleAnchorFromApp(MapStationMarkerFactory.anchor),
             consumeTapEvents: true,
             infoWindow: InfoWindow(
               title: pin.stationName,

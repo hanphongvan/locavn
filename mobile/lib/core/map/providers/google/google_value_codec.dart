@@ -54,6 +54,7 @@ abstract final class GoogleValueCodec {
           toBounds(u.bounds),
           u.padding,
         ),
+      AppMapCameraUpdateZoomTo() => gmf.CameraUpdate.zoomTo(u.zoom),
     };
   }
 }

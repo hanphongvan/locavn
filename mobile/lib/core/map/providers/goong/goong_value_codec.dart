@@ -55,6 +55,7 @@ abstract final class GoongValueCodec {
           top: u.padding,
           bottom: u.padding,
         ),
+      AppMapCameraUpdateZoomTo() => ml.CameraUpdate.zoomTo(u.zoom),
     };
   }
 }

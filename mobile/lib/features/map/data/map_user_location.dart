@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+
+import '../../../core/map/app_lat_lng.dart';
 
 /// Outcome of requesting the device location for map features (nearest station, etc.).
 sealed class MapUserLocationOutcome {}
 
 final class MapUserLocationOk extends MapUserLocationOutcome {
   MapUserLocationOk(this.position);
-  final LatLng position;
+  final AppLatLng position;
 }
 
 final class MapUserLocationDenied extends MapUserLocationOutcome {}
@@ -37,7 +38,7 @@ Future<MapUserLocationOutcome> requestMapUserLocation() async {
   final pos = await Geolocator.getCurrentPosition(
     locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium),
   );
-  return MapUserLocationOk(LatLng(pos.latitude, pos.longitude));
+  return MapUserLocationOk(AppLatLng(pos.latitude, pos.longitude));
 }
 
 /// Hiển thị snackbar phù hợp cho từng [MapUserLocationOutcome] không-OK.

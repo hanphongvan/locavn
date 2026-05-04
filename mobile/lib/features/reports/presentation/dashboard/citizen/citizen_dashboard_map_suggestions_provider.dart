@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../../../../../core/map/app_lat_lng.dart';
 import '../../../../stations/data/models/station_map_item.dart';
 import '../../../../stations/data/models/station_spotlight_dto.dart';
 import '../../../../stations/data/stations_api.dart';
@@ -49,7 +49,7 @@ class CitizenDashboardMapSuggestions {
   final bool nearestNeedsLocation;
 }
 
-CitizenMapStationSuggestion? _localNearestPick(LatLng user, List<StationMapItem> items) {
+CitizenMapStationSuggestion? _localNearestPick(AppLatLng user, List<StationMapItem> items) {
   if (items.isEmpty) return null;
   final ranked = MapDiscovery.nearest(items, user);
   final item = ranked.first;
@@ -84,7 +84,7 @@ Future<CitizenMapStationSuggestion?> _resolveSpotlight(
   StationsApi api,
   StationSpotlightDto spot,
   List<StationMapItem> items, {
-  LatLng? origin,
+  AppLatLng? origin,
 }) async {
   final mapped = await resolveSpotlightToMapItem(api, spot, items);
   if (mapped == null) return null;

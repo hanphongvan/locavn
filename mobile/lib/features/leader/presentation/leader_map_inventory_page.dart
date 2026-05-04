@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../../../core/map/providers/google/google_marker_bridge.dart';
 import '../../map/data/map_user_location.dart';
 import '../../map/presentation/map_providers.dart';
 import '../../map/presentation/map_screen_palette.dart';
@@ -131,12 +132,14 @@ class _LeaderMapInventoryPageState extends ConsumerState<LeaderMapInventoryPage>
     if (!mounted) return;
     switch (outcome) {
       case MapUserLocationOk(:final position):
+        // Bridge AppLatLng → google_maps_flutter LatLng (page này vẫn dùng GoogleMap trực tiếp).
+        final ll = LatLng(position.latitude, position.longitude);
         final ctrl = _controller;
         if (ctrl == null) {
-          setState(() => _pendingRetailZoomCenter = position);
+          setState(() => _pendingRetailZoomCenter = ll);
           return;
         }
-        await _animateRetailViewportTo(position);
+        await _animateRetailViewportTo(ll);
         _scheduleApply();
       case MapUserLocationDenied():
       case MapUserLocationDeniedForever():
@@ -231,7 +234,7 @@ class _LeaderMapInventoryPageState extends ConsumerState<LeaderMapInventoryPage>
           stationId: s.stationId,
           cheapSpotlightStationId: null,
         );
-        final pin = await MapStationMarkerComposer.buildDescriptor(
+        final pin = await MapStationMarkerComposer.buildIcon(
           item: s,
           kind: kind,
           selected: false,
@@ -244,8 +247,8 @@ class _LeaderMapInventoryPageState extends ConsumerState<LeaderMapInventoryPage>
           Marker(
             markerId: MarkerId('st_${s.stationId}'),
             position: LatLng(s.latitude, s.longitude),
-            icon: pin,
-            anchor: MapStationMarkerComposer.anchor,
+            icon: googleBitmapFromAppIcon(pin),
+            anchor: googleAnchorFromApp(MapStationMarkerComposer.anchor),
             zIndexInt: 2,
             infoWindow: InfoWindow(title: s.stationName, snippet: _leaderRetailMarkerInfoSnippet(s)),
             onTap: () => showLeaderStationSheet(context, ref, s),

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../../../core/map/app_lat_lng.dart';
 import '../../../core/network/api_exception.dart';
 import '../../stations/data/models/station_map_item.dart';
 import '../../stations/data/stations_api.dart';
@@ -23,7 +23,7 @@ Future<
       int? spotlightReviewCount,
     })?> resolveNearestStation({
   required WidgetRef ref,
-  required LatLng user,
+  required AppLatLng user,
   required List<StationMapItem> loadedItems,
 }) async {
   final api = ref.read(stationsApiProvider);
@@ -59,7 +59,7 @@ Future<
   double? spotlightAverageRating,
   int? spotlightReviewCount,
 })? _localNearest(
-  LatLng user,
+  AppLatLng user,
   List<StationMapItem> loadedItems,
 ) {
   if (loadedItems.isEmpty) return null;
@@ -93,7 +93,7 @@ Future<void> presentNearestPetrolStation(
   final loc = await requestMapUserLocation();
   if (!context.mounted) return;
 
-  final LatLng user;
+  final AppLatLng user;
   switch (loc) {
     case MapUserLocationDenied():
     case MapUserLocationDeniedForever():

@@ -31,6 +31,8 @@ sealed class AppMapCameraUpdate {
     required AppLatLngBounds bounds,
     double padding,
   }) = AppMapCameraUpdateNewLatLngBounds;
+  const factory AppMapCameraUpdate.zoomTo(double zoom) =
+      AppMapCameraUpdateZoomTo;
 }
 
 class AppMapCameraUpdateNewLatLng extends AppMapCameraUpdate {
@@ -56,4 +58,9 @@ class AppMapCameraUpdateNewLatLngBounds extends AppMapCameraUpdate {
     required this.bounds,
     this.padding = 50,
   });
+}
+
+class AppMapCameraUpdateZoomTo extends AppMapCameraUpdate {
+  final double zoom;
+  const AppMapCameraUpdateZoomTo(this.zoom);
 }

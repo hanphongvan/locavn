@@ -1,8 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../../../core/map/app_lat_lng.dart';
+import '../../../core/map/app_map_controller.dart';
 import '../../stations/data/models/station_map_item.dart';
 import '../../store_services/data/models/store_service_catalog_item.dart';
 import '../../stations/data/models/station_map_markers_load_result.dart';
@@ -72,8 +73,8 @@ final mapMarkerFuelPriceModeProvider = StateProvider<MapMarkerFuelPriceMode>(
   (ref) => MapMarkerFuelPriceMode.ron95,
 );
 
-/// Google Map controller từ [MapStationMapBody] — dùng nút zoom / vị trí.
-final mapGoogleMapControllerProvider = StateProvider<GoogleMapController?>((ref) => null);
+/// Map controller (provider-agnostic) từ [MapStationMapBody] — dùng nút zoom / vị trí.
+final mapAppMapControllerProvider = StateProvider<AppMapController?>((ref) => null);
 
 /// Sắp xếp danh sách trạm trong bottom sheet (client-side, dữ liệu đã tải).
 enum MapStationListSort {
@@ -90,7 +91,7 @@ final mapStationListSortProvider = StateProvider<MapStationListSort>(
 /// Vị trí người dùng để tính khoảng cách trong sheet (không tạo dữ liệu giả).
 ///
 /// [FutureProvider] (không autoDispose) để đổi tab rồi quay lại Bản đồ không gọi lại GPS.
-final mapSheetUserOriginProvider = FutureProvider<LatLng?>((ref) async {
+final mapSheetUserOriginProvider = FutureProvider<AppLatLng?>((ref) async {
   var perm = await Geolocator.checkPermission();
   if (perm == LocationPermission.denied) {
     perm = await Geolocator.requestPermission();
@@ -105,7 +106,7 @@ final mapSheetUserOriginProvider = FutureProvider<LatLng?>((ref) async {
   if (!StationMapItem.isValidCoord(pos.latitude, pos.longitude)) {
     return null;
   }
-  return LatLng(pos.latitude, pos.longitude);
+  return AppLatLng(pos.latitude, pos.longitude);
 });
 
 /// Danh sách trạm đã tải + sắp xếp theo [mapStationListSortProvider] và GPS nếu có.
@@ -265,7 +266,7 @@ final stationMapMarkersProvider = Provider<AsyncValue<StationMapMarkersLoadResul
 });
 
 /// When set, [MapShellPage] animates the camera here then clears the value.
-final mapCameraTargetProvider = StateProvider<LatLng?>((ref) => null);
+final mapCameraTargetProvider = StateProvider<AppLatLng?>((ref) => null);
 
 /// Marker highlight driven from search / discovery (not only marker tap).
 final mapHighlightStationIdProvider = StateProvider<int?>((ref) => null);

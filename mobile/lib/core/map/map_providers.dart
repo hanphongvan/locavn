@@ -4,14 +4,16 @@ import 'map_provider_adapter.dart';
 import 'map_provider_config.dart';
 import 'map_provider_kind.dart';
 import 'map_provider_registry.dart';
+import 'providers/google/google_map_adapter.dart';
 
-/// Phải override trong `main.dart` với các adapter đã đăng ký.
-/// Không có default — đọc trước khi override sẽ throw để fail-fast.
+/// Default registry chỉ có Google (zero-config: chạy mà không cần env nào).
+/// `main.dart` override để add Goong khi `GOONG_MAPTILES_KEY` được truyền —
+/// xem `lib/core/map/map_provider_bootstrap.dart`.
+///
+/// Test/widget không cần override — Google adapter là pure-Dart wrapper, không
+/// init native sớm.
 final mapProviderRegistryProvider = Provider<MapProviderRegistry>((ref) {
-  throw UnimplementedError(
-    'MapProviderRegistry must be overridden in main.dart with registered adapters. '
-    'See mobile/docs/map-provider-architecture.md.',
-  );
+  return MapProviderRegistry()..register(GoogleMapAdapter());
 });
 
 final currentMapProviderKindProvider = Provider<MapProviderKind>((ref) {
