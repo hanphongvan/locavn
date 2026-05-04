@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../../../core/map/app_map_camera.dart';
 import 'map_providers.dart';
 import 'map_screen_palette.dart';
 
@@ -17,20 +17,22 @@ class MapFloatingControls extends ConsumerWidget {
         _RoundMapButton(
           icon: Icons.add_rounded,
           onPressed: () async {
-            final c = ref.read(mapGoogleMapControllerProvider);
+            final c = ref.read(mapAppMapControllerProvider);
             if (c == null) return;
             final z = await c.getZoomLevel();
-            await c.animateCamera(CameraUpdate.zoomTo(z + 1));
+            if (z == null) return;
+            await c.animateCamera(AppMapCameraUpdate.zoomTo(z + 1));
           },
         ),
         const SizedBox(height: 10),
         _RoundMapButton(
           icon: Icons.remove_rounded,
           onPressed: () async {
-            final c = ref.read(mapGoogleMapControllerProvider);
+            final c = ref.read(mapAppMapControllerProvider);
             if (c == null) return;
             final z = await c.getZoomLevel();
-            await c.animateCamera(CameraUpdate.zoomTo((z - 1).clamp(3, 21)));
+            if (z == null) return;
+            await c.animateCamera(AppMapCameraUpdate.zoomTo((z - 1).clamp(3, 21)));
           },
         ),
         const SizedBox(height: 10),

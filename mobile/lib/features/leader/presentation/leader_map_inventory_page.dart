@@ -3,8 +3,12 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../../../core/map/app_lat_lng.dart';
+import '../../../core/map/app_map.dart';
+import '../../../core/map/app_map_camera.dart';
+import '../../../core/map/app_map_controller.dart';
+import '../../../core/map/app_map_marker.dart';
 import '../../map/data/map_user_location.dart';
 import '../../map/presentation/map_providers.dart';
 import '../../map/presentation/map_screen_palette.dart';
@@ -28,7 +32,7 @@ import 'leader_map_filter_sheet.dart';
 import 'leader_map_ui_provider.dart';
 import 'leader_theme.dart';
 
-/// Tooltip Google Map: chỉ địa chỉ (tên ở [InfoWindow.title]).
+/// Tooltip map info window: chỉ địa chỉ (tên ở `AppMapInfoWindow.title`).
 String _leaderRetailMarkerInfoSnippet(StationMapItem s) {
   final raw = s.shortAddress?.trim();
   if (raw == null || raw.isEmpty) return '';
@@ -84,16 +88,16 @@ class LeaderMapInventoryPage extends ConsumerStatefulWidget {
 }
 
 class _LeaderMapInventoryPageState extends ConsumerState<LeaderMapInventoryPage> {
-  GoogleMapController? _controller;
+  AppMapController? _controller;
   Timer? _idleDebounce;
   int _applySerial = 0;
-  Set<Marker> _markers = {};
+  Set<AppMapMarker> _markers = {};
   bool _busy = false;
 
-  /// GPS chờ [GoogleMap] tạo controller (bật cửa hàng rất sớm).
-  LatLng? _pendingRetailZoomCenter;
+  /// GPS chờ map tạo controller (bật cửa hàng rất sớm).
+  AppLatLng? _pendingRetailZoomCenter;
 
-  static const CameraPosition _initial = CameraPosition(
+  static const AppMapCameraPosition _initial = AppMapCameraPosition(
     target: kLeaderMapCenterVietnam,
     zoom: 5.8,
   );
@@ -111,16 +115,19 @@ class _LeaderMapInventoryPageState extends ConsumerState<LeaderMapInventoryPage>
     });
   }
 
-  Future<void> _animateRetailViewportTo(LatLng center) async {
+  Future<void> _animateRetailViewportTo(AppLatLng center) async {
     final ctrl = _controller;
     if (ctrl == null) return;
     final bounds = leaderLatLngBoundsWithRadiusMeters(center, kLeaderRetailStoresViewportRadiusMeters);
     try {
       await ctrl.animateCamera(
-        CameraUpdate.newLatLngBounds(bounds, kLeaderRetailStoresFitBoundsPadding),
+        AppMapCameraUpdate.newLatLngBounds(
+          bounds: bounds,
+          padding: kLeaderRetailStoresFitBoundsPadding,
+        ),
       );
     } catch (_) {
-      await ctrl.animateCamera(CameraUpdate.newLatLngZoom(center, 16.5));
+      await ctrl.animateCamera(AppMapCameraUpdate.newLatLngZoom(center, 16.5));
     }
   }
 
@@ -161,6 +168,10 @@ class _LeaderMapInventoryPageState extends ConsumerState<LeaderMapInventoryPage>
       final bounds = await ctrl.getVisibleRegion();
       final zoom = await ctrl.getZoomLevel();
       if (!mounted || serial != _applySerial) return;
+      if (bounds == null || zoom == null) {
+        if (mounted) setState(() => _busy = false);
+        return;
+      }
 
       final ui = ref.read(leaderMapUiProvider);
       final ne = bounds.northeast;
@@ -199,22 +210,22 @@ class _LeaderMapInventoryPageState extends ConsumerState<LeaderMapInventoryPage>
       );
       if (!mounted || serial != _applySerial) return;
 
-      final markers = <Marker>{};
+      final markers = <AppMapMarker>{};
 
       for (final d in executives) {
-        final icon = await LeaderDistributorMapMarker.buildDescriptor(
+        final icon = await LeaderDistributorMapMarker.buildIcon(
           displayStatus: d.displayStatusFor(ui.fuel),
           coverageDays: d.coverageDaysFor(ui.fuel),
           devicePixelRatio: dpr,
         );
         if (!mounted || serial != _applySerial) return;
         markers.add(
-          Marker(
-            markerId: MarkerId('dist_${d.mapKey}'),
+          AppMapMarker(
+            id: AppMapMarkerId('dist_${d.mapKey}'),
             position: d.position,
             icon: icon,
             anchor: LeaderDistributorMapMarker.anchor,
-            zIndexInt: 3,
+            zIndex: 3,
             onTap: () {
               final fuel = ref.read(leaderMapUiProvider).fuel;
               showLeaderDistributorSheet(context, ref, d, fuel: fuel);
@@ -231,7 +242,7 @@ class _LeaderMapInventoryPageState extends ConsumerState<LeaderMapInventoryPage>
           stationId: s.stationId,
           cheapSpotlightStationId: null,
         );
-        final pin = await MapStationMarkerComposer.buildDescriptor(
+        final pin = await MapStationMarkerComposer.buildIcon(
           item: s,
           kind: kind,
           selected: false,
@@ -241,13 +252,13 @@ class _LeaderMapInventoryPageState extends ConsumerState<LeaderMapInventoryPage>
         );
         if (!mounted || serial != _applySerial) return;
         markers.add(
-          Marker(
-            markerId: MarkerId('st_${s.stationId}'),
-            position: LatLng(s.latitude, s.longitude),
+          AppMapMarker(
+            id: AppMapMarkerId('st_${s.stationId}'),
+            position: AppLatLng(s.latitude, s.longitude),
             icon: pin,
             anchor: MapStationMarkerComposer.anchor,
-            zIndexInt: 2,
-            infoWindow: InfoWindow(title: s.stationName, snippet: _leaderRetailMarkerInfoSnippet(s)),
+            zIndex: 2,
+            infoWindow: AppMapInfoWindow(title: s.stationName, snippet: _leaderRetailMarkerInfoSnippet(s)),
             onTap: () => showLeaderStationSheet(context, ref, s),
           ),
         );
@@ -299,11 +310,10 @@ class _LeaderMapInventoryPageState extends ConsumerState<LeaderMapInventoryPage>
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        GoogleMap(
+                        AppMap(
                           key: const ValueKey('leaderInventoryMap'),
                           initialCameraPosition: _initial,
                           markers: _markers,
-                          mapToolbarEnabled: false,
                           myLocationButtonEnabled: false,
                           zoomControlsEnabled: false,
                           compassEnabled: true,
@@ -380,7 +390,8 @@ class _LeaderMapInventoryPageState extends ConsumerState<LeaderMapInventoryPage>
                             final c = _controller;
                             if (c == null) return;
                             final z = await c.getZoomLevel();
-                            await c.animateCamera(CameraUpdate.zoomTo(z + 1));
+                            if (z == null) return;
+                            await c.animateCamera(AppMapCameraUpdate.zoomTo(z + 1));
                           },
                         ),
                         const SizedBox(height: 10),
@@ -390,7 +401,8 @@ class _LeaderMapInventoryPageState extends ConsumerState<LeaderMapInventoryPage>
                             final c = _controller;
                             if (c == null) return;
                             final z = await c.getZoomLevel();
-                            await c.animateCamera(CameraUpdate.zoomTo((z - 1).clamp(3, 21)));
+                            if (z == null) return;
+                            await c.animateCamera(AppMapCameraUpdate.zoomTo((z - 1).clamp(3, 21)));
                           },
                         ),
                       ],

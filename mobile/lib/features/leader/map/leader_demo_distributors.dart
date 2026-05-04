@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../../../core/map/app_lat_lng.dart';
 import '../data/leader_home_portal_models.dart';
 
 /// Điểm đầu mối minh họa (chưa có API toạ độ + tồn thật) — thay khi backend cung cấp.
@@ -28,7 +28,7 @@ class LeaderDemoDistributor {
   final String id;
   final String name;
   final String address;
-  final LatLng position;
+  final AppLatLng position;
   /// Tổng tồn xăng (minh họa), đơn vị hiển thị **m³**.
   final double xangTon;
   /// Tổng tồn dầu (minh họa), đơn vị hiển thị **tấn**.
@@ -54,7 +54,7 @@ class LeaderDemoDistributor {
       id: 'sp-$index-${r.name.hashCode}',
       name: r.name,
       address: 'Đầu mối (nguồn: báo cáo hệ thống)',
-      position: LatLng(r.lat, r.lng),
+      position: AppLatLng(r.lat, r.lng),
       xangTon: r.xang.toDouble(),
       dauTon: r.dau.toDouble(),
       daysXang: d,
@@ -77,7 +77,7 @@ const List<LeaderDemoDistributor> kLeaderDemoDistributors = [
     id: 'dm-hn',
     name: 'Tổng kho xăng dầu miền Bắc (minh họa)',
     address: 'Khu công nghiệp Phố Nối A, Hưng Yên',
-    position: LatLng(20.931234, 106.051234),
+    position: AppLatLng(20.931234, 106.051234),
     xangTon: 12400,
     dauTon: 8200,
     daysXang: 14.2,
@@ -95,7 +95,7 @@ const List<LeaderDemoDistributor> kLeaderDemoDistributors = [
     id: 'dm-dn',
     name: 'Kho đầu mối Nam Trung Bộ (minh họa)',
     address: 'Cảng Liên Chiểu, Đà Nẵng',
-    position: LatLng(16.061234, 108.181234),
+    position: AppLatLng(16.061234, 108.181234),
     xangTon: 6800,
     dauTon: 11200,
     daysXang: 4.1,
@@ -113,7 +113,7 @@ const List<LeaderDemoDistributor> kLeaderDemoDistributors = [
     id: 'dm-hcm',
     name: 'Trung tâm phân phối TP.HCM (minh họa)',
     address: 'Cát Lái, Thủ Đức, TP.HCM',
-    position: LatLng(10.771234, 106.791234),
+    position: AppLatLng(10.771234, 106.791234),
     xangTon: 18200,
     dauTon: 15300,
     daysXang: 18.0,
@@ -131,7 +131,7 @@ const List<LeaderDemoDistributor> kLeaderDemoDistributors = [
     id: 'dm-ct',
     name: 'Đầu mối ĐBSCL (minh họa)',
     address: 'Cần Thơ',
-    position: LatLng(10.031234, 105.781234),
+    position: AppLatLng(10.031234, 105.781234),
     xangTon: 5100,
     dauTon: 4300,
     daysXang: 7.4,

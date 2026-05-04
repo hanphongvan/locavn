@@ -1,5 +1,4 @@
-import 'package:google_maps_flutter/google_maps_flutter.dart';
-
+import '../../../core/map/app_lat_lng.dart';
 import '../data/models/inventory_map_station.dart';
 import '../domain/stock_map_stock_status.dart';
 import 'stock_map_station_pin.dart';
@@ -30,7 +29,7 @@ List<StockMapStationPin> pinsFromInventoryMapStations(List<InventoryMapStation> 
     out.add(
       StockMapStationPin(
         stationId: s.stationId,
-        point: LatLng(lat, lng),
+        point: AppLatLng(lat, lng),
         status: status,
         stationName: s.stationName,
         address: s.address,
