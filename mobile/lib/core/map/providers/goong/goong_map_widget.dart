@@ -75,6 +75,16 @@ class _GoongMapWidgetState extends State<GoongMapWidget> {
 
   Future<void> _onStyleLoaded() async {
     _styleLoaded = true;
+    final c = _controller;
+    if (c != null) {
+      // MapLibre mặc định ẩn marker khi đè lên label tile / marker khác
+      // (khác Google: cho overlap). Đặt layer-wide để mọi symbol app vẽ
+      // luôn hiển thị (collision detection do app tự lo, không qua engine).
+      try {
+        await c.setSymbolIconAllowOverlap(true);
+        await c.setSymbolIconIgnorePlacement(true);
+      } catch (_) {/* nếu API rename trong version maplibre_gl mới */}
+    }
     await _applyAll();
   }
 
