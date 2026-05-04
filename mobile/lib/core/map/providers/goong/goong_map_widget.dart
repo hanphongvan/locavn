@@ -70,7 +70,7 @@ class _GoongMapWidgetState extends State<GoongMapWidget> {
   void _onMapCreated(ml.MapLibreMapController c) {
     _controller = c;
     c.onSymbolTapped.add(_handleSymbolTap);
-    widget.onMapCreated?.call(GoongAppMapController(c));
+    widget.onMapCreated?.call(GoongAppMapController(c, widget.initialCameraPosition));
   }
 
   Future<void> _onStyleLoaded() async {

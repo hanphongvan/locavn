@@ -10,7 +10,14 @@ import 'goong_value_codec.dart';
 class GoongAppMapController implements AppMapController {
   final ml.MapLibreMapController _delegate;
 
-  GoongAppMapController(this._delegate);
+  /// Fallback khi `_delegate.cameraPosition` còn null — trường này chỉ populate
+  /// sau camera event đầu tiên trên MapLibre, không sẵn ngay sau onMapCreated /
+  /// onStyleLoadedCallback (khác Google: cameraPosition luôn có giá trị).
+  /// Caller (MapStationMapBody, …) sẽ thấy `getZoomLevel()` không-null và build
+  /// được marker ngay từ frame đầu thay vì phải đợi pan/zoom.
+  final AppMapCameraPosition _initialCameraPosition;
+
+  GoongAppMapController(this._delegate, this._initialCameraPosition);
 
   ml.MapLibreMapController get rawController => _delegate;
 
@@ -27,7 +34,9 @@ class GoongAppMapController implements AppMapController {
   @override
   Future<AppMapCameraPosition?> getCameraPosition() async {
     final cp = _delegate.cameraPosition;
-    return cp == null ? null : GoongValueCodec.fromCameraPosition(cp);
+    return cp == null
+        ? _initialCameraPosition
+        : GoongValueCodec.fromCameraPosition(cp);
   }
 
   @override
@@ -37,7 +46,8 @@ class GoongAppMapController implements AppMapController {
   }
 
   @override
-  Future<double?> getZoomLevel() async => _delegate.cameraPosition?.zoom;
+  Future<double?> getZoomLevel() async =>
+      _delegate.cameraPosition?.zoom ?? _initialCameraPosition.zoom;
 
   @override
   Future<Offset?> getScreenCoordinate(AppLatLng latLng) async {
