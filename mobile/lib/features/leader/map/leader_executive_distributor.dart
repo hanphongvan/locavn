@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../../../core/map/app_lat_lng.dart';
 import '../data/leader_map_models.dart';
 import '../data/leader_map_ui_state.dart';
 import 'leader_demo_distributors.dart';
@@ -28,7 +28,7 @@ class LeaderExecutiveDistributor {
     required this.trangThaiDau,
   });
 
-  /// Khóa ổn định cho [MarkerId] trên Google Map.
+  /// Khóa ổn định cho `AppMapMarkerId`.
   final int mapKey;
 
   /// Id đơn vị trên máy chủ; null ⇒ dữ liệu minh họa — không GET inventory.
@@ -36,7 +36,7 @@ class LeaderExecutiveDistributor {
 
   final String name;
   final String address;
-  final LatLng position;
+  final AppLatLng position;
   final String? logoUrl;
   final double xangTon;
   final double dauTon;
@@ -63,7 +63,7 @@ class LeaderExecutiveDistributor {
       serverDonViId: r.id,
       name: r.tenDonVi,
       address: (r.diaChi == null || r.diaChi!.trim().isEmpty) ? '—' : r.diaChi!.trim(),
-      position: LatLng(r.lat, r.lng),
+      position: AppLatLng(r.lat, r.lng),
       logoUrl: r.logoUrl,
       xangTon: r.tonXang,
       dauTon: r.tonDau,
