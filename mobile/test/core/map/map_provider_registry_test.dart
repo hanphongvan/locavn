@@ -30,6 +30,8 @@ class _FakeAdapter extends MapProviderAdapter {
     bool myLocationButtonEnabled = false,
     bool zoomControlsEnabled = false,
     bool compassEnabled = true,
+    double? minZoom,
+    double? maxZoom,
     AppMapCreatedCallback? onMapCreated,
     AppMapTapCallback? onTap,
     AppMapCameraIdleCallback? onCameraIdle,

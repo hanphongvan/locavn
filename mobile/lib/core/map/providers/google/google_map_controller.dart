@@ -1,5 +1,7 @@
+import 'package:flutter/widgets.dart' show Offset;
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gmf;
 
+import '../../app_lat_lng.dart';
 import '../../app_lat_lng_bounds.dart';
 import '../../app_map_camera.dart';
 import '../../app_map_controller.dart';
@@ -33,4 +35,14 @@ class GoogleAppMapController implements AppMapController {
 
   @override
   Future<double?> getZoomLevel() => _delegate.getZoomLevel();
+
+  @override
+  Future<Offset?> getScreenCoordinate(AppLatLng latLng) async {
+    try {
+      final s = await _delegate.getScreenCoordinate(GoogleValueCodec.toLatLng(latLng));
+      return Offset(s.x.toDouble(), s.y.toDouble());
+    } catch (_) {
+      return null;
+    }
+  }
 }

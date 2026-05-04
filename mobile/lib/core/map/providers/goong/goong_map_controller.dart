@@ -1,5 +1,7 @@
+import 'package:flutter/widgets.dart' show Offset;
 import 'package:maplibre_gl/maplibre_gl.dart' as ml;
 
+import '../../app_lat_lng.dart';
 import '../../app_lat_lng_bounds.dart';
 import '../../app_map_camera.dart';
 import '../../app_map_controller.dart';
@@ -36,4 +38,14 @@ class GoongAppMapController implements AppMapController {
 
   @override
   Future<double?> getZoomLevel() async => _delegate.cameraPosition?.zoom;
+
+  @override
+  Future<Offset?> getScreenCoordinate(AppLatLng latLng) async {
+    try {
+      final p = await _delegate.toScreenLocation(GoongValueCodec.toLatLng(latLng));
+      return Offset(p.x.toDouble(), p.y.toDouble());
+    } catch (_) {
+      return null;
+    }
+  }
 }

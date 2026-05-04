@@ -20,6 +20,8 @@ class GoogleMapWidget extends StatelessWidget {
   final AppMapCreatedCallback? onMapCreated;
   final AppMapTapCallback? onTap;
   final AppMapCameraIdleCallback? onCameraIdle;
+  final double? minZoom;
+  final double? maxZoom;
 
   const GoogleMapWidget({
     super.key,
@@ -31,6 +33,8 @@ class GoogleMapWidget extends StatelessWidget {
     this.myLocationButtonEnabled = false,
     this.zoomControlsEnabled = false,
     this.compassEnabled = true,
+    this.minZoom,
+    this.maxZoom,
     this.onMapCreated,
     this.onTap,
     this.onCameraIdle,
@@ -49,6 +53,9 @@ class GoogleMapWidget extends StatelessWidget {
       compassEnabled: compassEnabled,
       myLocationEnabled: myLocationEnabled,
       myLocationButtonEnabled: myLocationButtonEnabled,
+      minMaxZoomPreference: (minZoom != null || maxZoom != null)
+          ? gmf.MinMaxZoomPreference(minZoom, maxZoom)
+          : gmf.MinMaxZoomPreference.unbounded,
       onMapCreated: (c) {
         onMapCreated?.call(GoogleAppMapController(c));
       },

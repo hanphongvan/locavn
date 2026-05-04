@@ -3,10 +3,13 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../../../core/map/app_lat_lng.dart';
+import '../../../core/map/app_lat_lng_bounds.dart';
+import '../../../core/map/app_map.dart';
+import '../../../core/map/app_map_camera.dart';
+import '../../../core/map/app_map_controller.dart';
 import '../../../core/map/app_map_marker.dart';
-import '../../../core/map/providers/google/google_marker_bridge.dart';
 import '../../map/presentation/map_station_marker_factory.dart';
 import '../domain/stock_map_stock_status.dart';
 import 'inventory_stock_map_config.dart';
@@ -18,7 +21,8 @@ StationMapMarkerAssetKind _markerKindForStock(StockMapStockStatus status) => swi
       StockMapStockStatus.normal => StationMapMarkerAssetKind.open,
     };
 
-/// Google Map + API-driven markers (same PNG assets as [MapStationMarkerFactory]).
+/// Map + API-driven markers (provider-agnostic — render qua `AppMap`,
+/// dùng cùng PNG assets như [MapStationMarkerFactory]).
 ///
 /// [markerLayerKey] should change when the fuel group changes so markers and camera
 /// refit behave like a fresh layer.
@@ -39,24 +43,24 @@ class InventoryStockMapGoogleView extends StatefulWidget {
 }
 
 class _InventoryStockMapGoogleViewState extends State<InventoryStockMapGoogleView> {
-  GoogleMapController? _controller;
-  Set<Marker> _markers = {};
+  AppMapController? _controller;
+  Set<AppMapMarker> _markers = {};
   bool _markersBusy = false;
   Timer? _cameraIdleDebounce;
   Offset? _hoangSaScreen;
   Offset? _truongSaScreen;
 
-  /// GPS hợp lệ — bật chấm “vị trí của tôi” và ưu tiên zoom 1 km quanh đây.
+  /// GPS hợp lệ — bật chấm "vị trí của tôi" và ưu tiên zoom 1 km quanh đây.
   bool _locationGranted = false;
 
-  /// Tâm GPS sau khi lấy được (dùng khi [CameraUpdate.newLatLngBounds] lỗi).
-  LatLng? _userLocation;
+  /// Tâm GPS sau khi lấy được (dùng khi `AppMapCameraUpdate.newLatLngBounds` lỗi).
+  AppLatLng? _userLocation;
 
-  /// GPS xong trước khi [GoogleMap] tạo controller.
-  LatLngBounds? _pendingUserFitBounds;
+  /// GPS xong trước khi map tạo controller.
+  AppLatLngBounds? _pendingUserFitBounds;
 
-  CameraPosition _initialCamera = CameraPosition(
-    target: LatLng(
+  AppMapCameraPosition _initialCamera = const AppMapCameraPosition(
+    target: AppLatLng(
       InventoryStockMapConfig.initialLatitude,
       InventoryStockMapConfig.initialLongitude,
     ),
@@ -69,17 +73,17 @@ class _InventoryStockMapGoogleViewState extends State<InventoryStockMapGoogleVie
     unawaited(_prepareUserLocation());
   }
 
-  /// Hộp lat/lng ~2×[radiusMeters] (tâm ± radius), cùng mô hình [MapStationMapBody].
-  static LatLngBounds _boundsWithRadiusMeters(LatLng center, double radiusMeters) {
+  /// Hộp lat/lng ~2×[radiusMeters] (tâm ± radius), cùng mô hình `MapStationMapBody`.
+  static AppLatLngBounds _boundsWithRadiusMeters(AppLatLng center, double radiusMeters) {
     final latRad = center.latitude * math.pi / 180;
     final cosLat = math.cos(latRad).clamp(0.02, 1.0);
     const mPerDegLat = 111320.0;
     final mPerDegLng = 111320.0 * cosLat;
     final dLat = radiusMeters / mPerDegLat;
     final dLng = radiusMeters / mPerDegLng;
-    return LatLngBounds(
-      southwest: LatLng(center.latitude - dLat, center.longitude - dLng),
-      northeast: LatLng(center.latitude + dLat, center.longitude + dLng),
+    return AppLatLngBounds(
+      southwest: AppLatLng(center.latitude - dLat, center.longitude - dLng),
+      northeast: AppLatLng(center.latitude + dLat, center.longitude + dLng),
     );
   }
 
@@ -97,28 +101,29 @@ class _InventoryStockMapGoogleViewState extends State<InventoryStockMapGoogleVie
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium),
       );
       if (!mounted) return;
-      final here = LatLng(pos.latitude, pos.longitude);
+      final here = AppLatLng(pos.latitude, pos.longitude);
       final fit = _boundsWithRadiusMeters(here, InventoryStockMapConfig.userLocationRadiusMeters);
       setState(() {
         _locationGranted = true;
         _userLocation = here;
-        _initialCamera = CameraPosition(target: here, zoom: 15);
+        _initialCamera = AppMapCameraPosition(target: here, zoom: 15);
       });
       final ctrl = _controller;
       if (ctrl != null) {
         try {
-          await ctrl.animateCamera(
-            CameraUpdate.newLatLngBounds(fit, InventoryStockMapConfig.fitBoundsPadding),
-          );
+          await ctrl.animateCamera(AppMapCameraUpdate.newLatLngBounds(
+            bounds: fit,
+            padding: InventoryStockMapConfig.fitBoundsPadding,
+          ));
         } catch (_) {
-          await ctrl.animateCamera(CameraUpdate.newLatLngZoom(here, 15));
+          await ctrl.animateCamera(AppMapCameraUpdate.newLatLngZoom(here, 15));
         }
         if (mounted) await _syncMaritimeLabelScreens();
       } else {
         _pendingUserFitBounds = fit;
       }
     } catch (_) {
-      // Không bắt buộc GPS — [onMapCreated] sẽ fit theo trạm nếu có.
+      // Không bắt buộc GPS — `onMapCreated` sẽ fit theo trạm nếu có.
     }
   }
 
@@ -177,7 +182,7 @@ class _InventoryStockMapGoogleViewState extends State<InventoryStockMapGoogleVie
     }
   }
 
-  Future<Set<Marker>> _buildMarkers(List<StockMapStationPin> pins) async {
+  Future<Set<AppMapMarker>> _buildMarkers(List<StockMapStationPin> pins) async {
     if (!mounted) return {};
     final dpr = MediaQuery.devicePixelRatioOf(context);
     try {
@@ -189,7 +194,7 @@ class _InventoryStockMapGoogleViewState extends State<InventoryStockMapGoogleVie
     }
 
     const batch = 80;
-    final markers = <Marker>{};
+    final markers = <AppMapMarker>{};
     for (var i = 0; i < pins.length; i += batch) {
       final end = i + batch > pins.length ? pins.length : i + batch;
       final slice = pins.sublist(i, end);
@@ -207,13 +212,13 @@ class _InventoryStockMapGoogleViewState extends State<InventoryStockMapGoogleVie
         final markerKey = pin.stationId?.toString() ??
             '${pin.point.latitude}_${pin.point.longitude}_$globalIndex';
         markers.add(
-          Marker(
-            markerId: MarkerId('inv_stock_$markerKey'),
+          AppMapMarker(
+            id: AppMapMarkerId('inv_stock_$markerKey'),
             position: pin.point,
-            icon: googleBitmapFromAppIcon(icon),
-            anchor: googleAnchorFromApp(MapStationMarkerFactory.anchor),
+            icon: icon,
+            anchor: MapStationMarkerFactory.anchor,
             consumeTapEvents: true,
-            infoWindow: InfoWindow(
+            infoWindow: AppMapInfoWindow(
               title: pin.stationName,
               snippet: pin.address?.trim().isNotEmpty == true ? pin.address!.trim() : '',
             ),
@@ -225,7 +230,7 @@ class _InventoryStockMapGoogleViewState extends State<InventoryStockMapGoogleVie
     return markers;
   }
 
-  Future<void> _fitCameraToPins(GoogleMapController controller, List<StockMapStationPin> pins) async {
+  Future<void> _fitCameraToPins(AppMapController controller, List<StockMapStationPin> pins) async {
     if (pins.isEmpty) return;
     final n = math.min(pins.length, 200);
     var minLat = pins[0].point.latitude;
@@ -248,22 +253,23 @@ class _InventoryStockMapGoogleViewState extends State<InventoryStockMapGoogleVie
       minLng -= 0.06;
       maxLng += 0.06;
     }
-    final fit = LatLngBounds(
-      southwest: LatLng(minLat - padDeg, minLng - padDeg),
-      northeast: LatLng(maxLat + padDeg, maxLng + padDeg),
+    final fit = AppLatLngBounds(
+      southwest: AppLatLng(minLat - padDeg, minLng - padDeg),
+      northeast: AppLatLng(maxLat + padDeg, maxLng + padDeg),
     );
     try {
       await controller
-          .animateCamera(
-            CameraUpdate.newLatLngBounds(fit, InventoryStockMapConfig.fitBoundsPadding),
-          )
+          .animateCamera(AppMapCameraUpdate.newLatLngBounds(
+            bounds: fit,
+            padding: InventoryStockMapConfig.fitBoundsPadding,
+          ))
           .timeout(const Duration(seconds: 12));
     } on TimeoutException {
       // ignore
     } catch (_) {
       final t = pins.first.point;
       try {
-        await controller.animateCamera(CameraUpdate.newLatLngZoom(t, 10));
+        await controller.animateCamera(AppMapCameraUpdate.newLatLngZoom(t, 10));
       } catch (_) {}
     }
   }
@@ -276,8 +282,8 @@ class _InventoryStockMapGoogleViewState extends State<InventoryStockMapGoogleVie
       final t = await c.getScreenCoordinate(InventoryStockMapConfig.maritimeTruongSa);
       if (!mounted) return;
       setState(() {
-        _hoangSaScreen = Offset(h.x.toDouble(), h.y.toDouble());
-        _truongSaScreen = Offset(t.x.toDouble(), t.y.toDouble());
+        _hoangSaScreen = h;
+        _truongSaScreen = t;
       });
     } catch (_) {
       if (mounted) {
@@ -301,12 +307,13 @@ class _InventoryStockMapGoogleViewState extends State<InventoryStockMapGoogleVie
     if (c == null) return;
     try {
       final z = await c.getZoomLevel();
+      if (z == null) return;
       final double next = (z + delta).clamp(
         InventoryStockMapConfig.minZoom,
         InventoryStockMapConfig.maxZoom,
       );
       if ((next - z).abs() > 0.01) {
-        await c.animateCamera(CameraUpdate.zoomTo(next));
+        await c.animateCamera(AppMapCameraUpdate.zoomTo(next));
       }
     } catch (_) {}
   }
@@ -352,17 +359,14 @@ class _InventoryStockMapGoogleViewState extends State<InventoryStockMapGoogleVie
             fit: StackFit.expand,
             children: [
               Positioned.fill(
-                child: GoogleMap(
+                child: AppMap(
                   initialCameraPosition: _initialCamera,
                   markers: _markers,
-                  mapToolbarEnabled: false,
                   zoomControlsEnabled: false,
                   compassEnabled: true,
                   myLocationEnabled: _locationGranted,
-                  minMaxZoomPreference: MinMaxZoomPreference(
-                    InventoryStockMapConfig.minZoom,
-                    InventoryStockMapConfig.maxZoom,
-                  ),
+                  minZoom: InventoryStockMapConfig.minZoom,
+                  maxZoom: InventoryStockMapConfig.maxZoom,
                   onMapCreated: (c) async {
                     _controller = c;
                     await _applyMarkers();
@@ -371,15 +375,15 @@ class _InventoryStockMapGoogleViewState extends State<InventoryStockMapGoogleVie
                       _pendingUserFitBounds = null;
                       try {
                         await c.animateCamera(
-                          CameraUpdate.newLatLngBounds(
-                            pendingUser,
-                            InventoryStockMapConfig.fitBoundsPadding,
+                          AppMapCameraUpdate.newLatLngBounds(
+                            bounds: pendingUser,
+                            padding: InventoryStockMapConfig.fitBoundsPadding,
                           ),
                         );
                       } catch (_) {
                         final u = _userLocation;
                         if (u != null) {
-                          await c.animateCamera(CameraUpdate.newLatLngZoom(u, 15));
+                          await c.animateCamera(AppMapCameraUpdate.newLatLngZoom(u, 15));
                         }
                       }
                     } else if (_userLocation == null && widget.pins.isNotEmpty) {

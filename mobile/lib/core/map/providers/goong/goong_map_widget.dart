@@ -26,6 +26,8 @@ class GoongMapWidget extends StatefulWidget {
   final AppMapCreatedCallback? onMapCreated;
   final AppMapTapCallback? onTap;
   final AppMapCameraIdleCallback? onCameraIdle;
+  final double? minZoom;
+  final double? maxZoom;
 
   const GoongMapWidget({
     super.key,
@@ -36,6 +38,8 @@ class GoongMapWidget extends StatefulWidget {
     this.padding = EdgeInsets.zero,
     this.myLocationEnabled = false,
     this.compassEnabled = true,
+    this.minZoom,
+    this.maxZoom,
     this.onMapCreated,
     this.onTap,
     this.onCameraIdle,
@@ -269,6 +273,9 @@ class _GoongMapWidgetState extends State<GoongMapWidget> {
           ? ml.MyLocationTrackingMode.tracking
           : ml.MyLocationTrackingMode.none,
       compassEnabled: widget.compassEnabled,
+      minMaxZoomPreference: (widget.minZoom != null || widget.maxZoom != null)
+          ? ml.MinMaxZoomPreference(widget.minZoom, widget.maxZoom)
+          : ml.MinMaxZoomPreference.unbounded,
       attributionButtonPosition: ml.AttributionButtonPosition.bottomRight,
     );
   }

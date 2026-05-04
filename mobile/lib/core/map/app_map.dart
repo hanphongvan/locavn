@@ -16,6 +16,8 @@ class AppMap extends ConsumerWidget {
   final bool myLocationButtonEnabled;
   final bool zoomControlsEnabled;
   final bool compassEnabled;
+  final double? minZoom;
+  final double? maxZoom;
   final AppMapCreatedCallback? onMapCreated;
   final AppMapTapCallback? onTap;
   final AppMapCameraIdleCallback? onCameraIdle;
@@ -30,6 +32,8 @@ class AppMap extends ConsumerWidget {
     this.myLocationButtonEnabled = false,
     this.zoomControlsEnabled = false,
     this.compassEnabled = true,
+    this.minZoom,
+    this.maxZoom,
     this.onMapCreated,
     this.onTap,
     this.onCameraIdle,
@@ -47,6 +51,8 @@ class AppMap extends ConsumerWidget {
       myLocationButtonEnabled: myLocationButtonEnabled,
       zoomControlsEnabled: zoomControlsEnabled,
       compassEnabled: compassEnabled,
+      minZoom: minZoom,
+      maxZoom: maxZoom,
       onMapCreated: onMapCreated,
       onTap: onTap,
       onCameraIdle: onCameraIdle,
