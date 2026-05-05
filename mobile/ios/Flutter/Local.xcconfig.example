@@ -4,10 +4,14 @@
 // Setup nhanh (mỗi máy dev làm 1 lần):
 //   cd mobile/ios/Flutter
 //   cp Local.xcconfig.example Local.xcconfig
-//   # Mở Local.xcconfig, thay GMS_API_KEY bằng iOS Maps SDK key thật
 //
-// Key lấy ở Google Cloud Console:
+// **Production deploy chỉ dùng Goong** (MAP_PROVIDER=goong) → có thể giữ
+// placeholder hoặc để rỗng. AppDelegate.swift có guard `!key.isEmpty` nên
+// không init Google SDK và app KHÔNG crash. Chỉ điền key thật khi build
+// Google variant (MAP_PROVIDER=google).
+//
+// Google iOS key lấy ở Google Cloud Console:
 //   https://console.cloud.google.com/google/maps-apis/credentials
-// Restrict by **iOS bundle ID** + chỉ enable **Maps SDK for iOS**.
+// Restrict by **iOS bundle ID = vn.gov.dms.locavn** + chỉ enable **Maps SDK for iOS**.
 
 GMS_API_KEY = REPLACE_WITH_YOUR_IOS_GOOGLE_MAPS_API_KEY
