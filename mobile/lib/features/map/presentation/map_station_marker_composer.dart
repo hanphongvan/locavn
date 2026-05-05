@@ -3,10 +3,10 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../core/assets/map_marker_asset_paths.dart';
 import '../../../core/formatting/vnd_currency_format.dart';
+import '../../../core/map/app_map_marker.dart';
 import '../../stations/data/models/station_map_item.dart';
 import 'map_providers.dart';
 import 'map_screen_palette.dart';
@@ -14,11 +14,11 @@ import 'map_station_marker_factory.dart';
 
 /// Marker bitmap: icon trạm (asset) + viên giá — không nền thẻ trắng; cache theo DPR / trạng thái / giá.
 abstract final class MapStationMarkerComposer {
-  /// Khung logic (Google Maps) — **48×56** dp, đồng bộ [MapStationMarkerFactory._logicalMarkerSize].
+  /// Khung logic — **48×56** dp, đồng bộ [MapStationMarkerFactory._logicalMarkerSize].
   static const Size _logicalSize = Size(48, 56);
-  static const Offset anchor = Offset(0.5, 1.0);
+  static const AppMapAnchor anchor = AppMapAnchor.bottom;
 
-  static final LinkedHashMap<String, BitmapDescriptor> _cache = LinkedHashMap();
+  static final LinkedHashMap<String, AppMapMarkerIcon> _cache = LinkedHashMap();
 
   /// Tránh đọc lặp asset PNG từ disk khi compose nhiều marker.
   static final Map<String, Future<ByteData>> _bundleLoadFutures = {};
@@ -51,7 +51,7 @@ abstract final class MapStationMarkerComposer {
     return '${stationId}_${kind.name}_${selected ? 1 : 0}_${dpr.toStringAsFixed(1)}_${fuel.name}_${price?.round() ?? -1}';
   }
 
-  static void _remember(String key, BitmapDescriptor d) {
+  static void _remember(String key, AppMapMarkerIcon d) {
     _cache.remove(key);
     _cache[key] = d;
     while (_cache.length > 160) {
@@ -79,7 +79,7 @@ abstract final class MapStationMarkerComposer {
     }
   }
 
-  static Future<BitmapDescriptor> buildDescriptor({
+  static Future<AppMapMarkerIcon> buildIcon({
     required StationMapItem item,
     required StationMapMarkerAssetKind kind,
     required bool selected,
@@ -236,16 +236,14 @@ abstract final class MapStationMarkerComposer {
     final png = await image.toByteData(format: ui.ImageByteFormat.png);
     image.dispose();
     if (png == null || png.lengthInBytes == 0) {
-      return MapStationMarkerFactory.descriptorFor(kind: kind, devicePixelRatio: dpr);
+      return MapStationMarkerFactory.iconFor(kind: kind, devicePixelRatio: dpr);
     }
     final bytes = png.buffer.asUint8List();
-    final desc = BitmapDescriptor.bytes(
-      bytes,
-      width: logicalW,
-      height: logicalH,
-      bitmapScaling: MapBitmapScaling.auto,
+    final icon = AppMapMarkerIconBytes(
+      pngBytes: bytes,
+      devicePixelRatio: dpr,
     );
-    _remember(key, desc);
-    return desc;
+    _remember(key, icon);
+    return icon;
   }
 }

@@ -11,6 +11,7 @@ import 'map_discovery_results_sheet.dart';
 import 'map_filter_sheet.dart';
 import 'map_providers.dart';
 import 'map_screen_palette.dart';
+import 'map_top_rated_station.dart';
 
 /// Thanh tìm kiếm nổi — nền trắng cả thanh; viền / đổ bóng nhẹ.
 class MapSearchBar extends ConsumerStatefulWidget {
@@ -69,6 +70,25 @@ class _MapSearchBarState extends ConsumerState<MapSearchBar> {
     if (data == null) return;
 
     await _showKeywordResultsSheet(context, t, data);
+  }
+
+  Future<void> _onTrustedShortcut(BuildContext context) async {
+    final items = ref.read(stationMapMarkersProvider).asData?.value.items ?? const [];
+    if (items.isEmpty) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Đang tải dữ liệu cây xăng — thử lại sau vài giây.')),
+      );
+      return;
+    }
+    ref.read(mapDiscoveryShortcutProvider.notifier).state = MapDiscoveryShortcut.bestRated;
+    try {
+      await presentTopRatedPetrolStation(context, ref);
+    } finally {
+      if (context.mounted) {
+        ref.read(mapDiscoveryShortcutProvider.notifier).state = MapDiscoveryShortcut.none;
+      }
+    }
   }
 
   Future<void> _showKeywordResultsSheet(
@@ -185,6 +205,11 @@ class _MapSearchBarState extends ConsumerState<MapSearchBar> {
               tooltip: 'Làm mới dữ liệu',
               onPressed: () => unawaited(_onRefreshMarkers()),
               icon: const Icon(Icons.refresh_rounded, color: MapScreenPalette.textPrimary),
+            ),
+            IconButton(
+              tooltip: 'Uy tín',
+              onPressed: () => unawaited(_onTrustedShortcut(context)),
+              icon: const Icon(Icons.verified_outlined, color: MapScreenPalette.textPrimary),
             ),
             IconButton(
               tooltip: 'Bộ lọc',

@@ -3,8 +3,13 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../../../core/map/app_lat_lng.dart';
+import '../../../core/map/app_lat_lng_bounds.dart';
+import '../../../core/map/app_map.dart';
+import '../../../core/map/app_map_camera.dart';
+import '../../../core/map/app_map_controller.dart';
+import '../../../core/map/app_map_marker.dart';
 import '../../stations/data/models/station_map_item.dart';
 import '../../stations/station_open_status.dart';
 import 'map_providers.dart';
@@ -13,18 +18,18 @@ import 'map_station_marker_factory.dart';
 import 'station_map_preview_sheet.dart';
 
 /// Mặc định khi chưa có GPS / bị từ chối quyền.
-const LatLng kVietnamMapCenter = LatLng(15.9266657, 107.9650855);
+const AppLatLng kVietnamMapCenter = AppLatLng(15.9266657, 107.9650855);
 
 /// Bán kính (m) quanh GPS cho khung camera mặc định (~500 m quanh vị trí người dùng).
 const double kDefaultMapUserRadiusMeters = 500;
 
-/// Viền quanh vùng [CameraUpdate.newLatLngBounds] (logical px).
+/// Viền quanh vùng `AppMapCameraUpdate.newLatLngBounds` (logical px).
 const double kDefaultMapFitPadding = 56;
 
 /// Bản đồ cây xăng: ưu tiên zoom quanh vị trí người dùng; chỉ vẽ marker trong khung nhìn + giới hạn theo zoom (giảm tải Maps SDK / Flogger).
 ///
 /// **Shell người dân (`/map`):** khi có GPS, camera mặc định fit khoảng [kDefaultMapUserRadiusMeters] (~500 m) quanh vị trí.
-/// [skipEmptyViewportRecovery] mặc định `true` để **không** tự bay tới “mẫu trạm” toàn quốc khi trong 500 m không có cây xăng — giữ đúng khung quanh người dùng.
+/// [skipEmptyViewportRecovery] mặc định `true` để **không** tự bay tới "mẫu trạm" toàn quốc khi trong 500 m không có cây xăng — giữ đúng khung quanh người dùng.
 class MapStationMapBody extends StatefulWidget {
   const MapStationMapBody({
     super.key,
@@ -46,14 +51,14 @@ class MapStationMapBody extends StatefulWidget {
   /// Extra marker (e.g. global nearest outside [allItems]) until parent clears it.
   final StationMapItem? overlayStation;
 
-  /// Station id from “giá rẻ nhất” spotlight — [MapStationMarkerFactory] maps to cheap asset when open.
+  /// Station id from "giá rẻ nhất" spotlight — [MapStationMarkerFactory] maps to cheap asset when open.
   final int? cheapSpotlightStationId;
 
   /// Chip cảnh báo (từ khóa / truncate) — đặt phía trên bản đồ.
   final Widget? topOverlay;
 
   /// Để [MapShellPage] animate camera (tìm cây xăng / điều hướng).
-  final void Function(GoogleMapController controller)? onMapControllerReady;
+  final void Function(AppMapController controller)? onMapControllerReady;
 
   /// Highlight from search / discovery (parent-owned).
   final int? externalHighlightStationId;
@@ -70,7 +75,7 @@ class MapStationMapBody extends StatefulWidget {
   /// Giá hiển thị trên marker (RON95 / Diesel).
   final MapMarkerFuelPriceMode fuelPriceMode;
 
-  /// Khi `false`, nếu viewport không có marker nhưng [allItems] không rỗng, tự fit camera tới vùng có trạm (hữu ích cho bản đồ “toàn quốc”).
+  /// Khi `false`, nếu viewport không có marker nhưng [allItems] không rỗng, tự fit camera tới vùng có trạm (hữu ích cho bản đồ "toàn quốc").
   /// Mặc định `true` cho UX người dân: giữ khung ~500 m quanh GPS.
   final bool skipEmptyViewportRecovery;
 
@@ -79,11 +84,11 @@ class MapStationMapBody extends StatefulWidget {
 }
 
 class _MapStationMapBodyState extends State<MapStationMapBody> {
-  GoogleMapController? _controller;
+  AppMapController? _controller;
   Timer? _idleDebounce;
   bool _locationGranted = false;
 
-  Set<Marker> _markers = {};
+  Set<AppMapMarker> _markers = {};
   /// Ban đầu false: tránh overlay xoay vĩnh viễn nếu lần apply đầu bị hủy / treo trước khi tắt busy.
   bool _markersBusy = false;
   int _applySerial = 0;
@@ -94,13 +99,13 @@ class _MapStationMapBodyState extends State<MapStationMapBody> {
   /// Tránh lặp vô hạn: mỗi [allItems] fingerprint chỉ tự fit camera một lần khi viewport trống.
   int _viewportRecoveryFingerprint = 0;
 
-  CameraPosition _initialCamera = const CameraPosition(
+  AppMapCameraPosition _initialCamera = const AppMapCameraPosition(
     target: kVietnamMapCenter,
     zoom: 5.6,
   );
 
-  /// GPS xong trước khi [GoogleMap] tạo controller — fit bounds khi [onMapCreated].
-  LatLngBounds? _pendingFitBounds;
+  /// GPS xong trước khi map tạo controller — fit bounds khi `onMapCreated`.
+  AppLatLngBounds? _pendingFitBounds;
 
   @override
   void initState() {
@@ -128,37 +133,40 @@ class _MapStationMapBodyState extends State<MapStationMapBody> {
 
       final last = await Geolocator.getLastKnownPosition();
       if (last != null && mounted) {
-        _applyUserLocation(LatLng(last.latitude, last.longitude));
+        _applyUserLocation(AppLatLng(last.latitude, last.longitude));
       }
 
       final pos = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium),
       );
       if (!mounted) return;
-      _applyUserLocation(LatLng(pos.latitude, pos.longitude));
+      _applyUserLocation(AppLatLng(pos.latitude, pos.longitude));
     } catch (_) {
       // Không bắt buộc GPS — giữ khung mặc định.
     }
   }
 
   /// Khung [kDefaultMapUserRadiusMeters] m mỗi hướng từ tâm (bán kính nhìn quanh GPS).
-  void _applyUserLocation(LatLng here) {
+  void _applyUserLocation(AppLatLng here) {
     if (!mounted) return;
     final w = MediaQuery.sizeOf(context).width;
     final spanMeters = 2 * kDefaultMapUserRadiusMeters;
     final zoom = _zoomForSpanMetersAtLat(here.latitude, w, spanMeters);
     final fit = _boundsWithRadiusMeters(here, kDefaultMapUserRadiusMeters);
     setState(() {
-      _initialCamera = CameraPosition(target: here, zoom: zoom);
+      _initialCamera = AppMapCameraPosition(target: here, zoom: zoom);
     });
     final ctrl = _controller;
     if (ctrl != null) {
       unawaited(() async {
         try {
-          await ctrl.animateCamera(CameraUpdate.newLatLngBounds(fit, kDefaultMapFitPadding));
+          await ctrl.animateCamera(AppMapCameraUpdate.newLatLngBounds(
+            bounds: fit,
+            padding: kDefaultMapFitPadding,
+          ));
         } catch (_) {
           try {
-            await ctrl.animateCamera(CameraUpdate.newLatLngZoom(here, zoom));
+            await ctrl.animateCamera(AppMapCameraUpdate.newLatLngZoom(here, zoom));
           } catch (_) {}
         }
         if (mounted) _kickApplyMarkersSoon();
@@ -184,17 +192,17 @@ class _MapStationMapBodyState extends State<MapStationMapBody> {
     return z.clamp(4.0, 20.5);
   }
 
-  /// Hộp lat/lng có cạnh ~2×[radiusMeters] (tâm ± radius), gần đúng “trong vòng radius mét”.
-  static LatLngBounds _boundsWithRadiusMeters(LatLng center, double radiusMeters) {
+  /// Hộp lat/lng có cạnh ~2×[radiusMeters] (tâm ± radius), gần đúng "trong vòng radius mét".
+  static AppLatLngBounds _boundsWithRadiusMeters(AppLatLng center, double radiusMeters) {
     final latRad = center.latitude * math.pi / 180;
     final cosLat = math.cos(latRad).clamp(0.02, 1.0);
     const mPerDegLat = 111320.0;
     final mPerDegLng = 111320.0 * cosLat;
     final dLat = radiusMeters / mPerDegLat;
     final dLng = radiusMeters / mPerDegLng;
-    return LatLngBounds(
-      southwest: LatLng(center.latitude - dLat, center.longitude - dLng),
-      northeast: LatLng(center.latitude + dLat, center.longitude + dLng),
+    return AppLatLngBounds(
+      southwest: AppLatLng(center.latitude - dLat, center.longitude - dLng),
+      northeast: AppLatLng(center.latitude + dLat, center.longitude + dLng),
     );
   }
 
@@ -208,7 +216,7 @@ class _MapStationMapBodyState extends State<MapStationMapBody> {
     return 160;
   }
 
-  static double _dist2(StationMapItem a, LatLng c) {
+  static double _dist2(StationMapItem a, AppLatLng c) {
     final dx = a.latitude - c.latitude;
     final dy = a.longitude - c.longitude;
     return dx * dx + dy * dy;
@@ -216,12 +224,12 @@ class _MapStationMapBodyState extends State<MapStationMapBody> {
 
   static List<StationMapItem> _itemsInView(
     List<StationMapItem> all,
-    LatLngBounds bounds,
+    AppLatLngBounds bounds,
     double zoom,
   ) {
     final inside = <StationMapItem>[];
     for (final e in all) {
-      final p = LatLng(e.latitude, e.longitude);
+      final p = AppLatLng(e.latitude, e.longitude);
       if (bounds.contains(p)) {
         inside.add(e);
       }
@@ -232,7 +240,7 @@ class _MapStationMapBodyState extends State<MapStationMapBody> {
     }
     final sw = bounds.southwest;
     final ne = bounds.northeast;
-    final c = LatLng((sw.latitude + ne.latitude) / 2, (sw.longitude + ne.longitude) / 2);
+    final c = AppLatLng((sw.latitude + ne.latitude) / 2, (sw.longitude + ne.longitude) / 2);
     inside.sort((a, b) => _dist2(a, c).compareTo(_dist2(b, c)));
     return inside.take(cap).toList(growable: false);
   }
@@ -256,7 +264,7 @@ class _MapStationMapBodyState extends State<MapStationMapBody> {
 
   static int _fingerprintAll(List<StationMapItem> all) => _fingerprint(all);
 
-  /// Debounce chỉ dùng cho [onCameraIdle] (kéo map liên tục). Không dùng cho lần “đá” đầu tiên,
+  /// Debounce chỉ dùng cho [onCameraIdle] (kéo map liên tục). Không dùng cho lần "đá" đầu tiên,
   /// vì mỗi lần [_scheduleCameraIdle] đều **hủy** timer cũ — nếu idle/camera bắn liên tục (GPS
   /// [animateCamera]) thì timer có thể **không bao giờ** chạy → không vẽ marker.
   void _scheduleCameraIdle() {
@@ -290,6 +298,10 @@ class _MapStationMapBodyState extends State<MapStationMapBody> {
       var bounds = await c.getVisibleRegion();
       var zoom = await c.getZoomLevel();
       if (!mounted || serial != _applySerial) return;
+      if (bounds == null || zoom == null) {
+        if (showBusy) setState(() => _markersBusy = false);
+        return;
+      }
       var visible = _withOverlayStation(_itemsInView(widget.allItems, bounds, zoom));
       if (!widget.skipEmptyViewportRecovery &&
           visible.isEmpty &&
@@ -301,9 +313,13 @@ class _MapStationMapBodyState extends State<MapStationMapBody> {
         _viewportRecoveryFingerprint = _fingerprintAll(widget.allItems);
         if (fitted) {
           try {
-            bounds = await c.getVisibleRegion();
-            zoom = await c.getZoomLevel();
-            visible = _withOverlayStation(_itemsInView(widget.allItems, bounds, zoom));
+            final b2 = await c.getVisibleRegion();
+            final z2 = await c.getZoomLevel();
+            if (b2 != null && z2 != null) {
+              bounds = b2;
+              zoom = z2;
+              visible = _withOverlayStation(_itemsInView(widget.allItems, bounds, zoom));
+            }
           } catch (_) {}
         }
       }
@@ -353,7 +369,7 @@ class _MapStationMapBodyState extends State<MapStationMapBody> {
 
   /// Khi GPS/độ zoom đặt khung nhìn nơi không có cây xăng, kéo camera tới vùng có dữ liệu (một lần / tập cây xăng đã tải).
   Future<bool> _fitCameraToStationSample(
-    GoogleMapController controller,
+    AppMapController controller,
     List<StationMapItem> all,
   ) async {
     if (all.isEmpty) return false;
@@ -378,13 +394,16 @@ class _MapStationMapBodyState extends State<MapStationMapBody> {
       minLng -= 0.06;
       maxLng += 0.06;
     }
-    final fit = LatLngBounds(
-      southwest: LatLng(minLat - padDeg, minLng - padDeg),
-      northeast: LatLng(maxLat + padDeg, maxLng + padDeg),
+    final fit = AppLatLngBounds(
+      southwest: AppLatLng(minLat - padDeg, minLng - padDeg),
+      northeast: AppLatLng(maxLat + padDeg, maxLng + padDeg),
     );
     try {
       await controller
-          .animateCamera(CameraUpdate.newLatLngBounds(fit, kDefaultMapFitPadding))
+          .animateCamera(AppMapCameraUpdate.newLatLngBounds(
+            bounds: fit,
+            padding: kDefaultMapFitPadding,
+          ))
           .timeout(const Duration(seconds: 12));
       return true;
     } on TimeoutException {
@@ -394,7 +413,10 @@ class _MapStationMapBodyState extends State<MapStationMapBody> {
     }
   }
 
-  Future<Set<Marker>> _buildMarkers(List<StationMapItem> items, int? selectedStationId) async {
+  Future<Set<AppMapMarker>> _buildMarkers(
+    List<StationMapItem> items,
+    int? selectedStationId,
+  ) async {
     if (!mounted) return {};
     final dpr = MediaQuery.devicePixelRatioOf(context);
     try {
@@ -406,7 +428,7 @@ class _MapStationMapBodyState extends State<MapStationMapBody> {
     }
 
     const batch = 80;
-    final markers = <Marker>{};
+    final markers = <AppMapMarker>{};
     for (var i = 0; i < items.length; i += batch) {
       final end = i + batch > items.length ? items.length : i + batch;
       final slice = items.sublist(i, end);
@@ -419,7 +441,7 @@ class _MapStationMapBodyState extends State<MapStationMapBody> {
           stationId: e.stationId,
           cheapSpotlightStationId: widget.cheapSpotlightStationId,
         );
-        final icon = await MapStationMarkerComposer.buildDescriptor(
+        final icon = await MapStationMarkerComposer.buildIcon(
           item: e,
           kind: kind,
           selected: selected,
@@ -428,14 +450,14 @@ class _MapStationMapBodyState extends State<MapStationMapBody> {
         );
         if (!mounted) return markers;
         markers.add(
-          Marker(
-            markerId: MarkerId('station_${e.stationId}'),
-            position: LatLng(e.latitude, e.longitude),
+          AppMapMarker(
+            id: AppMapMarkerId('station_${e.stationId}'),
+            position: AppLatLng(e.latitude, e.longitude),
             icon: icon,
             anchor: MapStationMarkerComposer.anchor,
-            zIndexInt: selected ? 1000 : 0,
+            zIndex: selected ? 1000 : 0,
             consumeTapEvents: true,
-            infoWindow: InfoWindow(
+            infoWindow: AppMapInfoWindow(
               title: e.stationName,
               snippet: MapStationMarkerFactory.infoSnippet(e),
             ),
@@ -479,14 +501,13 @@ class _MapStationMapBodyState extends State<MapStationMapBody> {
     return Stack(
       fit: StackFit.expand,
       children: [
-        GoogleMap(
+        AppMap(
           initialCameraPosition: _initialCamera,
           markers: _markers,
           padding: EdgeInsets.only(
             bottom: widget.mapBottomPadding,
             top: widget.mapTopPadding + 8,
           ),
-          mapToolbarEnabled: false,
           zoomControlsEnabled: false,
           compassEnabled: true,
           myLocationEnabled: _locationGranted,
@@ -509,10 +530,13 @@ class _MapStationMapBodyState extends State<MapStationMapBody> {
               _pendingFitBounds = null;
               unawaited((() async {
                 try {
-                  await c.animateCamera(CameraUpdate.newLatLngBounds(pending, kDefaultMapFitPadding));
+                  await c.animateCamera(AppMapCameraUpdate.newLatLngBounds(
+                    bounds: pending,
+                    padding: kDefaultMapFitPadding,
+                  ));
                 } catch (_) {
                   final t = _initialCamera.target;
-                  await c.animateCamera(CameraUpdate.newLatLngZoom(t, _initialCamera.zoom));
+                  await c.animateCamera(AppMapCameraUpdate.newLatLngZoom(t, _initialCamera.zoom));
                 }
                 if (mounted) _kickApplyMarkersSoon();
               })());

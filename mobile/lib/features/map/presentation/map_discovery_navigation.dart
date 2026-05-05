@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../../../core/map/app_lat_lng.dart';
 import '../../stations/data/models/station_map_item.dart';
 import '../data/map_discovery.dart';
 import 'map_providers.dart';
@@ -16,7 +16,7 @@ Future<void> focusMapStationAndOpenSummary(
 }) async {
   ref.read(mapDiscoveryShortcutProvider.notifier).state = MapDiscoveryShortcut.none;
   ref.read(mapHighlightStationIdProvider.notifier).state = item.stationId;
-  ref.read(mapCameraTargetProvider.notifier).state = LatLng(item.latitude, item.longitude);
+  ref.read(mapCameraTargetProvider.notifier).state = AppLatLng(item.latitude, item.longitude);
   await Future<void>.delayed(const Duration(milliseconds: 420));
   if (!context.mounted) return;
   try {

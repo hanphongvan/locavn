@@ -1,10 +1,10 @@
 import 'dart:math' as math;
 
-import 'package:google_maps_flutter/google_maps_flutter.dart';
-
+import '../../../core/map/app_lat_lng.dart';
+import '../../../core/map/app_lat_lng_bounds.dart';
 import '../../stations/data/models/station_map_item.dart';
 
-/// Giới hạn marker theo zoom (cùng ý tưởng với [MapStationMapBody]).
+/// Giới hạn marker theo zoom (cùng ý tưởng với `MapStationMapBody`).
 int leaderMapCapForZoom(double zoom) {
   if (zoom < 7.5) return 240;
   if (zoom < 9.5) return 420;
@@ -15,7 +15,7 @@ int leaderMapCapForZoom(double zoom) {
   return 160;
 }
 
-double _dist2(StationMapItem a, LatLng c) {
+double _dist2(StationMapItem a, AppLatLng c) {
   final dx = a.latitude - c.latitude;
   final dy = a.longitude - c.longitude;
   return dx * dx + dy * dy;
@@ -24,12 +24,12 @@ double _dist2(StationMapItem a, LatLng c) {
 /// Trạm trong khung nhìn, giới hạn số lượng — ưu tiên gần tâm bounds.
 List<StationMapItem> leaderStationsInViewport(
   List<StationMapItem> all,
-  LatLngBounds bounds,
+  AppLatLngBounds bounds,
   double zoom,
 ) {
   final inside = <StationMapItem>[];
   for (final e in all) {
-    final p = LatLng(e.latitude, e.longitude);
+    final p = AppLatLng(e.latitude, e.longitude);
     if (bounds.contains(p)) {
       inside.add(e);
     }
@@ -40,7 +40,7 @@ List<StationMapItem> leaderStationsInViewport(
   }
   final sw = bounds.southwest;
   final ne = bounds.northeast;
-  final c = LatLng((sw.latitude + ne.latitude) / 2, (sw.longitude + ne.longitude) / 2);
+  final c = AppLatLng((sw.latitude + ne.latitude) / 2, (sw.longitude + ne.longitude) / 2);
   inside.sort((a, b) => _dist2(a, c).compareTo(_dist2(b, c)));
   return inside.take(cap).toList(growable: false);
 }

@@ -1,11 +1,11 @@
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../../../core/map/app_map_marker.dart';
 import '../presentation/leader_theme.dart';
 
-/// Nhóm màu theo ngưỡng ngày (đồng bộ với [LeaderTheme.daysCoverageColor]).
+/// Nhóm màu theo ngưỡng ngày (đồng bộ với `LeaderTheme.daysCoverageColor`).
 enum LeaderStockBandKind {
   safe,
   warn,
@@ -26,8 +26,8 @@ Color leaderBandColor(LeaderStockBandKind k) {
   };
 }
 
-final Map<String, BitmapDescriptor> _haloCache = {};
-final Map<String, BitmapDescriptor> _clusterCache = {};
+final Map<String, AppMapMarkerIconBytes> _haloCache = {};
+final Map<String, AppMapMarkerIconBytes> _clusterCache = {};
 
 double _dprKey(double raw) {
   if (raw.isNaN || raw <= 0) return 2.5;
@@ -35,7 +35,7 @@ double _dprKey(double raw) {
 }
 
 /// Vòng mờ phía sau marker cửa hàng (3 biến thể cache theo DPR).
-Future<BitmapDescriptor> leaderStockHaloDescriptor(double devicePixelRatio, LeaderStockBandKind band) async {
+Future<AppMapMarkerIconBytes> leaderStockHaloIcon(double devicePixelRatio, LeaderStockBandKind band) async {
   final dpr = _dprKey(devicePixelRatio);
   final key = 'halo_${band.name}_${dpr.toStringAsFixed(2)}';
   final hit = _haloCache[key];
@@ -57,18 +57,16 @@ Future<BitmapDescriptor> leaderStockHaloDescriptor(double devicePixelRatio, Lead
   final picture = recorder.endRecording();
   final image = await picture.toImage(size, size);
   final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-  final descriptor = BitmapDescriptor.bytes(
-    bytes!.buffer.asUint8List(),
-    width: logical,
-    height: logical,
-    bitmapScaling: MapBitmapScaling.auto,
+  final icon = AppMapMarkerIconBytes(
+    pngBytes: bytes!.buffer.asUint8List(),
+    devicePixelRatio: dpr,
   );
-  _haloCache[key] = descriptor;
-  return descriptor;
+  _haloCache[key] = icon;
+  return icon;
 }
 
 /// Marker cluster: số lượng điểm.
-Future<BitmapDescriptor> leaderClusterCountDescriptor(int count, double devicePixelRatio) async {
+Future<AppMapMarkerIconBytes> leaderClusterCountIcon(int count, double devicePixelRatio) async {
   final dpr = _dprKey(devicePixelRatio);
   final key = 'clu_${count}_${dpr.toStringAsFixed(2)}';
   final hit = _clusterCache[key];
@@ -94,12 +92,10 @@ Future<BitmapDescriptor> leaderClusterCountDescriptor(int count, double devicePi
   final picture = recorder.endRecording();
   final image = await picture.toImage(size, size);
   final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-  final descriptor = BitmapDescriptor.bytes(
-    bytes!.buffer.asUint8List(),
-    width: logical,
-    height: logical,
-    bitmapScaling: MapBitmapScaling.auto,
+  final icon = AppMapMarkerIconBytes(
+    pngBytes: bytes!.buffer.asUint8List(),
+    devicePixelRatio: dpr,
   );
-  _clusterCache[key] = descriptor;
-  return descriptor;
+  _clusterCache[key] = icon;
+  return icon;
 }

@@ -2,8 +2,10 @@
 // `mobile/docs/flutter-map-upgrade-phases.md`
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../../../core/map/app_lat_lng.dart';
+import '../../../core/map/app_map_camera.dart';
+import '../../../core/map/app_map_controller.dart';
 import '../../../shared/widgets/async_value_body.dart';
 import '../../stations/data/models/station_map_markers_load_result.dart';
 import 'map_active_filters_strip.dart';
@@ -23,7 +25,7 @@ class MapShellPage extends ConsumerStatefulWidget {
 }
 
 class _MapShellPageState extends ConsumerState<MapShellPage> {
-  GoogleMapController? _mapController;
+  AppMapController? _mapController;
   final GlobalKey _chromeKey = GlobalKey();
   double _mapTopInsetPx = 120;
   bool _chromeMeasureScheduled = false;
@@ -46,12 +48,12 @@ class _MapShellPageState extends ConsumerState<MapShellPage> {
 
   @override
   void dispose() {
-    // Tránh stale reference trong `mapGoogleMapControllerProvider` sau khi page pop —
+    // Tránh stale reference trong `mapAppMapControllerProvider` sau khi page pop —
     // controller được giữ trong StateProvider không-autoDispose. Defer qua microtask để
     // không ghi vào provider trong giai đoạn dispose của widget tree (Riverpod cấm).
     final container = ProviderScope.containerOf(context, listen: false);
     Future.microtask(() {
-      container.read(mapGoogleMapControllerProvider.notifier).state = null;
+      container.read(mapAppMapControllerProvider.notifier).state = null;
     });
     _mapController = null;
     super.dispose();
@@ -61,11 +63,11 @@ class _MapShellPageState extends ConsumerState<MapShellPage> {
   Widget build(BuildContext context) {
     _scheduleChromeMeasure();
 
-    ref.listen<LatLng?>(mapCameraTargetProvider, (previous, next) {
+    ref.listen<AppLatLng?>(mapCameraTargetProvider, (previous, next) {
       final target = next;
       final ctrl = _mapController;
       if (target == null || ctrl == null) return;
-      ctrl.animateCamera(CameraUpdate.newLatLngZoom(target, 13)).then((_) {
+      ctrl.animateCamera(AppMapCameraUpdate.newLatLngZoom(target, 13)).then((_) {
         if (!context.mounted) return;
         ref.read(mapCameraTargetProvider.notifier).state = null;
       });
@@ -144,7 +146,7 @@ class _MapShellPageState extends ConsumerState<MapShellPage> {
                       },
                       onMapControllerReady: (c) {
                         _mapController = c;
-                        ref.read(mapGoogleMapControllerProvider.notifier).state = c;
+                        ref.read(mapAppMapControllerProvider.notifier).state = c;
                       },
                       topOverlay: (result.truncated || result.keywordListTruncated)
                           ? Align(

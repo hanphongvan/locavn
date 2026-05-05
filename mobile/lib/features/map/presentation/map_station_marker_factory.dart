@@ -3,9 +3,9 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../core/assets/map_marker_asset_paths.dart';
+import '../../../core/map/app_map_marker.dart';
 import '../../stations/data/models/station_map_item.dart';
 import '../../stations/domain/station_availability.dart';
 import '../../stations/station_open_status.dart';
@@ -13,7 +13,7 @@ import '../../stations/station_open_status.dart';
 /// Which bundled PNG to use for a station pin (see `assets/map_markers/`).
 enum StationMapMarkerAssetKind { open, closed, cheap }
 
-/// Asset-backed Google Map markers only — no Canvas / widget rasterization.
+/// Asset-backed map markers — provider-agnostic (xem `lib/core/map/`).
 ///
 /// Selection rules (single place):
 /// 1. Closed → [station_closed.png]
@@ -27,13 +27,13 @@ abstract final class MapStationMarkerFactory {
   static const String _cheapAsset = MapMarkerAssetPaths.stationCheap;
 
   /// Bottom tip of the pin → geographic point (tune when replacing marker art).
-  static const Offset anchor = Offset(0.5, 1.0);
+  static const AppMapAnchor anchor = AppMapAnchor.bottom;
 
   /// Logical on-map footprint; combined with [devicePixelRatio] for sharp decoding.
   static const Size _logicalMarkerSize = Size(48, 56);
 
-  static final Map<String, BitmapDescriptor> _cache = {};
-  static final Map<String, Future<BitmapDescriptor>> _inFlight = {};
+  static final Map<String, AppMapMarkerIcon> _cache = {};
+  static final Map<String, Future<AppMapMarkerIcon>> _inFlight = {};
 
   /// Quantize DPR so cache stays small but stays sharp on high-density screens.
   static double _markerDecodeDpr(double raw) {
@@ -76,7 +76,7 @@ abstract final class MapStationMarkerFactory {
   static Future<void> preloadAll(double devicePixelRatio) async {
     final dpr = _markerDecodeDpr(devicePixelRatio);
     await Future.wait([
-      for (final k in StationMapMarkerAssetKind.values) descriptorFor(kind: k, devicePixelRatio: dpr),
+      for (final k in StationMapMarkerAssetKind.values) iconFor(kind: k, devicePixelRatio: dpr),
     ]);
   }
 
@@ -85,7 +85,7 @@ abstract final class MapStationMarkerFactory {
     _inFlight.clear();
   }
 
-  static Future<BitmapDescriptor> descriptorFor({
+  static Future<AppMapMarkerIcon> iconFor({
     required StationMapMarkerAssetKind kind,
     required double devicePixelRatio,
   }) async {
@@ -96,7 +96,7 @@ abstract final class MapStationMarkerFactory {
     if (hit != null) return hit;
     final pending = _inFlight[key];
     if (pending != null) return pending;
-    final future = _bitmapFromAssetPng(path: path, dpr: dpr, kind: kind).then((d) {
+    final future = _iconFromAssetPng(path: path, dpr: dpr, kind: kind).then((d) {
       _cache[key] = d;
       _inFlight.remove(key);
       return d;
@@ -105,10 +105,9 @@ abstract final class MapStationMarkerFactory {
     return future;
   }
 
-  /// Prefer [BitmapDescriptor.asset] so the map shows your PNG as authored.
-  /// If the platform decoder fails (e.g. bad CRC), re-encode via the Flutter
-  /// engine; last resort is a simple vector fallback.
-  static Future<BitmapDescriptor> _bitmapFromAssetPng({
+  /// Load the asset directly (cheap path); nếu PNG hỏng/decode lỗi, fallback re-encode
+  /// qua Flutter pipeline; cuối cùng default marker (hue) nếu không thể tạo bytes.
+  static Future<AppMapMarkerIcon> _iconFromAssetPng({
     required String path,
     required double dpr,
     required StationMapMarkerAssetKind kind,
@@ -123,20 +122,13 @@ abstract final class MapStationMarkerFactory {
       );
     }
 
-    final cfg = ImageConfiguration(
-      size: _logicalMarkerSize,
-      devicePixelRatio: dpr,
-    );
-    try {
-      return await BitmapDescriptor.asset(
-        cfg,
-        path,
-        width: _logicalMarkerSize.width,
-        height: _logicalMarkerSize.height,
-        bitmapScaling: MapBitmapScaling.auto,
+    // Cheap path: trỏ adapter về asset trực tiếp — Google `AssetMapBitmap` /
+    // Goong `addImage(rootBundle.load(...))` đều handle được.
+    if (rawBytes.length >= 512) {
+      return AppMapMarkerIconAsset(
+        assetPath: path,
+        devicePixelRatio: dpr,
       );
-    } catch (_) {
-      // Native asset decode failed — try Flutter pipeline.
     }
 
     try {
@@ -148,11 +140,11 @@ abstract final class MapStationMarkerFactory {
     } catch (_) {
       // Still unusable — drawn fallback below.
     }
-    return _fallbackMarkerDescriptor(dpr: dpr, kind: kind);
+    return _fallbackMarkerIcon(dpr: dpr, kind: kind);
   }
 
   /// Decode at intrinsic size, letterbox into the marker slot, export PNG.
-  static Future<BitmapDescriptor?> _decodeAssetViaFlutterToBytes({
+  static Future<AppMapMarkerIcon?> _decodeAssetViaFlutterToBytes({
     required Uint8List rawBytes,
     required double dpr,
   }) async {
@@ -186,11 +178,9 @@ abstract final class MapStationMarkerFactory {
     final png = await out.toByteData(format: ui.ImageByteFormat.png);
     out.dispose();
     if (png == null || png.lengthInBytes == 0) return null;
-    return BitmapDescriptor.bytes(
-      png.buffer.asUint8List(),
-      width: _logicalMarkerSize.width,
-      height: _logicalMarkerSize.height,
-      bitmapScaling: MapBitmapScaling.auto,
+    return AppMapMarkerIconBytes(
+      pngBytes: png.buffer.asUint8List(),
+      devicePixelRatio: dpr,
     );
   }
 
@@ -215,7 +205,7 @@ abstract final class MapStationMarkerFactory {
     );
   }
 
-  static Future<BitmapDescriptor> _fallbackMarkerDescriptor({
+  static Future<AppMapMarkerIcon> _fallbackMarkerIcon({
     required double dpr,
     required StationMapMarkerAssetKind kind,
   }) async {
@@ -249,23 +239,22 @@ abstract final class MapStationMarkerFactory {
     image.dispose();
     final bytes = png?.buffer.asUint8List();
     if (bytes == null || bytes.isEmpty) {
-      return BitmapDescriptor.defaultMarkerWithHue(
-        switch (kind) {
-          StationMapMarkerAssetKind.closed => BitmapDescriptor.hueRed,
-          StationMapMarkerAssetKind.cheap => BitmapDescriptor.hueYellow,
-          StationMapMarkerAssetKind.open => BitmapDescriptor.hueGreen,
-        },
-      );
+      // Hue trên thang Google `BitmapDescriptor.defaultMarkerWithHue`:
+      // red ≈ 0, yellow ≈ 60, green ≈ 120.
+      final hue = switch (kind) {
+        StationMapMarkerAssetKind.closed => 0.0,
+        StationMapMarkerAssetKind.cheap => 60.0,
+        StationMapMarkerAssetKind.open => 120.0,
+      };
+      return AppMapMarkerIconDefault(hue: hue);
     }
-    return BitmapDescriptor.bytes(
-      bytes,
-      width: _logicalMarkerSize.width,
-      height: _logicalMarkerSize.height,
-      bitmapScaling: MapBitmapScaling.auto,
+    return AppMapMarkerIconBytes(
+      pngBytes: bytes,
+      devicePixelRatio: dpr,
     );
   }
 
-  static BitmapDescriptor? descriptorFromCache({
+  static AppMapMarkerIcon? iconFromCache({
     required StationMapMarkerAssetKind kind,
     required double devicePixelRatio,
   }) {

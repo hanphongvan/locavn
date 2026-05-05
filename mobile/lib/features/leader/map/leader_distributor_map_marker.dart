@@ -3,20 +3,20 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+import '../../../core/map/app_map_marker.dart';
 import 'leader_distributor_marker_assets.dart';
 
 /// Marker đầu mối: PNG trạng thái (safe / warning / danger) + **viên pill số ngày dự trữ**
 /// (cùng ý bố cục với marker cửa hàng: icon + nhãn dưới).
 abstract final class LeaderDistributorMapMarker {
-  /// Neo đáy giữa — điểm địa lý trùng cạnh dưới bitmap (đồng bộ [MapStationMarkerComposer.anchor]).
-  static const Offset anchor = Offset(0.5, 1.0);
+  /// Neo đáy giữa — điểm địa lý trùng cạnh dưới bitmap (đồng bộ `MapStationMarkerComposer.anchor`).
+  static const AppMapAnchor anchor = AppMapAnchor.bottom;
 
   static const double _logicalW = 48;
   static const double _logicalH = 56;
 
-  static final LinkedHashMap<String, BitmapDescriptor> _cache = LinkedHashMap();
+  static final LinkedHashMap<String, AppMapMarkerIcon> _cache = LinkedHashMap();
   static final Map<String, Future<ByteData>> _bundleFutures = {};
 
   static Future<ByteData> _bundleBytes(String path) {
@@ -51,7 +51,7 @@ abstract final class LeaderDistributorMapMarker {
     return 'ds_${displayStatus}_${dpr.toStringAsFixed(2)}_$d';
   }
 
-  static void _remember(String key, BitmapDescriptor d) {
+  static void _remember(String key, AppMapMarkerIcon d) {
     _cache.remove(key);
     _cache[key] = d;
     while (_cache.length > 60) {
@@ -59,7 +59,7 @@ abstract final class LeaderDistributorMapMarker {
     }
   }
 
-  static Future<BitmapDescriptor> buildDescriptor({
+  static Future<AppMapMarkerIcon> buildIcon({
     required int displayStatus,
     required double? coverageDays,
     required double devicePixelRatio,
@@ -116,12 +116,8 @@ abstract final class LeaderDistributorMapMarker {
       canvas.drawImageRect(inner, src, dst, Paint()..filterQuality = FilterQuality.medium);
       inner.dispose();
     } else {
-      return BitmapDescriptor.asset(
-        ImageConfiguration(devicePixelRatio: dpr),
-        path,
-        width: _logicalW,
-        bitmapScaling: MapBitmapScaling.auto,
-      );
+      // PNG decode fail → fallback dùng asset trực tiếp (provider tự load).
+      return AppMapMarkerIconAsset(assetPath: path, devicePixelRatio: dpr);
     }
 
     final maxLabelW = tw - 4 * scale;
@@ -171,22 +167,16 @@ abstract final class LeaderDistributorMapMarker {
     final png = await image.toByteData(format: ui.ImageByteFormat.png);
     image.dispose();
     if (png == null || png.lengthInBytes == 0) {
-      final fallback = await BitmapDescriptor.asset(
-        ImageConfiguration(devicePixelRatio: dpr),
-        path,
-        width: _logicalW,
-        bitmapScaling: MapBitmapScaling.auto,
-      );
+      final fallback = AppMapMarkerIconAsset(assetPath: path, devicePixelRatio: dpr);
       _remember(key, fallback);
       return fallback;
     }
 
-    final desc = BitmapDescriptor.bytes(
-      png.buffer.asUint8List(),
-      width: _logicalW,
-      bitmapScaling: MapBitmapScaling.auto,
+    final icon = AppMapMarkerIconBytes(
+      pngBytes: png.buffer.asUint8List(),
+      devicePixelRatio: dpr,
     );
-    _remember(key, desc);
-    return desc;
+    _remember(key, icon);
+    return icon;
   }
 }

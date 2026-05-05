@@ -1,5 +1,4 @@
-import 'package:google_maps_flutter/google_maps_flutter.dart';
-
+import '../../../core/map/app_lat_lng.dart';
 import '../domain/stock_map_stock_status.dart';
 
 /// One station on the stock map: coordinates + marker status + server fields for detail UI.
@@ -15,7 +14,7 @@ class StockMapStationPin {
   });
 
   final int? stationId;
-  final LatLng point;
+  final AppLatLng point;
   final StockMapStockStatus status;
 
   /// From API `stationName`.
