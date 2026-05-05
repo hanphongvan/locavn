@@ -44,8 +44,11 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-# Dart-define secrets per-developer (MAP_PROVIDER, GOONG_MAPTILES_KEY, ADMIN_API_KEY, ...).
+# Dart-define secrets per-developer / per-env (MAP_PROVIDER, GOONG_MAPTILES_KEY, ADMIN_API_KEY, ...).
 # Pattern: secrets/*.json gitignored TRỪ *.example (template để team copy).
-# Run: flutter run --dart-define-from-file=secrets/dev.json
+# Run dev:        flutter run --dart-define-from-file=secrets/dev.json
+# Build prod:     flutter build apk --dart-define-from-file=secrets/prod.json
 /secrets/*.json
 !/secrets/*.json.example
+# Explicit production guards (redundant với glob trên, nhưng documents intent rõ ràng).
+/secrets/prod.json

@@ -43,38 +43,72 @@ MapProviderAdapter (interface)               ← google / goong / osm
 
 ## Configuration
 
+### Dev
+
 Copy `secrets/dev.json.example` → `secrets/dev.json` (gitignored), điền giá trị, rồi:
 
 ```bash
 # Mặc định Google (backward compat — không cần MAP_PROVIDER trong file)
 flutter run --dart-define-from-file=secrets/dev.json
 
-# Goong: trong dev.json đặt MAP_PROVIDER=goong + GOONG_MAPTILES_KEY=...
+# Goong: trong dev.json đặt MAP_PROVIDER=goong + GOONG_MAPTILES_KEY=... + GOONG_API_KEY=...
 flutter run --dart-define-from-file=secrets/dev.json
 
 # Override nhanh không sửa file:
 flutter run --dart-define-from-file=secrets/dev.json --dart-define=MAP_PROVIDER=goong
-
-# OSM (milestone sau)
-flutter run --dart-define=MAP_PROVIDER=osm
 ```
 
-Giá trị không hợp lệ → `MapProviderConfig.parse` throw `StateError` ngay lúc khởi động (fail-fast, không silent fallback).
+### Production
 
-Build release tương tự:
+Copy `secrets/prod.json.example` → `secrets/prod.json` (gitignored), điền key thật, rồi:
+
 ```bash
-flutter build apk --dart-define-from-file=secrets/prod.json
-flutter build ipa --dart-define-from-file=secrets/prod.json
+# Android
+flutter build apk --release --dart-define-from-file=secrets/prod.json
+flutter build appbundle --release --dart-define-from-file=secrets/prod.json
+
+# iOS
+flutter build ipa --release --dart-define-from-file=secrets/prod.json
+```
+
+CI/CD: inject `secrets/prod.json` từ secret store (GitHub Actions secret, GitLab CI variable, …) trước build step.
+
+### Validation (fail-fast)
+
+`EnvironmentConfig.validateOrThrow()` (gọi 1 lần ở `main.dart` trước `runApp`) throw `StateError` nếu:
+
+| Trường hợp | Hệ quả |
+|---|---|
+| `MAP_PROVIDER` không hợp lệ (≠ google/goong/osm) | throw từ `MapProviderConfig.parse` |
+| `MAP_PROVIDER=goong` nhưng `GOONG_MAPTILES_KEY` rỗng | throw — KHÔNG silent fallback Google |
+| `MAP_PROVIDER=goong` nhưng `GOONG_API_KEY` rỗng | throw |
+| `MAP_PROVIDER=osm` | throw — milestone chưa hỗ trợ |
+
+🔴 Nguyên tắc: **không silent fallback Google** ở production VN — sai compliance map mà khách dùng không hay.
+
+### OSM (milestone sau)
+
+```bash
+flutter run --dart-define=MAP_PROVIDER=osm   # ← hiện tại sẽ throw, milestone OSM chưa làm
 ```
 
 ## Bootstrap (đã wire ở `main.dart`)
 
-`buildMapProviderRegistry` (`lib/core/map/map_provider_bootstrap.dart`) tách hàm để test được:
+```
+main.dart
+  ├─ EnvironmentConfig.validateOrThrow()  ← fail-fast TRƯỚC runApp
+  └─ buildMapProviderRegistry(...)         ← register Google + Goong (nếu có key)
+       │
+       └─ ProviderScope override mapProviderRegistryProvider
+```
 
-- **Google** luôn được đăng ký (key inject native qua AndroidManifest / xcconfig).
-- **Goong** chỉ được đăng ký khi `GOONG_MAPTILES_KEY` non-empty. Thiếu key + `MAP_PROVIDER=goong` → adapter throw lúc lookup, app fail-fast khi mở map đầu tiên.
-
-Khi thêm OSM (milestone sau), update `buildMapProviderRegistry` thêm `..register(OsmMapAdapter())`.
+- `EnvironmentConfig` (`lib/core/config/environment_config.dart`): single source of truth
+  cho mọi `--dart-define`. Tránh scattered `String.fromEnvironment` rải rác.
+- `buildMapProviderRegistry` (`lib/core/map/map_provider_bootstrap.dart`): Google luôn
+  được đăng ký (key inject native Android Manifest / xcconfig). Goong đăng ký khi
+  `GOONG_MAPTILES_KEY` non-empty.
+- Khi thêm OSM (milestone sau), update `buildMapProviderRegistry` thêm
+  `..register(OsmMapAdapter())` + nới `EnvironmentConfig.validateConfig` cho `osm`.
 
 ## Native config
 
