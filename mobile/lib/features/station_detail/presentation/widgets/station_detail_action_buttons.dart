@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/auth/auth_providers.dart';
+import '../../../auth/presentation/citizen_login_prompt.dart';
 import '../../../auth/presentation/widgets/gradient_button.dart';
 import '../../../bad_reports/presentation/private_bad_report_compose_sheet.dart';
 import '../../../more/presentation/account/account_activity_providers.dart';
@@ -48,30 +50,42 @@ class StationDetailActionButtons extends ConsumerWidget {
                       StationReviewComposeTheme.primary,
                       StationReviewComposeTheme.accent,
                     ],
-                    onPressed: () => showStationReviewComposeSheet(
-                      context: context,
-                      stationId: stationId,
-                      stationName: displayName,
-                      stationAddress: stationAddress,
-                      onSubmitted: () {
-                        ref.invalidate(stationRatingSummaryProvider(stationId));
-                        ref.invalidate(accountActivitySummaryProvider);
-                        ref.invalidate(myStationReviewsFirstPageProvider);
-                        ref.read(stationReviewListBumpProvider(stationId).notifier).state++;
-                      },
-                    ),
+                    onPressed: () {
+                      if (!ref.read(authSessionControllerProvider).isAuthenticated) {
+                        showCitizenLoginRequiredPrompt(context);
+                        return;
+                      }
+                      showStationReviewComposeSheet(
+                        context: context,
+                        stationId: stationId,
+                        stationName: displayName,
+                        stationAddress: stationAddress,
+                        onSubmitted: () {
+                          ref.invalidate(stationRatingSummaryProvider(stationId));
+                          ref.invalidate(accountActivitySummaryProvider);
+                          ref.invalidate(myStationReviewsFirstPageProvider);
+                          ref.read(stationReviewListBumpProvider(stationId).notifier).state++;
+                        },
+                      );
+                    },
                   ),
                   const SizedBox(height: 10),
                   SizedBox(
                     width: double.infinity,
                     height: 52,
                     child: OutlinedButton(
-                      onPressed: () => showPrivateBadReportComposeSheet(
-                        context: context,
-                        stationId: stationId,
-                        stationName: displayName,
-                        stationAddress: stationAddress,
-                      ),
+                      onPressed: () {
+                        if (!ref.read(authSessionControllerProvider).isAuthenticated) {
+                          showCitizenLoginRequiredPrompt(context);
+                          return;
+                        }
+                        showPrivateBadReportComposeSheet(
+                          context: context,
+                          stationId: stationId,
+                          stationName: displayName,
+                          stationAddress: stationAddress,
+                        );
+                      },
                       style: OutlinedButton.styleFrom(
                         foregroundColor: const Color(0xFFB91C1C),
                         side: const BorderSide(color: Color(0xFFEF4444), width: 1.5),

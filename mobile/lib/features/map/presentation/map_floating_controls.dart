@@ -40,6 +40,7 @@ class MapFloatingControls extends ConsumerWidget {
           icon: Icons.my_location_rounded,
           filled: true,
           onPressed: () async {
+            ref.invalidate(mapSheetUserOriginProvider);
             final origin = await ref.read(mapSheetUserOriginProvider.future);
             if (!context.mounted) return;
             if (origin == null) {

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/auth/auth_providers.dart';
+import '../../auth/presentation/citizen_login_prompt.dart';
 import '../../stations/data/models/station_rating_summary_dto.dart';
 import '../../stations/data/models/station_review_dto.dart';
 import '../../more/presentation/account/account_activity_providers.dart';
@@ -110,6 +112,10 @@ class _StationReviewsSectionState extends ConsumerState<StationReviewsSection> {
   }
 
   void _openReviewSheet() {
+    if (!ref.read(authSessionControllerProvider).isAuthenticated) {
+      showCitizenLoginRequiredPrompt(context);
+      return;
+    }
     showStationReviewComposeSheet(
       context: context,
       stationId: widget.stationId,

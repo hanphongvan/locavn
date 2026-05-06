@@ -1,5 +1,6 @@
 import 'portal_loai.dart';
 import '../router/app_routes.dart';
+import '../router/citizen_guest_route_access.dart';
 
 /// Central RBAC for mobile navigation (authoritative: stored `Loai` → [mapLoaiToPortalRole]).
 ///
@@ -10,10 +11,6 @@ abstract final class PortalRouteAccess {
   /// Whether the signed-in user may open this path, using **stored `Loai`** from session.
   static bool isAllowedLocation(String matchedLocation, int? loai) {
     final role = mapLoaiToPortalRole(loai);
-    if (role == null) {
-      return false;
-    }
-
     final path = matchedLocation.split('?').first;
 
     if (path == AppRoute.splash ||
@@ -23,6 +20,10 @@ abstract final class PortalRouteAccess {
         path == AppRoute.resetPassword ||
         path == AppRoute.accessDenied) {
       return true;
+    }
+
+    if (role == null) {
+      return CitizenGuestRouteAccess.isPublicLocation(matchedLocation);
     }
 
     if (path == AppRoute.changePassword.path || path.startsWith('${AppRoute.changePassword.path}/')) {
@@ -194,6 +195,31 @@ abstract final class PortalRouteAccess {
         path == AppRoute.more.path ||
         path == AppRoute.myViolationReports.path ||
         path == AppRoute.myStationReviews.path;
+  }
+
+  /// Session thuộc portal A nhưng [matchedLocation] vẫn là route shell portal B (vd Leader đăng nhập
+  /// xong GoRouter còn `/more` hoặc `/map` của Citizen).
+  ///
+  /// Trả về `true` → [goRouterProvider] redirect thẳng về home đúng [Loai], **không** qua AccessDenied.
+  /// Tránh vừa cấm RBAC vừa còn `IndexedStack` + Google Map platform view — dễ gây crash Android
+  /// (`SurfaceProducer.getWidth()` null khi dispose/resize).
+  static bool shouldBounceFromForeignPortalShell(String matchedLocation, int? loai) {
+    final role = mapLoaiToPortalRole(loai);
+    if (role == null) return false;
+    final path = matchedLocation.split('?').first;
+
+    return switch (role) {
+      PortalRole.leader =>
+        _isCitizenShellPath(path) || _isStorePortalPath(path) || _isPortalRoleHomePath(path),
+      PortalRole.citizen =>
+        _isLeaderShellPath(path) || _isStorePortalPath(path) || _isPortalRoleHomePath(path),
+      PortalRole.store =>
+        _isCitizenShellPath(path) || _isLeaderShellPath(path) || _isPortalRoleHomePath(path),
+      PortalRole.admin =>
+        _isCitizenShellPath(path) || _isStorePortalPath(path) || _isLeaderShellPath(path),
+      PortalRole.trader =>
+        _isCitizenShellPath(path) || _isStorePortalPath(path) || _isLeaderShellPath(path),
+    };
   }
 
   /// Inventory stock map (`/inventory/stock-map`) — **Admin (`Loai == 1`) only** (Angular parity).

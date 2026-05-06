@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:geolocator/geolocator.dart';
 
 import '../../../core/map/app_lat_lng.dart';
 import '../../../core/map/app_map_controller.dart';
@@ -11,6 +10,7 @@ import '../../stations/data/stations_api.dart';
 import '../data/map_discovery.dart';
 import '../data/map_filters.dart';
 import '../data/map_geo.dart';
+import '../data/map_user_location.dart';
 
 final mapFiltersProvider = StateProvider<MapFilters>((ref) => const MapFilters());
 
@@ -90,23 +90,15 @@ final mapStationListSortProvider = StateProvider<MapStationListSort>(
 
 /// Vị trí người dùng để tính khoảng cách trong sheet (không tạo dữ liệu giả).
 ///
-/// [FutureProvider] (không autoDispose) để đổi tab rồi quay lại Bản đồ không gọi lại GPS.
+/// [FutureProvider] (không autoDispose): cache giữa lần [ref.invalidate] — gọi lại GPS khi
+/// kéo sheet "Kết quả gần bạn" lên, chọn sắp xếp theo khoảng cách, hoặc nút vị trí trên bản đồ.
 final mapSheetUserOriginProvider = FutureProvider<AppLatLng?>((ref) async {
-  var perm = await Geolocator.checkPermission();
-  if (perm == LocationPermission.denied) {
-    perm = await Geolocator.requestPermission();
-  }
-  if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) {
-    return null;
-  }
-  final pos = await Geolocator.getCurrentPosition(
-    locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium),
-  );
-  // Defensive: GPS có thể trả NaN/Inf khi sensor lỗi — bỏ qua để consumer không tạo `LatLng` invalid.
-  if (!StationMapItem.isValidCoord(pos.latitude, pos.longitude)) {
-    return null;
-  }
-  return AppLatLng(pos.latitude, pos.longitude);
+  final r = await requestMapUserLocation();
+  return switch (r) {
+    MapUserLocationOk(:final position) =>
+      StationMapItem.isValidCoord(position.latitude, position.longitude) ? position : null,
+    _ => null,
+  };
 });
 
 /// Danh sách trạm đã tải + sắp xếp theo [mapStationListSortProvider] và GPS nếu có.

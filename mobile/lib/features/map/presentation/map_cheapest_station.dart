@@ -1,19 +1,57 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/network/api_exception.dart';
-import '../../../core/network/spotlight_user_messages.dart';
 import '../../stations/data/models/station_map_item.dart';
-import '../../stations/data/stations_api.dart';
 import '../data/map_geo.dart';
 import '../data/map_user_location.dart';
 import 'map_discovery_navigation.dart';
 import 'map_discovery_results_sheet.dart';
 import 'map_providers.dart';
-import 'map_spotlight_station.dart';
 import 'map_screen_palette.dart';
 
-/// Fuel type for `GET /api/stations/cheapest?fuelType=`.
+/// Bán kính (km) quanh GPS — **chỉ** trong tập marker đã tải (`stationMapMarkersProvider`).
+const double kCheapestLocalRadiusKm = 5.0;
+
+/// Chọn trạm giá thấp nhất trong [radiusKm]; hòa: gần hơn, rồi `stationId` nhỏ hơn.
+StationMapItem? pickCheapestStationInRadiusFromLoadedMarkers({
+  required List<StationMapItem> items,
+  required double userLat,
+  required double userLng,
+  required CheapestFuelQuery fuel,
+  double radiusKm = kCheapestLocalRadiusKm,
+}) {
+  double? priceOf(StationMapItem s) => switch (fuel) {
+        CheapestFuelQuery.diesel => s.priceDiesel,
+        CheapestFuelQuery.ron95 => s.priceRon95,
+      };
+
+  StationMapItem? best;
+  double? bestPrice;
+  double? bestDist;
+  for (final s in items) {
+    if (!s.hasValidCoord) continue;
+    final d = mapHaversineKm(userLat, userLng, s.latitude, s.longitude);
+    if (d > radiusKm) continue;
+    final p = priceOf(s);
+    if (p == null || !p.isFinite || p <= 0) continue;
+    if (best == null) {
+      best = s;
+      bestPrice = p;
+      bestDist = d;
+      continue;
+    }
+    final bp = bestPrice!;
+    final bd = bestDist!;
+    if (p < bp || (p == bp && d < bd) || (p == bp && d == bd && s.stationId < best.stationId)) {
+      best = s;
+      bestPrice = p;
+      bestDist = d;
+    }
+  }
+  return best;
+}
+
+/// Loại nhiên liệu cho chip RON 95 / Diesel (giá lấy từ marker map).
 enum CheapestFuelQuery {
   ron95,
   diesel,
@@ -29,7 +67,7 @@ String cheapestFuelTitle(CheapestFuelQuery q) => switch (q) {
       CheapestFuelQuery.diesel => 'Diesel rẻ nhất',
     };
 
-/// Bottom sheet **Giá rẻ nhất**: mặc định **Xăng**, chọn **Dầu**; khoảng cách ước tính khi có quyền vị trí.
+/// Bottom sheet **Giá rẻ nhất** trong **5 km** quanh GPS: chỉ xét marker bản đồ đã tải (không gọi API spotlight).
 Future<void> presentCheapestPetrolStation(
   BuildContext context,
   WidgetRef ref, {
@@ -128,82 +166,79 @@ class _CheapestSpotlightSheetState extends ConsumerState<_CheapestSpotlightSheet
 
     mapClearCheapSpotlightMarker(ref);
 
-    final locFuture = requestMapUserLocation();
+    final loc = await requestMapUserLocation();
+    if (!mounted) return;
 
-    try {
-      final spot = await ref.read(stationsApiProvider).getCheapestSpotlight(
-            fuelType: cheapestFuelApiValue(_fuel),
-          );
-      if (!mounted) return;
-
-      final loc = await locFuture;
-
-      final resolved = await resolveSpotlightToMapItem(ref.read(stationsApiProvider), spot, items);
-      if (!mounted) return;
-      if (resolved == null) {
+    switch (loc) {
+      case MapUserLocationDenied():
         setState(() {
           _loading = false;
-          _error = 'Không tải được chi tiết để hiển thị trên bản đồ.';
+          _error = 'Cần quyền vị trí để tìm giá rẻ nhất trong 5 km quanh bạn.';
           _row = null;
         });
         return;
-      }
+      case MapUserLocationDeniedForever():
+        setState(() {
+          _loading = false;
+          _error = 'Quyền vị trí đang bị tắt. Bật trong Cài đặt để tìm giá rẻ nhất trong 5 km.';
+          _row = null;
+        });
+        return;
+      case MapUserLocationServiceDisabled():
+        setState(() {
+          _loading = false;
+          _error = 'GPS đang tắt. Bật dịch vụ vị trí để tìm giá rẻ nhất trong 5 km.';
+          _row = null;
+        });
+        return;
+      case MapUserLocationGnssTimeout():
+        setState(() {
+          _loading = false;
+          _error = 'Chậm lấy vị trí GPS. Thử lại sau vài giây hoặc ra nơi sóng tốt hơn.';
+          _row = null;
+        });
+        return;
+      case MapUserLocationOk(:final position):
+        final item = pickCheapestStationInRadiusFromLoadedMarkers(
+          items: items,
+          userLat: position.latitude,
+          userLng: position.longitude,
+          fuel: _fuel,
+        );
+        if (item == null) {
+          setState(() {
+            _loading = false;
+            _error =
+                'Không có cây xăng nào trong 5 km có ${cheapestFuelTitle(_fuel).toLowerCase()} trong dữ liệu '
+                'bản đồ đang tải. Thử đổi khu vực hoặc bộ lọc, hoặc chờ tải thêm trạm.';
+            _row = null;
+          });
+          return;
+        }
 
-      final item = resolved.$1;
-      final needsEp = resolved.$2;
-      double? distanceKm;
-      if (loc is MapUserLocationOk) {
-        distanceKm = mapHaversineKm(
-          loc.position.latitude,
-          loc.position.longitude,
+        final distanceKm = mapHaversineKm(
+          position.latitude,
+          position.longitude,
           item.latitude,
           item.longitude,
         );
-      }
 
-      if (needsEp) {
-        ref.read(mapEphemeralStationProvider.notifier).state = item;
-      } else {
         ref.read(mapEphemeralStationProvider.notifier).state = null;
-      }
-      ref.read(mapCheapSpotlightStationIdProvider.notifier).state = item.stationId;
+        ref.read(mapCheapSpotlightStationIdProvider.notifier).state = item.stationId;
 
-      final row = MapStationListRow(
-        item: item,
-        spotlightAverageRating: spot.averageRating,
-        spotlightReviewCount: spot.reviewCount,
-        distanceKm: distanceKm,
-        priceEmphasisFuel: cheapestFuelApiValue(_fuel),
-      );
+        final row = MapStationListRow(
+          item: item,
+          spotlightAverageRating: null,
+          spotlightReviewCount: null,
+          distanceKm: distanceKm,
+          priceEmphasisFuel: cheapestFuelApiValue(_fuel),
+        );
 
-      if (mounted) {
         setState(() {
           _row = row;
           _loading = false;
         });
-      }
-    } on ApiException catch (e) {
-      mapClearCheapSpotlightMarker(ref);
-      if (mounted) {
-        setState(() {
-          _loading = false;
-          _error = userMessageForSpotlightNotFound(
-            e,
-            whenGenericTitle:
-                'Chưa có cây xăng nào đủ dữ liệu giá theo nhiên liệu này (máy chủ).',
-          );
-          _row = null;
-        });
-      }
-    } catch (e) {
-      mapClearCheapSpotlightMarker(ref);
-      if (mounted) {
-        setState(() {
-          _loading = false;
-          _error = 'Không tải được giá rẻ nhất: $e';
-          _row = null;
-        });
-      }
+        return;
     }
   }
 
@@ -244,7 +279,7 @@ class _CheapestSpotlightSheetState extends ConsumerState<_CheapestSpotlightSheet
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          'Các cửa hàng có giá tốt nhất',
+                          'Các cửa hàng có giá rẻ nhất quanh bạn',
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: subClr,
                             height: 1.35,

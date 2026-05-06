@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import '../../station_detail/presentation/station_detail_strings.dart';
+import '../../station_detail/presentation/widgets/station_rating_summary.dart';
 import '../../stations/data/models/station_map_item.dart';
 import '../../stations/domain/station_availability.dart';
 import '../../stations/station_open_status.dart';
@@ -229,88 +233,129 @@ Future<void> showLeaderStationSheet(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
     builder: (ctx) {
-      return SafeArea(
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(20, 12, 20, 20 + MediaQuery.paddingOf(ctx).bottom),
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Tên cửa hàng', style: t.labelMedium?.copyWith(color: LeaderTheme.muted, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 6),
-                Text(s.stationName, style: t.titleLarge?.copyWith(fontWeight: FontWeight.w800, color: LeaderTheme.navy)),
-                const SizedBox(height: 12),
-                Text('Địa chỉ', style: t.labelMedium?.copyWith(color: LeaderTheme.muted, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 4),
-                _rowIcon(Icons.place_outlined, s.shortAddress ?? '—'),
-                const SizedBox(height: 16),
-                Text('Giá bán', style: t.labelLarge?.copyWith(fontWeight: FontWeight.w800)),
-                const SizedBox(height: 6),
-                Text(
-                  px95 != null ? 'Xăng (RON95): ${qty.format(px95)} đ/l' : 'Xăng: chưa có giá trên bảng điều chỉnh',
-                  style: t.bodyMedium?.copyWith(height: 1.35),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  pxDie != null ? 'Dầu (DO): ${qty.format(pxDie)} đ/l' : 'Dầu: chưa có giá trên bảng điều chỉnh',
-                  style: t.bodyMedium?.copyWith(height: 1.35),
-                ),
-                const SizedBox(height: 16),
-                Text('Tình trạng', style: t.labelLarge?.copyWith(fontWeight: FontWeight.w800)),
-                const SizedBox(height: 6),
-                Text(
-                  _leaderRetailSupplyHint(s, av),
-                  style: t.bodyMedium?.copyWith(color: LeaderTheme.muted, height: 1.35),
-                ),
-                const SizedBox(height: 16),
-                Text('Vi phạm / phản ánh', style: t.labelLarge?.copyWith(fontWeight: FontWeight.w800)),
-                const SizedBox(height: 8),
-                FutureBuilder(
-                  future: ref.read(leaderMapApiProvider).getViolations(s.stationId),
-                  builder: (context, snap) {
-                    if (snap.connectionState == ConnectionState.waiting) {
-                      return const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 12),
-                        child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-                      );
-                    }
-                    if (snap.hasError) {
-                      return Text(
-                        'Không tải được danh sách phản ánh.',
-                        style: t.bodySmall?.copyWith(color: LeaderTheme.alert),
-                      );
-                    }
-                    final v = snap.data;
-                    if (v == null || v.items.isEmpty) {
-                      return Text('Chưa có phản ánh từ người dùng.', style: t.bodySmall?.copyWith(color: LeaderTheme.muted));
-                    }
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        for (final r in v.items.take(12))
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 10),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(df.format(r.createdAt.toLocal()), style: t.labelSmall?.copyWith(color: LeaderTheme.muted)),
-                                const SizedBox(height: 2),
-                                Text(r.content, style: t.bodyMedium?.copyWith(height: 1.35)),
-                                Text('Trạng thái: ${r.status}', style: t.labelSmall?.copyWith(color: LeaderTheme.muted)),
-                              ],
-                            ),
+      return Consumer(
+        builder: (ctx2, ref2, _) {
+          return SafeArea(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(20, 12, 20, 20 + MediaQuery.paddingOf(ctx2).bottom),
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Tên cửa hàng', style: t.labelMedium?.copyWith(color: LeaderTheme.muted, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 6),
+                    Text(s.stationName, style: t.titleLarge?.copyWith(fontWeight: FontWeight.w800, color: LeaderTheme.navy)),
+                    const SizedBox(height: 12),
+                    Text('Địa chỉ', style: t.labelMedium?.copyWith(color: LeaderTheme.muted, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 4),
+                    _rowIcon(Icons.place_outlined, s.shortAddress ?? '—'),
+                    const SizedBox(height: 14),
+                    if (s.hasValidCoord)
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: () => _openLeaderStationDirections(ctx2, s.latitude, s.longitude),
+                          icon: const Icon(Icons.directions_rounded),
+                          label: const Text(StationDetailStrings.directionsTooltip),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: LeaderTheme.navy,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
                           ),
-                      ],
-                    );
-                  },
+                        ),
+                      ),
+                    if (s.hasValidCoord) const SizedBox(height: 16),
+                    Text('Giá bán', style: t.labelLarge?.copyWith(fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 6),
+                    Text(
+                      px95 != null ? 'Xăng (RON95): ${qty.format(px95)} đ/l' : 'Xăng: chưa có giá trên bảng điều chỉnh',
+                      style: t.bodyMedium?.copyWith(height: 1.35),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      pxDie != null ? 'Dầu (DO): ${qty.format(pxDie)} đ/l' : 'Dầu: chưa có giá trên bảng điều chỉnh',
+                      style: t.bodyMedium?.copyWith(height: 1.35),
+                    ),
+                    const SizedBox(height: 18),
+                    Text(StationDetailStrings.sectionRating, style: t.labelLarge?.copyWith(fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 8),
+                    StationRatingSummary(stationId: s.stationId),
+                    const SizedBox(height: 16),
+                    Text('Tình trạng', style: t.labelLarge?.copyWith(fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 6),
+                    Text(
+                      _leaderRetailSupplyHint(s, av),
+                      style: t.bodyMedium?.copyWith(color: LeaderTheme.muted, height: 1.35),
+                    ),
+                    const SizedBox(height: 16),
+                    Text('Vi phạm / phản ánh', style: t.labelLarge?.copyWith(fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 8),
+                    FutureBuilder(
+                      future: ref2.read(leaderMapApiProvider).getViolations(s.stationId),
+                      builder: (context, snap) {
+                        if (snap.connectionState == ConnectionState.waiting) {
+                          return const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 12),
+                            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                          );
+                        }
+                        if (snap.hasError) {
+                          return Text(
+                            'Không tải được danh sách phản ánh.',
+                            style: t.bodySmall?.copyWith(color: LeaderTheme.alert),
+                          );
+                        }
+                        final v = snap.data;
+                        if (v == null || v.items.isEmpty) {
+                          return Text('Chưa có phản ánh từ người dùng.', style: t.bodySmall?.copyWith(color: LeaderTheme.muted));
+                        }
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            for (final r in v.items.take(12))
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 10),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(df.format(r.createdAt.toLocal()), style: t.labelSmall?.copyWith(color: LeaderTheme.muted)),
+                                    const SizedBox(height: 2),
+                                    Text(r.content, style: t.bodyMedium?.copyWith(height: 1.35)),
+                                    Text('Trạng thái: ${r.status}', style: t.labelSmall?.copyWith(color: LeaderTheme.muted)),
+                                  ],
+                                ),
+                              ),
+                          ],
+                        );
+                      },
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
-          ),
-        ),
+          );
+        },
       );
     },
   );
+}
+
+Future<void> _openLeaderStationDirections(BuildContext context, double lat, double lng) async {
+  final uri = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=$lat,$lng');
+  try {
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!context.mounted) return;
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text(StationDetailStrings.directionsOpenFail)),
+      );
+    }
+  } catch (_) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text(StationDetailStrings.directionsLaunchFail)),
+    );
+  }
 }
 
 String _leaderRetailSupplyHint(StationMapItem s, StationAvailability av) {

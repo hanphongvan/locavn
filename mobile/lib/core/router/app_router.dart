@@ -37,7 +37,9 @@ import '../../features/store/presentation/store_shell_page.dart';
 import '../../features/reports/presentation/dashboard/loca_dashboard_tokens.dart';
 import '../auth/auth_providers.dart';
 import '../auth/portal_route_access.dart';
+import 'citizen_guest_route_access.dart';
 import '../../features/auth/presentation/access_denied_page.dart';
+import '../../features/auth/presentation/citizen_login_prompt.dart';
 import 'app_root_navigator_key.dart';
 import 'app_routes.dart';
 import 'role_home_navigation.dart';
@@ -45,8 +47,9 @@ import 'role_home_navigation.dart';
 /// Single [GoRouter] bound to [AuthSessionController] for redirect + refresh.
 ///
 /// After `AppSessionBootstrap` restores local session, [redirect] sends authed users to the
-/// role home from stored `Loai` (Leader `Loai == 6` → `/leader/overview`), or `/login` when no valid session.
-/// A route forbidden for the current role redirects to that role’s home (`/leader/overview` for Leader).
+/// role home from stored `Loai` (Leader `Loai == 6` → `/leader/overview`).
+/// **Chưa đăng nhập (Citizen guest):** vào `/map` + tra cứu trạm công khai; không ép `/login` toàn app.
+/// Đổi `Loai` khi URL vẫn là shell portal khác → redirect về home đúng role ([PortalRouteAccess.shouldBounceFromForeignPortalShell]).
 final goRouterProvider = Provider<GoRouter>((ref) {
   final auth = ref.read(authSessionControllerProvider);
   final router = GoRouter(
@@ -78,7 +81,13 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             loc == AppRoute.resetPassword) {
           return null;
         }
-        return AppRoute.login;
+        if (loc == AppRoute.splash) {
+          return AppRoute.map.path;
+        }
+        if (CitizenGuestRouteAccess.isPublicLocation(loc)) {
+          return null;
+        }
+        return AppRoute.map.path;
       }
       if (loc == AppRoute.login || loc == AppRoute.splash) {
         final home = roleHomeLocationForLoai(auth.session?.loai);
@@ -88,6 +97,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         return home;
       }
       final loai = auth.session?.loai;
+      final roleHome = roleHomeLocationForLoai(loai);
+      if (roleHome != null && PortalRouteAccess.shouldBounceFromForeignPortalShell(loc, loai)) {
+        return roleHome;
+      }
       if (!PortalRouteAccess.isAllowedLocation(loc, loai)) {
         // Theo spec: khi RBAC chặn → luôn hiện AccessDenied (không bounce âm thầm về home),
         // truyền `?reason=forbidden` để page biết hiển thị thông báo "không có quyền".
@@ -386,7 +399,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
 });
 
 /// Hiển thị khi GoRouter không khớp được path (URL lạ / link cũ / typo).
-/// Nút "Về trang chủ" điều hướng theo `Loai` của session hiện tại; nếu chưa đăng nhập đưa về `/login`.
+/// Nút "Về trang chủ" điều hướng theo `Loai` của session hiện tại; guest → `/map`.
 class _RouteNotFoundPage extends ConsumerWidget {
   const _RouteNotFoundPage({required this.attemptedLocation});
 
@@ -398,7 +411,10 @@ class _RouteNotFoundPage extends ConsumerWidget {
     final loai = ref.watch(
       authSessionControllerProvider.select((c) => c.session?.loai),
     );
-    final fallback = roleHomeLocationForLoai(loai) ?? AppRoute.login;
+    final authed = ref.watch(
+      authSessionControllerProvider.select((c) => c.isAuthenticated),
+    );
+    final fallback = roleHomeLocationForLoai(loai) ?? (authed ? AppRoute.login : AppRoute.map.path);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Liên kết không hợp lệ')),
@@ -438,13 +454,15 @@ class _RouteNotFoundPage extends ConsumerWidget {
 /// Bottom tabs **Người dân** (`Loai == 5`): Bản đồ, Nhiên liệu, Xe của tôi, Tài khoản.
 /// Cửa hàng (`Loai == 4`) dùng [StoreShellPage]; **Lãnh đạo** (`Loai == 6`) dùng [LeaderMainScreen];
 /// Admin / Trader dùng màn placeholder — xem [roleHomeLocationForLoai].
-class _MainTabShell extends StatelessWidget {
+///
+/// Guest: tab Nhiên liệu / Xe → [showCitizenLoginRequiredPrompt]; tab Tài khoản → [LoginPage] trong shell.
+class _MainTabShell extends ConsumerWidget {
   const _MainTabShell({required this.navigationShell});
 
   final StatefulNavigationShell navigationShell;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     const primaryNav = LocaDashboardTokens.primaryBlue;
     const mutedNav = LocaDashboardTokens.textSecondary;
     const accentNav = LocaDashboardTokens.primaryBlue;
@@ -491,6 +509,11 @@ class _MainTabShell extends StatelessWidget {
               child: NavigationBar(
                 selectedIndex: navigationShell.currentIndex,
                 onDestinationSelected: (i) {
+                  final guest = !ref.read(authSessionControllerProvider).isAuthenticated;
+                  if (guest && (i == 1 || i == 2)) {
+                    showCitizenLoginRequiredPrompt(context);
+                    return;
+                  }
                   navigationShell.goBranch(
                     i,
                     initialLocation: i == navigationShell.currentIndex,

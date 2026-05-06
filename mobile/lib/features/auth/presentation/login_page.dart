@@ -149,7 +149,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                               Center(child: LoginBrandLogo(size: logoSize)),
                               const SizedBox(height: 20),
                               Text(
-                                'HỆ THỐNG GIÁM SÁT XĂNG DẦU VIỆT NAM',
+                                'LocaVN',
                                 textAlign: TextAlign.center,
                                 style: textTheme.titleMedium?.copyWith(
                                   color: LoginScreenTheme.titleBlue,
@@ -160,7 +160,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                               ),
                               const SizedBox(height: 10),
                               Text(
-                                'Kết nối dữ liệu - Giám sát minh bạch - Phục vụ người dân',
+                                'Quanh tôi - Tìm cây xăng, chợ, siêu thị',
                                 textAlign: TextAlign.center,
                                 style: textTheme.bodyMedium?.copyWith(
                                   color: LoginScreenTheme.titleBlue.withValues(alpha: 0.82),

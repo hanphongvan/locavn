@@ -40,7 +40,7 @@ class AuthSessionController extends ChangeNotifier {
   }
 
   /// Clears secure storage via [AuthService.logout], drops in-memory [AuthSession], then
-  /// [notifyListeners] so [GoRouter] (`refreshListenable`) runs [redirect] → `/login`.
+  /// [notifyListeners] so [GoRouter] (`refreshListenable`) runs [redirect] → `/map` (guest Citizen).
   ///
   /// Do **not** call [GoRouter.go] here: redirect already navigates away; a second [go]
   /// during the same frame can hit `Navigator` `!_debugLocked` while the old shell disposes.

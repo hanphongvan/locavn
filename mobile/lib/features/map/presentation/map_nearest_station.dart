@@ -98,6 +98,7 @@ Future<void> presentNearestPetrolStation(
     case MapUserLocationDenied():
     case MapUserLocationDeniedForever():
     case MapUserLocationServiceDisabled():
+    case MapUserLocationGnssTimeout():
       showMapUserLocationOutcomeSnackbar(
         context,
         loc,

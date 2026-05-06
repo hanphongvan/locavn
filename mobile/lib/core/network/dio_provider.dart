@@ -5,6 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'api_config.dart';
 import 'auth_http_interceptor.dart';
 
+String _dioSafeRequestUrl(Uri u) =>
+    '${u.scheme}://${u.host}${u.hasPort && u.port != 0 ? ':${u.port}' : ''}${u.path}';
+
 final dioProvider = Provider<Dio>((ref) {
   final dio = Dio(
     BaseOptions(
@@ -20,6 +23,15 @@ final dioProvider = Provider<Dio>((ref) {
   dio.interceptors.add(AuthHttpInterceptor(ref));
   dio.interceptors.add(
     InterceptorsWrapper(
+      onRequest: (options, handler) {
+        if (kDebugMode) {
+          final u = options.uri;
+          debugPrint(
+            '[httm_xangdau] API ${options.method} ${_dioSafeRequestUrl(u)}',
+          );
+        }
+        handler.next(options);
+      },
       onError: (e, handler) {
         if (kDebugMode) {
           final req = e.requestOptions;

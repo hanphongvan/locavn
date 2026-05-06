@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 
 import '../../../core/map/app_lat_lng.dart';
 import '../../../core/map/app_map.dart';
@@ -29,6 +30,7 @@ import '../map/leader_station_synthetic_stock.dart';
 import '../data/leader_map_ui_state.dart';
 import 'leader_map_detail_sheets.dart';
 import 'leader_map_filter_sheet.dart';
+import 'leader_map_retail_shortcuts.dart';
 import 'leader_map_ui_provider.dart';
 import 'leader_theme.dart';
 
@@ -39,11 +41,20 @@ String _leaderRetailMarkerInfoSnippet(StationMapItem s) {
   return raw.length > 80 ? '${raw.substring(0, 77)}…' : raw;
 }
 
-List<LeaderFilteredStation> _filterStations(List<StationMapItem> items, LeaderMapUiState ui) {
+List<LeaderFilteredStation> _filterStations(
+  List<StationMapItem> items,
+  LeaderMapUiState ui,
+) {
   if (!ui.showRetailStores) return const [];
   final out = <LeaderFilteredStation>[];
   for (final s in items) {
     if (!leaderStationHasFuelPriceForFilter(s, ui.fuel)) continue;
+    if (ui.selectedServiceCodes.isNotEmpty) {
+      final codes = s.activeServiceCodes.map((c) => c.toUpperCase()).toSet();
+      if (!ui.selectedServiceCodes.every((sel) => codes.contains(sel.toUpperCase()))) {
+        continue;
+      }
+    }
     final stock = leaderSyntheticStockForStation(s);
     final days = leaderSelectedDays(stock, ui.fuel);
     if (!leaderPassesCoverageBand(days, ui.coverage)) continue;
@@ -94,6 +105,12 @@ class _LeaderMapInventoryPageState extends ConsumerState<LeaderMapInventoryPage>
   Set<AppMapMarker> _markers = {};
   bool _busy = false;
 
+  /// Bật lớp “vị trí của tôi” trên SDK bản đồ khi app đã có quyền (mặc định [AppMap] tắt).
+  bool _myLocationEnabled = false;
+
+  /// Danh sách cửa hàng sau lọc (dùng cho chip Gần nhất / Rẻ nhất).
+  List<StationMapItem> _shortcutRetailItems = const [];
+
   /// GPS chờ map tạo controller (bật cửa hàng rất sớm).
   AppLatLng? _pendingRetailZoomCenter;
 
@@ -101,6 +118,24 @@ class _LeaderMapInventoryPageState extends ConsumerState<LeaderMapInventoryPage>
     target: kLeaderMapCenterVietnam,
     zoom: 5.8,
   );
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_refreshMyLocationEnabledFromExistingPermission());
+  }
+
+  /// Chỉ [checkPermission] — không xin quyền ở đây (tránh popup khi mở màn hình).
+  Future<void> _refreshMyLocationEnabledFromExistingPermission() async {
+    try {
+      final perm = await Geolocator.checkPermission();
+      if (!mounted) return;
+      final granted = perm == LocationPermission.whileInUse || perm == LocationPermission.always;
+      if (granted && !_myLocationEnabled) {
+        setState(() => _myLocationEnabled = true);
+      }
+    } catch (_) {}
+  }
 
   @override
   void dispose() {
@@ -138,9 +173,15 @@ class _LeaderMapInventoryPageState extends ConsumerState<LeaderMapInventoryPage>
     if (!mounted) return;
     switch (outcome) {
       case MapUserLocationOk(:final position):
+        if (!mounted) return;
+        setState(() {
+          _myLocationEnabled = true;
+          if (_controller == null) {
+            _pendingRetailZoomCenter = position;
+          }
+        });
         final ctrl = _controller;
         if (ctrl == null) {
-          setState(() => _pendingRetailZoomCenter = position);
           return;
         }
         await _animateRetailViewportTo(position);
@@ -148,6 +189,7 @@ class _LeaderMapInventoryPageState extends ConsumerState<LeaderMapInventoryPage>
       case MapUserLocationDenied():
       case MapUserLocationDeniedForever():
       case MapUserLocationServiceDisabled():
+      case MapUserLocationGnssTimeout():
         if (mounted) {
           showMapUserLocationOutcomeSnackbar(
             context,
@@ -268,10 +310,27 @@ class _LeaderMapInventoryPageState extends ConsumerState<LeaderMapInventoryPage>
       setState(() {
         _markers = markers;
         _busy = false;
+        _shortcutRetailItems = [for (final e in filtered) e.item];
       });
     } catch (_) {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  Future<void> _focusRetailStation(StationMapItem item, double? _) async {
+    final c = _controller;
+    if (c != null) {
+      try {
+        await c.animateCamera(
+          AppMapCameraUpdate.newLatLngZoom(
+            AppLatLng(item.latitude, item.longitude),
+            16.2,
+          ),
+        );
+      } catch (_) {}
+    }
+    if (!mounted) return;
+    await showLeaderStationSheet(context, ref, item);
   }
 
   @override
@@ -293,7 +352,8 @@ class _LeaderMapInventoryPageState extends ConsumerState<LeaderMapInventoryPage>
     });
 
     final topInset = MediaQuery.paddingOf(context).top;
-    const toolbarChromeHeight = 52.0;
+    // Lớp dữ liệu (~52) + khoảng + hàng chip cửa hàng (~50) khi bật lớp cửa hàng.
+    final toolbarChromeHeight = ui.showRetailStores ? 118.0 : 52.0;
 
     return ColoredBox(
       color: MapScreenPalette.screenBackground,
@@ -314,6 +374,7 @@ class _LeaderMapInventoryPageState extends ConsumerState<LeaderMapInventoryPage>
                           key: const ValueKey('leaderInventoryMap'),
                           initialCameraPosition: _initial,
                           markers: _markers,
+                          myLocationEnabled: _myLocationEnabled,
                           myLocationButtonEnabled: false,
                           zoomControlsEnabled: false,
                           compassEnabled: true,
@@ -418,57 +479,107 @@ class _LeaderMapInventoryPageState extends ConsumerState<LeaderMapInventoryPage>
               alignment: Alignment.topCenter,
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: MapScreenPalette.cardWhite.withValues(alpha: 0.72),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.55)),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.1),
-                        blurRadius: 14,
-                        offset: const Offset(0, 4),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: MapScreenPalette.cardWhite.withValues(alpha: 0.72),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.55)),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.1),
+                            blurRadius: 14,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                    child: Row(
-                      children: [
-                        _LeaderFuelModeChip(
-                          fuel: ui.fuel,
-                          onOpenFilters: () => showLeaderMapFilterSheet(context, ref),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                        child: Row(
+                          children: [
+                            _LeaderFuelModeChip(
+                              fuel: ui.fuel,
+                              onOpenFilters: () => showLeaderMapFilterSheet(context, ref),
+                            ),
+                            const Spacer(),
+                            _LeaderMapToolbarIcon(
+                              tooltip: 'Doanh nghiệp đầu mối',
+                              icon: Icons.apartment_rounded,
+                              selected: ui.showWholesale,
+                              onPressed: () {
+                                ref.read(leaderMapUiProvider.notifier).state = ui.copyWith(showWholesale: !ui.showWholesale);
+                              },
+                            ),
+                            _LeaderMapToolbarIcon(
+                              tooltip: 'Cửa hàng xăng dầu (theo khung nhìn)',
+                              icon: Icons.local_gas_station_outlined,
+                              selected: ui.showRetailStores,
+                              onPressed: () {
+                                ref.read(leaderMapUiProvider.notifier).state = ui.copyWith(showRetailStores: !ui.showRetailStores);
+                              },
+                            ),
+                            IconButton.filledTonal(
+                              tooltip: 'Bộ lọc nhiên liệu & tồn',
+                              onPressed: () => showLeaderMapFilterSheet(context, ref),
+                              icon: const Icon(Icons.filter_list_rounded),
+                              style: IconButton.styleFrom(
+                                backgroundColor: Colors.white.withValues(alpha: 0.65),
+                                foregroundColor: LocaDashboardTokens.primaryBlue,
+                                visualDensity: VisualDensity.compact,
+                              ),
+                            ),
+                          ],
                         ),
-                        const Spacer(),
-                        _LeaderMapToolbarIcon(
-                          tooltip: 'Doanh nghiệp đầu mối',
-                          icon: Icons.apartment_rounded,
-                          selected: ui.showWholesale,
-                          onPressed: () {
-                            ref.read(leaderMapUiProvider.notifier).state = ui.copyWith(showWholesale: !ui.showWholesale);
-                          },
+                      ),
+                    ),
+                    if (ui.showRetailStores) ...[
+                      const SizedBox(height: 8),
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: MapScreenPalette.cardWhite.withValues(alpha: 0.72),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.55)),
                         ),
-                        _LeaderMapToolbarIcon(
-                          tooltip: 'Cửa hàng xăng dầu (theo khung nhìn)',
-                          icon: Icons.local_gas_station_outlined,
-                          selected: ui.showRetailStores,
-                          onPressed: () {
-                            ref.read(leaderMapUiProvider.notifier).state = ui.copyWith(showRetailStores: !ui.showRetailStores);
-                          },
-                        ),
-                        IconButton.filledTonal(
-                          tooltip: 'Bộ lọc nhiên liệu & tồn',
-                          onPressed: () => showLeaderMapFilterSheet(context, ref),
-                          icon: const Icon(Icons.filter_list_rounded),
-                          style: IconButton.styleFrom(
-                            backgroundColor: Colors.white.withValues(alpha: 0.65),
-                            foregroundColor: LocaDashboardTokens.primaryBlue,
-                            visualDensity: VisualDensity.compact,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: [
+                                _LeaderRetailShortcutChip(
+                                  label: 'Gần nhất',
+                                  icon: Icons.near_me_outlined,
+                                  onTap: () => leaderRetailPresentNearest(
+                                    context: context,
+                                    items: _shortcutRetailItems,
+                                    onPick: _focusRetailStation,
+                                  ),
+                                ),
+                                _LeaderRetailShortcutChip(
+                                  label: 'Rẻ nhất',
+                                  icon: Icons.payments_outlined,
+                                  onTap: () => leaderRetailPresentCheapest(
+                                    context: context,
+                                    ref: ref,
+                                    items: _shortcutRetailItems,
+                                    fuel: ui.fuel,
+                                    onPick: _focusRetailStation,
+                                  ),
+                                ),
+                                _LeaderRetailShortcutChip(
+                                  label: 'Dịch vụ',
+                                  icon: Icons.room_service_outlined,
+                                  onTap: () => showLeaderRetailServicesFilterSheet(context, ref),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      ],
-                    ),
-                  ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ),
@@ -478,6 +589,38 @@ class _LeaderMapInventoryPageState extends ConsumerState<LeaderMapInventoryPage>
     );
   }
 
+}
+
+/// Chip lối tắt (Gần nhất / Rẻ nhất / Dịch vụ) trên bản đồ cửa hàng Lãnh đạo.
+class _LeaderRetailShortcutChip extends StatelessWidget {
+  const _LeaderRetailShortcutChip({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: ActionChip(
+        avatar: Icon(icon, size: 18, color: LocaDashboardTokens.primaryBlue),
+        label: Text(label),
+        labelStyle: Theme.of(context).textTheme.labelLarge?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: MapScreenPalette.textPrimary,
+            ),
+        backgroundColor: Colors.white.withValues(alpha: 0.9),
+        side: BorderSide(color: LocaDashboardTokens.primaryBlue.withValues(alpha: 0.35)),
+        visualDensity: VisualDensity.compact,
+        onPressed: onTap,
+      ),
+    );
+  }
 }
 
 /// Nhãn nhiên liệu đang áp dụng; chạm để mở bộ lọc (đổi Xăng / Dầu).

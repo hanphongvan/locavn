@@ -21,6 +21,7 @@ class LeaderMapUiState {
     this.coverage = LeaderStockCoverageBand.all,
     this.showRetailStores = false,
     this.showWholesale = true,
+    this.selectedServiceCodes = const [],
   });
 
   final LeaderMapFuelFilter fuel;
@@ -30,17 +31,22 @@ class LeaderMapUiState {
   /// Lớp 1 — đầu mối, bật mặc định.
   final bool showWholesale;
 
+  /// Mã dịch vụ (`activeServiceCodes`) — rỗng = không lọc; logic giống bản đồ Citizen.
+  final List<String> selectedServiceCodes;
+
   LeaderMapUiState copyWith({
     LeaderMapFuelFilter? fuel,
     LeaderStockCoverageBand? coverage,
     bool? showRetailStores,
     bool? showWholesale,
+    List<String>? selectedServiceCodes,
   }) {
     return LeaderMapUiState(
       fuel: fuel ?? this.fuel,
       coverage: coverage ?? this.coverage,
       showRetailStores: showRetailStores ?? this.showRetailStores,
       showWholesale: showWholesale ?? this.showWholesale,
+      selectedServiceCodes: selectedServiceCodes ?? this.selectedServiceCodes,
     );
   }
 }

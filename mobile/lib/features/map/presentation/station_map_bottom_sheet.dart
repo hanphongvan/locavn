@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -8,8 +10,39 @@ import 'map_screen_palette.dart';
 import 'station_list_item.dart';
 
 /// Bottom sheet kéo được: danh sách trạm đã tải + sắp xếp client-side.
-class StationMapBottomSheet extends ConsumerWidget {
+class StationMapBottomSheet extends ConsumerStatefulWidget {
   const StationMapBottomSheet({super.key});
+
+  @override
+  ConsumerState<StationMapBottomSheet> createState() => _StationMapBottomSheetState();
+}
+
+class _StationMapBottomSheetState extends ConsumerState<StationMapBottomSheet> {
+  double _lastSheetExtent = 0.26;
+  Timer? _originRefreshDebounce;
+
+  @override
+  void dispose() {
+    _originRefreshDebounce?.cancel();
+    super.dispose();
+  }
+
+  void _scheduleUserOriginRefresh() {
+    _originRefreshDebounce?.cancel();
+    _originRefreshDebounce = Timer(const Duration(milliseconds: 450), () {
+      if (!mounted) return;
+      ref.invalidate(mapSheetUserOriginProvider);
+    });
+  }
+
+  bool _onDraggableScroll(DraggableScrollableNotification n) {
+    final e = n.extent;
+    if (e >= 0.44 && _lastSheetExtent < 0.34) {
+      _scheduleUserOriginRefresh();
+    }
+    _lastSheetExtent = e;
+    return false;
+  }
 
   static Future<void> _showSortPicker(BuildContext context, WidgetRef ref) async {
     await showModalBottomSheet<void>(
@@ -45,6 +78,7 @@ class StationMapBottomSheet extends ConsumerWidget {
                           : null,
                       onTap: () {
                         ref2.read(mapStationListSortProvider.notifier).state = MapStationListSort.distanceAsc;
+                        ref2.invalidate(mapSheetUserOriginProvider);
                         Navigator.pop(ctx);
                       },
                     ),
@@ -84,13 +118,15 @@ class StationMapBottomSheet extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final items = ref.watch(mapSortedStationSheetItemsProvider);
     if (items.isEmpty) {
       return const SizedBox.shrink();
     }
 
-    return DraggableScrollableSheet(
+    return NotificationListener<DraggableScrollableNotification>(
+      onNotification: _onDraggableScroll,
+      child: DraggableScrollableSheet(
       expand: false,
       initialChildSize: 0.26,
       minChildSize: 0.18,
@@ -138,7 +174,7 @@ class StationMapBottomSheet extends ConsumerWidget {
                         children: [
                           Expanded(
                             child: Text(
-                              'Kết quả gần bạn (${items.length})',
+                              'Kết quả gần bạn',
                               style: Theme.of(context).textTheme.titleSmall?.copyWith(
                                     fontWeight: FontWeight.w800,
                                     color: MapScreenPalette.textPrimary,
@@ -202,6 +238,7 @@ class StationMapBottomSheet extends ConsumerWidget {
           ),
         );
       },
+    ),
     );
   }
 }

@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/auth/auth_providers.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/router/app_routes.dart';
+import '../../auth/presentation/citizen_login_prompt.dart';
 import '../../more/presentation/account/account_activity_providers.dart';
 import '../../my_reviews/presentation/my_station_reviews_providers.dart';
 import '../../station_detail/presentation/station_detail_providers.dart';
@@ -192,6 +194,10 @@ class _StationMapPreviewSheetBodyState extends ConsumerState<_StationMapPreviewS
                     },
                     onDirections: () => _openDirections(widget.hostContext, station),
                     onRate: () {
+                      if (!ref.read(authSessionControllerProvider).isAuthenticated) {
+                        showCitizenLoginRequiredPrompt(widget.modalContext);
+                        return;
+                      }
                       showMapReviewComposeSheet(
                         context: widget.modalContext,
                         stationId: station.stationId,
@@ -207,6 +213,10 @@ class _StationMapPreviewSheetBodyState extends ConsumerState<_StationMapPreviewS
                       );
                     },
                     onReport: () {
+                      if (!ref.read(authSessionControllerProvider).isAuthenticated) {
+                        showCitizenLoginRequiredPrompt(widget.modalContext);
+                        return;
+                      }
                       showMapBadReportComposeSheet(
                         context: widget.modalContext,
                         stationId: station.stationId,

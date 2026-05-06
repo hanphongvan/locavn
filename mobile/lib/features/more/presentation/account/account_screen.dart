@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/auth/auth_providers.dart';
 import '../../../../core/auth/auth_session.dart';
+import '../../../auth/presentation/citizen_login_prompt.dart';
 import '../../../../core/auth/biometric/biometric_providers.dart';
 import '../../../../core/auth/portal_route_access.dart';
 import '../../../../core/router/app_routes.dart';
@@ -266,7 +267,7 @@ class AccountScreen extends ConsumerWidget {
                   AccountMenuItem(
                     icon: Icons.dashboard_outlined,
                     label: 'Dashboard',
-                    onTap: () => context.go(AppRoute.reports.path),
+                    onTap: () => showCitizenLoginRequiredPrompt(context),
                   ),
                   AccountMenuItem(
                     icon: Icons.map_outlined,
@@ -276,7 +277,7 @@ class AccountScreen extends ConsumerWidget {
                   AccountMenuItem(
                     icon: Icons.local_gas_station_outlined,
                     label: 'Nhiên liệu',
-                    onTap: () => context.go(AppRoute.fuel.path),
+                    onTap: () => showCitizenLoginRequiredPrompt(context),
                     showDividerBelow: false,
                   ),
                 ],
