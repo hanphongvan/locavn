@@ -28,6 +28,7 @@ from .agents.state import AgentState
 from .config import Settings, get_settings
 from .schemas.chat import ChatRequest, ChatResponse, RateLimitInfo, ReportRequest, ReportResponse
 from .security.guard import SecurityGuard
+from .services.cache_service import CacheService
 from .services.dotnet_api_client import DotnetApiClient
 from .services.llm_service import LlmService, OpenAiLlmService
 from .services.metrics_service import configure_logging, get_logger
@@ -46,9 +47,9 @@ _logger = get_logger(__name__)
 # DI factories — `app.dependency_overrides[...]` swap trong tests.
 # ---------------------------------------------------------------------------
 
-def get_llm_service(settings: Annotated[Settings, Depends(get_settings)]) -> LlmService:
-    router = ModelRouter.load(settings.models_yaml_path)
-    return OpenAiLlmService(router)
+# Process-scoped cache + dotnet client — share giữa request để hit rate
+# có ý nghĩa (nếu init mỗi request thì TTL không hoạt động).
+_cache_singleton = CacheService()
 
 
 def get_security_guard() -> SecurityGuard:
@@ -59,14 +60,41 @@ def get_dotnet_client(settings: Annotated[Settings, Depends(get_settings)]) -> D
     return DotnetApiClient(settings)
 
 
-def get_tools(settings: Annotated[Settings, Depends(get_settings)]) -> dict[str, BaseTool]:
-    kwargs = {"mock_data_path": settings.mock_data_path, "use_mock": settings.use_mock_data}
+def get_cache() -> CacheService:
+    return _cache_singleton
+
+
+def get_llm_service(
+    settings: Annotated[Settings, Depends(get_settings)],
+    dotnet: Annotated[DotnetApiClient, Depends(get_dotnet_client)],
+) -> LlmService:
+    router = ModelRouter.load(settings.models_yaml_path)
+    return OpenAiLlmService(router, dotnet_client=dotnet)
+
+
+def get_tools(
+    settings: Annotated[Settings, Depends(get_settings)],
+    dotnet: Annotated[DotnetApiClient, Depends(get_dotnet_client)],
+    cache: Annotated[CacheService, Depends(get_cache)],
+) -> dict[str, BaseTool]:
+    kwargs = {
+        "mock_data_path": settings.mock_data_path,
+        "use_mock": settings.use_mock_data,
+        "dotnet_client": dotnet,
+        "cache": cache,
+    }
     tools: dict[str, BaseTool] = {
         "fuel_inventory_summary":     FuelInventoryTool(**kwargs),
         "fuel_price_trend":           FuelPriceTool(**kwargs),
         "inventory_by_head_office":   HeadOfficeTool(**kwargs),
         "station_density_by_province": StationMapTool(**kwargs),
-        "leader_report":              ReportTool(**kwargs),
+        # ReportTool không cần SP → use_mock=True luôn để bỏ qua dotnet_client check.
+        "leader_report":              ReportTool(
+            mock_data_path=settings.mock_data_path,
+            use_mock=True,
+            dotnet_client=dotnet,
+            cache=cache,
+        ),
     }
     return tools
 

@@ -316,7 +316,8 @@ async def tool_executor(state: AgentState, deps: Deps) -> AgentState:
             continue
         started = time.perf_counter()
         try:
-            result = await tool.run(params)
+            # Phase 2A: gọi execute() (cache + validator) thay vì run() trực tiếp.
+            result = await tool.execute(params)
             elapsed_ms = int((time.perf_counter() - started) * 1000)
             _logger.info(
                 "tool.success",

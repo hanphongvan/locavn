@@ -112,3 +112,32 @@ Foundation cho module Loca AI Leader (`POST /api/leader-ai/*`, chỉ user `Loai 
 
 - `AiGateway:BaseUrl` (`appsettings.json`), `AiGateway:InternalKey` (env var `AI_GATEWAY_INTERNAL_KEY` — không commit).
 - `RateLimit:PerMinute = 5`, `RateLimit:PerHour = 20`, `RateLimit:PerDay = 50`.
+
+### Migration `20260507120000_UpdateLeaderAiSpsToRealQueries` — Phase 2A
+
+Chuyển 4 SP `sp_Ai_*` từ mock VALUES (Phase 1A) sang query bảng thật. **Output schema không đổi** (Section 11). `CREATE OR ALTER` nên rerun-safe.
+
+**Mapping nghiệp vụ** (TODO domain expert review):
+
+| SP | Nguồn dữ liệu chính | Field NULL ở Phase 2A |
+|---|---|---|
+| `sp_Ai_GetFuelInventorySummary` | `StationInventoryTransactionDetails` × `Headers` × `FuelProducts` × `DM_DonVi` | `PreviousPeriodStock`, `ChangePercent`, `MinSafeStock`, `RegionName` |
+| `sp_Ai_GetFuelPriceTrend` | `StationProductPrices` AVG theo `EffectiveDate` × `FuelProducts.Code` | — (đầy đủ qua LAG window function) |
+| `sp_Ai_GetInventoryByHeadOffice` | recursive CTE `DM_DonVi.CapTrenId` để resolve cấp đầu mối (`CapDonViId = 235`) | `MinSafeStock` |
+| `sp_Ai_GetStationDensityByProvince` | `COUNT(DM_DonVi WHERE CapDonViId = 248)` retail theo `Tinh` | `AreaKm2`, `DensityPer100Km2`, `RegionName` |
+
+`@WholesaleCap = 235` và `@RetailCap = 248` đang hard-code trong SP — Phase 3 sẽ chuyển sang `AppSystemSettings` để đổi không cần redeploy.
+
+### Phase 2A — Internal endpoints (AI Gateway → .NET)
+
+Layer 4 defense-in-depth — AI Gateway gọi 4 SP qua HTTP nội bộ thay vì connection string trực tiếp.
+
+| Method | Endpoint | SP target | Auth |
+|---|---|---|---|
+| POST | `/internal/ai/fuel-inventory` | `sp_Ai_GetFuelInventorySummary` | `X-Internal-Key` |
+| POST | `/internal/ai/fuel-price` | `sp_Ai_GetFuelPriceTrend` | `X-Internal-Key` |
+| POST | `/internal/ai/head-office` | `sp_Ai_GetInventoryByHeadOffice` | `X-Internal-Key` |
+| POST | `/internal/ai/station-density` | `sp_Ai_GetStationDensityByProvince` | `X-Internal-Key` |
+| POST | `/internal/ai/log` | INSERT `AiToolLogs` (token usage Section 9) | `X-Internal-Key` |
+
+`InternalKeyOnlyAttribute`: header phải khớp `AiGateway:InternalKey`. Config rỗng → 503 (chặn deploy nhầm), header sai/thiếu → 401, `[AllowAnonymous]` được tôn trọng.

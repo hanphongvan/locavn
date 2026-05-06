@@ -26,6 +26,7 @@ public static class LeaderAiDependencyInjection
         services.AddScoped<IAiRateLimitService, AiRateLimitService>();
 
         services.AddScoped<ILeaderAiDataAccess, LeaderAiDataAccess>();
+        services.AddScoped<IAiInternalDataAccess, AiInternalDataAccess>();
         services.AddScoped<ILeaderAiService, LeaderAiService>();
 
         // Typed HttpClient cho AI Gateway. Timeout 50s = pipeline 45s + 5s buffer mạng.
