@@ -113,6 +113,14 @@ abstract final class ApiEndpoints {
 
   static String leaderMapViolations(int stationId) => '/api/leader/map/violations?stationId=$stationId';
 
+  /// Loca AI Leader Assistant — Bearer JWT, chỉ `Loai == 6` (Phase 2B).
+  static const leaderAiChat = '/api/leader-ai/chat';
+  static const leaderAiChatStream = '/api/leader-ai/chat/stream';
+  static const leaderAiConversations = '/api/leader-ai/conversations';
+  static String leaderAiConversation(String id) => '/api/leader-ai/conversations/$id';
+  static const leaderAiReport = '/api/leader-ai/report';
+  static const leaderAiHealth = '/api/leader-ai/health';
+
   static String leaderMapPrices(String idsCommaSeparated) => '/api/leader/map/prices?ids=$idsCommaSeparated';
 
   /// Phân tích Lãnh đạo (GET, `window=d7|d30|m3|m6`, `fuel=xang|dau` khi cần).

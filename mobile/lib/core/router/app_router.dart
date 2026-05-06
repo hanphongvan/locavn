@@ -23,6 +23,7 @@ import '../../features/leader/presentation/leader_overview_page.dart';
 import '../../features/leader/presentation/leader_main_screen.dart';
 import '../../features/leader/presentation/leader_retail_screen.dart';
 import '../../features/leader/presentation/stabilization_fund_screen.dart';
+import '../../features/leader_ai/presentation/leader_ai_chat_screen.dart';
 import '../../features/more/presentation/more_shell_page.dart';
 import '../../features/my_vehicles/presentation/my_vehicles_shell_page.dart';
 import '../../features/reports/presentation/reports_shell_page.dart';
@@ -263,6 +264,13 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         parentNavigatorKey: appRootNavigatorKey,
         builder: (context, state) =>
             const AccountScreen(embeddedInLeaderShell: true),
+      ),
+      GoRoute(
+        // Phase 2B — top-level route (không nằm trong shell) để full-screen chat
+        // không bị che bởi LeaderFloatingBottomNav.
+        path: AppRoute.leaderAiChat,
+        parentNavigatorKey: appRootNavigatorKey,
+        builder: (context, state) => const LeaderAiChatScreen(),
       ),
       GoRoute(
         path: AppRoute.storeRoot,

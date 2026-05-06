@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/auth/portal_loai.dart';
 import '../../../core/auth/role_service.dart';
+import '../../../core/router/app_routes.dart';
 import '../../map/presentation/map_screen_palette.dart';
 import '../../more/presentation/account/account_screen.dart';
 import '../../reports/presentation/dashboard/loca_dashboard_tokens.dart';
@@ -95,6 +96,7 @@ class LeaderMainScreen extends ConsumerWidget {
                   ? () => ref.read(stabilizationFundFilterBusProvider).open()
                   : null,
               accountAction: () => _openAccount(context),
+              aiAction: () => context.push(AppRoute.leaderAiChat),
             ),
           Expanded(
             child: showExecutiveHeader
