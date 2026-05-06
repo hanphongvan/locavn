@@ -2,17 +2,20 @@
 
 Endpoints:
 - `POST /ai/leader/chat` (Section 4.1)
+- `POST /ai/leader/chat/stream` — SSE (Section 4.4)
 - `POST /ai/leader/report`
 - `GET  /health` (probe nội bộ — không auth)
 - `GET  /ai/leader/health` (alias chiều .NET API)
 """
 from __future__ import annotations
 
+import asyncio
+import json
 import time
-from typing import Annotated
+from typing import Annotated, AsyncIterator
 
 from fastapi import Depends, FastAPI, Header, HTTPException, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from .agents.fallback import (
     DEFAULT_FAIL_ANSWER,
@@ -117,6 +120,23 @@ def create_app() -> FastAPI:
         _check_internal_key(settings, x_internal_key)
         return await _run_chat(request, deps, settings)
 
+    @app.post("/ai/leader/chat/stream", tags=["leader"])
+    async def chat_stream(
+        request: ChatRequest,
+        deps: Annotated[Deps, Depends(get_deps)],
+        x_internal_key: Annotated[str | None, Header(alias="X-Internal-Key")] = None,
+    ):
+        """SSE stream — Section 4.4 events: text_delta + complete (+ error)."""
+        _check_internal_key(settings, x_internal_key)
+        return StreamingResponse(
+            _stream_chat(request, deps, settings),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no",  # nginx: tắt buffering để chunk đến client ngay.
+            },
+        )
+
     @app.post("/ai/leader/report", response_model=ReportResponse, response_model_by_alias=True, tags=["leader"])
     async def report(
         request: ReportRequest,
@@ -211,6 +231,43 @@ async def _run_chat(request: ChatRequest, deps: Deps, settings: Settings) -> Cha
         confidence=response.confidence,
     )
     return response
+
+
+async def _stream_chat(
+    request: ChatRequest,
+    deps: Deps,
+    settings: Settings,
+) -> AsyncIterator[bytes]:
+    """SSE generator — Phase 1C fake streaming.
+
+    Phase 1C: chạy full pipeline, sau đó chunk `answer_text` ~30 ký tự / event.
+    Phase 2+ sẽ true-stream từ OpenAI bằng `stream=True`. Khách hàng (Flutter)
+    không cần đổi vì format SSE giống nhau.
+
+    Format Section 4.4:
+        data: {"event": "text_delta", "text": "..."}\\n\\n
+        data: {"event": "complete", "data": {...full ChatResponse...}}\\n\\n
+        data: {"event": "error", "message": "..."}\\n\\n
+    """
+    chunk_size = 30
+
+    try:
+        response = await _run_chat(request, deps, settings)
+    except Exception as ex:  # pragma: no cover (FallbackHandler đã bọc trong _run_chat)
+        yield _sse_event({"event": "error", "message": str(ex)})
+        return
+
+    answer = response.answer_text or ""
+    for offset in range(0, len(answer), chunk_size):
+        await asyncio.sleep(0)  # nhường event loop để client thấy chunks streaming.
+        yield _sse_event({"event": "text_delta", "text": answer[offset:offset + chunk_size]})
+
+    # `model_dump(by_alias=True)` để JSON event giữ camelCase đúng Section 4.3.
+    yield _sse_event({"event": "complete", "data": response.model_dump(by_alias=True)})
+
+
+def _sse_event(payload: dict) -> bytes:
+    return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n".encode("utf-8")
 
 
 async def _run_report(request: ReportRequest, deps: Deps, settings: Settings) -> ReportResponse:

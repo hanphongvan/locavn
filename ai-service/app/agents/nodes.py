@@ -108,18 +108,23 @@ async def auth_context_loader(state: AgentState, deps: Deps) -> AgentState:
 async def conversation_context_loader(state: AgentState, deps: Deps) -> AgentState:
     """Section 2.1 #2 — Load 5–10 message gần nhất + AiConversationContexts.
 
-    Phase 1B: stub (DotnetApiClient.get_conversation_history trả [] hoặc
-    pytest inject fake data). Phase 1C → gọi GET /api/leader-ai/conversations/{id}.
+    Phase 1C: ưu tiên dùng `history` đã có trong state (.NET API forward sẵn từ
+    `AiMessages`). Nếu không có nhưng có `conversation_id`, fallback gọi .NET API
+    (stub Phase 1B → trả [], Phase 1C+ có thể implement HTTP call thật).
     """
+    history = state.get("history")
+    if history:
+        return {"history": history}
+
     conversation_id = state.get("conversation_id")
-    history: list[dict[str, Any]] = []
+    fetched: list[dict[str, Any]] = []
     if conversation_id:
-        history = await deps.dotnet.get_conversation_history(
+        fetched = await deps.dotnet.get_conversation_history(
             conversation_id=conversation_id,
             user_id=state["user_id"],
             limit=10,
         )
-    return {"history": history}
+    return {"history": fetched}
 
 
 # ============================================================================

@@ -41,4 +41,51 @@ public interface ILeaderAiDataAccess
         Guid conversationId,
         int userId,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Lấy <paramref name="limit"/> message gần nhất của conversation (cũ → mới) để forward sang AI Gateway.
+    /// Scope theo userId để tránh leak giữa user.
+    /// </summary>
+    Task<IReadOnlyList<AiMessageDto>> GetRecentMessagesAsync(
+        Guid conversationId,
+        int userId,
+        int limit,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// UPSERT 1 row <c>AiConversationContexts</c> theo <paramref name="conversationId"/>.
+    /// Phase 1C: lưu các trường <c>LastIntent / LastTopic / LastRegionId / LastFuelType / LastResultRef</c>.
+    /// </summary>
+    Task UpsertConversationContextAsync(
+        Guid conversationId,
+        int userId,
+        int userLoai,
+        string? lastIntent,
+        string? lastTopic,
+        int? lastRegionId,
+        int? lastProvinceId,
+        string? lastFuelType,
+        string? lastProductCode,
+        Guid? lastResultRef,
+        string? lastAnswerSummary,
+        string? screenContextJson,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// INSERT 1 row <c>AiResultSnapshots</c> với <c>ExpiresAt = NOW() + 24h</c>
+    /// để Phase 2+ có thể tái sử dụng kết quả tool. Trả về Id snapshot vừa tạo.
+    /// </summary>
+    Task<Guid> InsertResultSnapshotAsync(
+        Guid conversationId,
+        Guid? messageId,
+        int userId,
+        string? intent,
+        string? resultType,
+        string? summaryJson,
+        string? tableJson,
+        string? chartJson,
+        string? mapJson,
+        string? reportMarkdown,
+        TimeSpan ttl,
+        CancellationToken cancellationToken);
 }

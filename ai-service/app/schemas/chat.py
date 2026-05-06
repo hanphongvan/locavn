@@ -20,6 +20,20 @@ class ChatContext(BaseModel):
     selected_entity_type: str | None = Field(default=None, alias="selectedEntityType")
 
 
+class HistoryMessage(BaseModel):
+    """1 message trong lịch sử hội thoại — .NET API load từ AiMessages và forward.
+
+    Phase 1C: AI Gateway nhận `history` từ request body, không tự gọi back .NET API
+    để tránh round-trip thừa và giảm coupling.
+    """
+
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+
+    role: str
+    content: str
+    intent: str | None = None
+
+
 class ChatRequest(BaseModel):
     """POST /ai/leader/chat body.
 
@@ -36,6 +50,7 @@ class ChatRequest(BaseModel):
     # Forwarded từ .NET API:
     user_id: int = Field(..., alias="userId")
     user_loai: int = Field(..., alias="userLoai")
+    history: list[HistoryMessage] = Field(default_factory=list)
 
 
 class ContextState(BaseModel):

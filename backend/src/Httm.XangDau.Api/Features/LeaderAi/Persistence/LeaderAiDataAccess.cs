@@ -181,6 +181,175 @@ public sealed class LeaderAiDataAccess(IConfiguration configuration) : ILeaderAi
         return affected > 0;
     }
 
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<AiMessageDto>> GetRecentMessagesAsync(
+        Guid conversationId,
+        int userId,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        // Lấy N message gần nhất theo CreatedAt DESC, sau đó re-order ASC để LLM đọc cũ → mới.
+        const string sql =
+            """
+            ;WITH latest AS (
+                SELECT TOP (@Limit)
+                    m.Id, m.ConversationId, m.Role, m.Content, m.Intent, m.AnswerType, m.CreatedAt
+                FROM dbo.AiMessages m
+                INNER JOIN dbo.AiConversations c ON c.Id = m.ConversationId
+                WHERE m.ConversationId = @ConversationId
+                  AND c.UserId = @UserId
+                  AND c.IsDeleted = 0
+                ORDER BY m.CreatedAt DESC
+            )
+            SELECT Id, ConversationId, Role, Content, Intent, AnswerType, CreatedAt
+            FROM latest
+            ORDER BY CreatedAt ASC;
+            """;
+
+        await using var conn = new SqlConnection(_connectionString);
+        await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+        var command = new CommandDefinition(
+            sql,
+            new { ConversationId = conversationId, UserId = userId, Limit = limit },
+            cancellationToken: cancellationToken);
+
+        var rows = await conn.QueryAsync<AiMessageDto>(command).ConfigureAwait(false);
+        return rows.ToList();
+    }
+
+    /// <inheritdoc />
+    public async Task UpsertConversationContextAsync(
+        Guid conversationId,
+        int userId,
+        int userLoai,
+        string? lastIntent,
+        string? lastTopic,
+        int? lastRegionId,
+        int? lastProvinceId,
+        string? lastFuelType,
+        string? lastProductCode,
+        Guid? lastResultRef,
+        string? lastAnswerSummary,
+        string? screenContextJson,
+        CancellationToken cancellationToken)
+    {
+        // MERGE để upsert atomic theo natural key ConversationId. HOLDLOCK ngăn race
+        // khi 2 turn của cùng conversation xen kẽ.
+        const string sql =
+            """
+            MERGE dbo.AiConversationContexts WITH (HOLDLOCK) AS target
+            USING (VALUES (
+                @ConversationId, @UserId, @UserLoai,
+                @LastIntent, @LastTopic, @LastRegionId, @LastProvinceId,
+                @LastFuelType, @LastProductCode, @LastResultRef,
+                @LastAnswerSummary, @ScreenContextJson
+            )) AS src (
+                ConversationId, UserId, UserLoai,
+                LastIntent, LastTopic, LastRegionId, LastProvinceId,
+                LastFuelType, LastProductCode, LastResultRef,
+                LastAnswerSummary, ScreenContextJson
+            )
+                ON target.ConversationId = src.ConversationId
+            WHEN MATCHED THEN
+                UPDATE SET
+                    LastIntent        = src.LastIntent,
+                    LastTopic         = src.LastTopic,
+                    LastRegionId      = src.LastRegionId,
+                    LastProvinceId    = src.LastProvinceId,
+                    LastFuelType      = src.LastFuelType,
+                    LastProductCode   = src.LastProductCode,
+                    LastResultRef     = src.LastResultRef,
+                    LastAnswerSummary = src.LastAnswerSummary,
+                    ScreenContextJson = src.ScreenContextJson,
+                    UpdatedAt         = SYSUTCDATETIME()
+            WHEN NOT MATCHED THEN
+                INSERT (ConversationId, UserId, UserLoai,
+                        LastIntent, LastTopic, LastRegionId, LastProvinceId,
+                        LastFuelType, LastProductCode, LastResultRef,
+                        LastAnswerSummary, ScreenContextJson)
+                VALUES (src.ConversationId, src.UserId, src.UserLoai,
+                        src.LastIntent, src.LastTopic, src.LastRegionId, src.LastProvinceId,
+                        src.LastFuelType, src.LastProductCode, src.LastResultRef,
+                        src.LastAnswerSummary, src.ScreenContextJson);
+            """;
+
+        await using var conn = new SqlConnection(_connectionString);
+        await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+        var command = new CommandDefinition(
+            sql,
+            new
+            {
+                ConversationId = conversationId,
+                UserId = userId,
+                UserLoai = userLoai,
+                LastIntent = lastIntent,
+                LastTopic = lastTopic,
+                LastRegionId = lastRegionId,
+                LastProvinceId = lastProvinceId,
+                LastFuelType = lastFuelType,
+                LastProductCode = lastProductCode,
+                LastResultRef = lastResultRef,
+                LastAnswerSummary = lastAnswerSummary,
+                ScreenContextJson = screenContextJson,
+            },
+            cancellationToken: cancellationToken);
+
+        await conn.ExecuteAsync(command).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<Guid> InsertResultSnapshotAsync(
+        Guid conversationId,
+        Guid? messageId,
+        int userId,
+        string? intent,
+        string? resultType,
+        string? summaryJson,
+        string? tableJson,
+        string? chartJson,
+        string? mapJson,
+        string? reportMarkdown,
+        TimeSpan ttl,
+        CancellationToken cancellationToken)
+    {
+        const string sql =
+            """
+            DECLARE @Id UNIQUEIDENTIFIER = NEWID();
+            INSERT INTO dbo.AiResultSnapshots
+                (Id, ConversationId, MessageId, UserId, Intent, ResultType,
+                 SummaryJson, TableJson, ChartJson, MapJson, ReportMarkdown, ExpiresAt)
+            VALUES
+                (@Id, @ConversationId, @MessageId, @UserId, @Intent, @ResultType,
+                 @SummaryJson, @TableJson, @ChartJson, @MapJson, @ReportMarkdown, @ExpiresAt);
+            SELECT @Id;
+            """;
+
+        await using var conn = new SqlConnection(_connectionString);
+        await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+        var command = new CommandDefinition(
+            sql,
+            new
+            {
+                ConversationId = conversationId,
+                MessageId = messageId,
+                UserId = userId,
+                Intent = intent,
+                ResultType = resultType,
+                SummaryJson = summaryJson,
+                TableJson = tableJson,
+                ChartJson = chartJson,
+                MapJson = mapJson,
+                ReportMarkdown = reportMarkdown,
+                ExpiresAt = DateTime.UtcNow.Add(ttl),
+            },
+            cancellationToken: cancellationToken);
+
+        return await conn.ExecuteScalarAsync<Guid>(command).ConfigureAwait(false);
+    }
+
     private sealed record ConversationHeaderRow(
         Guid Id,
         string? Title,

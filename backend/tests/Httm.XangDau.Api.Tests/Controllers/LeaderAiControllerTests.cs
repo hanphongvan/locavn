@@ -163,42 +163,61 @@ public sealed class LeaderAiControllerTests
         body.Intent.Should().Be("GENERATE_LEADER_REPORT");
     }
 
-    [Fact(DisplayName = "GET /health: BaseUrl rỗng → aiGateway = 'not_configured'")]
-    public void Health_returns_not_configured_when_baseurl_empty()
+    [Fact(DisplayName = "GET /health: AI Gateway reachable → status=ok, aiGateway=connected, latencyMs > 0")]
+    public async Task Health_returns_ok_when_gateway_reachable()
     {
         var service = new Mock<ILeaderAiService>(MockBehavior.Strict);
-        var controller = BuildController(service.Object, loai: "6", userId: "42",
-            gateway: new AiGatewayOptions { BaseUrl = string.Empty });
+        var gatewayMock = new Mock<IAiGatewayClient>();
+        gatewayMock
+            .Setup(g => g.HealthAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiGatewayHealthResult
+            {
+                Reachable = true,
+                LatencyMs = 42,
+                Status = "ok",
+            });
+        var controller = BuildController(service.Object, loai: "6", userId: "42", gateway: gatewayMock.Object);
 
-        var result = controller.Health();
+        var result = await controller.Health(CancellationToken.None);
 
         result.Should().BeOfType<OkObjectResult>();
         var body = ((OkObjectResult)result).Value!;
         var json = JsonSerializer.Serialize(body);
         using var doc = JsonDocument.Parse(json);
         doc.RootElement.GetProperty("status").GetString().Should().Be("ok");
-        doc.RootElement.GetProperty("aiGateway").GetString().Should().Be("not_configured");
+        doc.RootElement.GetProperty("aiGateway").GetString().Should().Be("connected");
+        doc.RootElement.GetProperty("latencyMs").GetInt64().Should().Be(42);
     }
 
-    [Fact(DisplayName = "GET /health: BaseUrl có giá trị → aiGateway = 'not_connected' (Phase 1A chưa probe)")]
-    public void Health_returns_not_connected_when_baseurl_set()
+    [Fact(DisplayName = "GET /health: AI Gateway unreachable → status=degraded, aiGateway=disconnected")]
+    public async Task Health_returns_degraded_when_gateway_unreachable()
     {
         var service = new Mock<ILeaderAiService>(MockBehavior.Strict);
-        var controller = BuildController(service.Object, loai: "6", userId: "42",
-            gateway: new AiGatewayOptions { BaseUrl = "http://localhost:8001" });
+        var gatewayMock = new Mock<IAiGatewayClient>();
+        gatewayMock
+            .Setup(g => g.HealthAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiGatewayHealthResult
+            {
+                Reachable = false,
+                LatencyMs = 2000,
+                Status = "unreachable",
+                Error = "TaskCanceledException",
+            });
+        var controller = BuildController(service.Object, loai: "6", userId: "42", gateway: gatewayMock.Object);
 
-        var result = controller.Health();
+        var result = await controller.Health(CancellationToken.None);
         var body = ((OkObjectResult)result).Value!;
-        var json = JsonSerializer.Serialize(body);
-        using var doc = JsonDocument.Parse(json);
-        doc.RootElement.GetProperty("aiGateway").GetString().Should().Be("not_connected");
+        using var doc = JsonDocument.Parse(JsonSerializer.Serialize(body));
+        doc.RootElement.GetProperty("status").GetString().Should().Be("degraded");
+        doc.RootElement.GetProperty("aiGateway").GetString().Should().Be("disconnected");
+        doc.RootElement.GetProperty("error").GetString().Should().Be("TaskCanceledException");
     }
 
     private static LeaderAiController BuildController(
         ILeaderAiService service,
         string? loai,
         string? userId,
-        AiGatewayOptions? gateway = null)
+        IAiGatewayClient? gateway = null)
     {
         var http = new DefaultHttpContext();
         var claims = new List<Claim>();
@@ -208,7 +227,8 @@ public sealed class LeaderAiControllerTests
             claims.Add(new Claim("Loai", loai));
         http.User = new ClaimsPrincipal(new ClaimsIdentity(claims, authenticationType: "TestJwt"));
 
-        var controller = new LeaderAiController(service, Options.Create(gateway ?? new AiGatewayOptions()))
+        var aiGateway = gateway ?? new Mock<IAiGatewayClient>(MockBehavior.Loose).Object;
+        var controller = new LeaderAiController(service, aiGateway)
         {
             ControllerContext = new ControllerContext { HttpContext = http },
         };
