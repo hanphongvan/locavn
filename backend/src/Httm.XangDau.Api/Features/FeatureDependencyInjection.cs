@@ -8,6 +8,7 @@ using Httm.XangDau.Api.Features.FuelReporting;
 using Httm.XangDau.Api.Features.Geography;
 using Httm.XangDau.Api.Features.Inventory;
 using Httm.XangDau.Api.Features.Leader;
+using Httm.XangDau.Api.Features.LeaderAi;
 using Httm.XangDau.Api.Features.Pricing;
 using Httm.XangDau.Api.Features.Reports;
 using Httm.XangDau.Api.Features.StoreAdmin;
@@ -31,6 +32,7 @@ public static class FeatureDependencyInjection
         services.AddInventoryFeature();
         services.AddReportsFeature();
         services.AddLeaderFeature();
+        services.AddLeaderAiFeature(configuration);
         services.AddCitizenReportsFeature();
         services.AddBadReportsFeature();
         services.AddAdminFeature();
