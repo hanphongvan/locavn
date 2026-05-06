@@ -193,7 +193,7 @@ chỉ là dead path khi mạng OK.
 
 ---
 
-## Đã fix (commit `<sha>` ngày 2026-05-06)
+## Đã fix (commit `2ff210b` ngày 2026-05-06)
 
 - 🔴 **#2** — `requestMapUserLocation(acceptLastKnownMaxAge: 2 phút)` cho cả
   Gần nhất và Rẻ nhất, tránh re-acquire GNSS 20s mỗi lần bấm.
