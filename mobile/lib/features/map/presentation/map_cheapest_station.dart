@@ -166,7 +166,9 @@ class _CheapestSpotlightSheetState extends ConsumerState<_CheapestSpotlightSheet
 
     mapClearCheapSpotlightMarker(ref);
 
-    final loc = await requestMapUserLocation();
+    final loc = await requestMapUserLocation(
+      acceptLastKnownMaxAge: const Duration(minutes: 2),
+    );
     if (!mounted) return;
 
     switch (loc) {

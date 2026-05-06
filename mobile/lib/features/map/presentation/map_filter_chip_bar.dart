@@ -29,6 +29,8 @@ class MapFilterChipBar extends ConsumerStatefulWidget {
 
 class _MapFilterChipBarState extends ConsumerState<MapFilterChipBar> {
   bool _inStockLoading = false;
+  bool _nearestLoading = false;
+  bool _cheapestLoading = false;
 
   List<StationMapItem> _requireLoadedItems(BuildContext context, WidgetRef ref) {
     final v = ref.read(stationMapMarkersProvider);
@@ -48,11 +50,25 @@ class _MapFilterChipBarState extends ConsumerState<MapFilterChipBar> {
     final hasServiceFilter = ref.watch(mapFiltersProvider).selectedServiceCodes.isNotEmpty;
 
     Future<void> onNearest() async {
+      if (_nearestLoading) return;
       if (_requireLoadedItems(context, ref).isEmpty) return;
+      setState(() => _nearestLoading = true);
       ref.read(mapDiscoveryShortcutProvider.notifier).state = MapDiscoveryShortcut.nearest;
       try {
-        await presentNearestPetrolStation(context, ref);
+        // Spinner xoay trong giai đoạn GPS + API; tắt ngay khi sheet/snackbar đã sẵn sàng hiển thị.
+        await presentNearestPetrolStation(
+          context,
+          ref,
+          onResolveDone: () {
+            if (mounted && _nearestLoading) {
+              setState(() => _nearestLoading = false);
+            }
+          },
+        );
       } finally {
+        if (mounted && _nearestLoading) {
+          setState(() => _nearestLoading = false);
+        }
         if (context.mounted) {
           ref.read(mapDiscoveryShortcutProvider.notifier).state = MapDiscoveryShortcut.none;
         }
@@ -60,11 +76,20 @@ class _MapFilterChipBarState extends ConsumerState<MapFilterChipBar> {
     }
 
     Future<void> onCheapest() async {
+      if (_cheapestLoading) return;
       if (_requireLoadedItems(context, ref).isEmpty) return;
+      setState(() => _cheapestLoading = true);
       ref.read(mapDiscoveryShortcutProvider.notifier).state = MapDiscoveryShortcut.cheapest;
       try {
-        await presentCheapestPetrolStation(context, ref);
+        final sheetFuture = presentCheapestPetrolStation(context, ref);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() => _cheapestLoading = false);
+        });
+        await sheetFuture;
       } finally {
+        if (mounted && _cheapestLoading) {
+          setState(() => _cheapestLoading = false);
+        }
         if (context.mounted) {
           ref.read(mapDiscoveryShortcutProvider.notifier).state = MapDiscoveryShortcut.none;
         }
@@ -194,6 +219,7 @@ class _MapFilterChipBarState extends ConsumerState<MapFilterChipBar> {
             selected: shortcut == MapDiscoveryShortcut.nearest,
             icon: Icons.near_me_outlined,
             label: 'Gần nhất',
+            busy: _nearestLoading,
             onTap: () => unawaited(onNearest()),
           ),
           const SizedBox(width: 10),
@@ -201,6 +227,7 @@ class _MapFilterChipBarState extends ConsumerState<MapFilterChipBar> {
             selected: shortcut == MapDiscoveryShortcut.cheapest,
             icon: Icons.payments_outlined,
             label: 'Rẻ nhất',
+            busy: _cheapestLoading,
             onTap: () => unawaited(onCheapest()),
           ),
           const SizedBox(width: 10),

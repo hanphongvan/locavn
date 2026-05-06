@@ -77,21 +77,38 @@ Future<
 }
 
 /// Permission → nearest (API or local on loaded markers) → move map, highlight, bottom sheet.
+///
+/// [onResolveDone] (nếu có) được gọi đúng một lần khi giai đoạn xử lý GPS + API kết thúc —
+/// bất kể tiếp theo là mở sheet, snackbar lỗi, hay return sớm — để caller tắt spinner trên chip.
 Future<void> presentNearestPetrolStation(
   BuildContext context,
-  WidgetRef ref,
-) async {
+  WidgetRef ref, {
+  VoidCallback? onResolveDone,
+}) async {
   final messenger = ScaffoldMessenger.maybeOf(context);
+  var resolveDoneFired = false;
+  void fireResolveDone() {
+    if (resolveDoneFired) return;
+    resolveDoneFired = true;
+    onResolveDone?.call();
+  }
+
   final items = ref.read(stationMapMarkersProvider).asData?.value.items ?? const <StationMapItem>[];
   if (items.isEmpty) {
+    fireResolveDone();
     messenger?.showSnackBar(
       const SnackBar(content: Text('Chưa có dữ liệu cây xăng trên bản đồ — tải xong rồi thử lại.')),
     );
     return;
   }
 
-  final loc = await requestMapUserLocation();
-  if (!context.mounted) return;
+  final loc = await requestMapUserLocation(
+    acceptLastKnownMaxAge: const Duration(minutes: 2),
+  );
+  if (!context.mounted) {
+    fireResolveDone();
+    return;
+  }
 
   final AppLatLng user;
   switch (loc) {
@@ -99,6 +116,7 @@ Future<void> presentNearestPetrolStation(
     case MapUserLocationDeniedForever():
     case MapUserLocationServiceDisabled():
     case MapUserLocationGnssTimeout():
+      fireResolveDone();
       showMapUserLocationOutcomeSnackbar(
         context,
         loc,
@@ -110,9 +128,13 @@ Future<void> presentNearestPetrolStation(
   }
 
   final resolved = await resolveNearestStation(ref: ref, user: user, loadedItems: items);
-  if (!context.mounted) return;
+  if (!context.mounted) {
+    fireResolveDone();
+    return;
+  }
 
   if (resolved == null) {
+    fireResolveDone();
     messenger?.showSnackBar(
       const SnackBar(content: Text('Không tìm thấy cây xăng gần bạn trên máy chủ.')),
     );
@@ -123,6 +145,7 @@ Future<void> presentNearestPetrolStation(
     ref.read(mapEphemeralStationProvider.notifier).state = resolved.item;
   }
 
+  fireResolveDone();
   final d = resolved.distanceKm;
   await showMapDiscoveryResultsSheet(
     context: context,
