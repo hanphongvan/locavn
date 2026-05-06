@@ -27,6 +27,38 @@ class AccountScreen extends ConsumerWidget {
 
   final bool embeddedInLeaderShell;
 
+  /// AppBar khi tài khoản Lãnh đạo mở ngoài bottom nav (có nút quay lại).
+  static PreferredSizeWidget _leaderAccountAppBar(BuildContext context) {
+    return AppBar(
+      backgroundColor: AccountPalette.cardWhite,
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+      foregroundColor: AccountPalette.textPrimary,
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back_rounded),
+        tooltip: 'Quay lại',
+        onPressed: () {
+          final rootNav = Navigator.of(context, rootNavigator: true);
+          if (rootNav.canPop()) {
+            rootNav.pop();
+            return;
+          }
+          if (context.canPop()) {
+            context.pop();
+          }
+        },
+      ),
+      title: const Text(
+        'Tài khoản',
+        style: TextStyle(
+          fontWeight: FontWeight.w800,
+          color: AccountPalette.textPrimary,
+          decoration: TextDecoration.none,
+        ),
+      ),
+    );
+  }
+
   static Future<void> _confirmDisableBiometric(BuildContext context, WidgetRef ref) async {
     final ok = await showDialog<bool>(
       context: context,
@@ -70,9 +102,13 @@ class AccountScreen extends ConsumerWidget {
 
     if (!isReady) {
       if (embeddedInLeaderShell) {
-        return const ColoredBox(
-          color: AccountPalette.background,
-          child: AccountScreenSkeleton(),
+        return Scaffold(
+          backgroundColor: AccountPalette.background,
+          appBar: _leaderAccountAppBar(context),
+          body: const ColoredBox(
+            color: AccountPalette.background,
+            child: AccountScreenSkeleton(),
+          ),
         );
       }
       return Scaffold(
@@ -96,6 +132,7 @@ class AccountScreen extends ConsumerWidget {
           ProfileHeaderCard(
             session: session,
             onEditTap: () => _openPersonal(context, session),
+            roleBadgeLabel: leaderAccount ? 'Lãnh đạo' : null,
           ),
           if (!leaderAccount) ...[
             const SizedBox(height: 20),
@@ -125,7 +162,7 @@ class AccountScreen extends ConsumerWidget {
           ],
           if (leaderAccount) const SizedBox(height: 20),
           MenuSection(
-            title: 'CÁ NHÂN',
+            title: 'Cá nhân',
             child: Column(
               children: [
                 AccountMenuItem(
@@ -147,7 +184,7 @@ class AccountScreen extends ConsumerWidget {
           if (!leaderAccount) ...[
             const SizedBox(height: 20),
             MenuSection(
-              title: 'TƯƠNG TÁC',
+              title: 'Tương tác',
               child: Column(
                 children: [
                   AccountMenuItem(
@@ -167,7 +204,7 @@ class AccountScreen extends ConsumerWidget {
           ],
           const SizedBox(height: 20),
           MenuSection(
-            title: 'QUYỀN RIÊNG TƯ & DỮ LIỆU',
+            title: 'Quyền riêng tư & dữ liệu',
             child: Column(
               children: [
                 AccountMenuItem(
@@ -182,7 +219,7 @@ class AccountScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 20),
           MenuSection(
-            title: leaderAccount ? 'THÔNG TIN BẢO MẬT' : 'BẢO MẬT',
+            title: leaderAccount ? 'Thông tin bảo mật' : 'Bảo mật',
             child: Column(
               children: [
                 AccountMenuItem(
@@ -211,7 +248,37 @@ class AccountScreen extends ConsumerWidget {
                 AccountMenuItem(
                   icon: Icons.logout_rounded,
                   label: 'Đăng xuất',
-                  onTap: () => ref.read(authSessionControllerProvider).logout(),
+                  onTap: () async {
+                    // Trường hợp Leader: AccountScreen trên root (`MaterialPageRoute` hoặc GoRoute
+                    // `parentNavigatorKey: appRootNavigatorKey`). Phải pop đúng navigator đó
+                    // TRƯỚC khi logout — nếu `Navigator.of(context)` lấy nhánh nested, `maybePop` không
+                    // gỡ overlay, redirect Leader→Citizen trong cùng frame → duplicate
+                    // `GlobalKey<StatefulNavigationShellState>`.
+                    // Hoãn `logout` sang frame sau pop để cây widget ổn định (cùng ý tưởng
+                    // [showRequestDeleteDataSheet] + account deletion flow).
+                    final auth = ref.read(authSessionControllerProvider);
+                    final nav = Navigator.of(
+                      context,
+                      rootNavigator: embeddedInLeaderShell,
+                    );
+                    if (embeddedInLeaderShell) {
+                      // Sau `maybePop`, route này thường bị dispose ngay → `context.mounted == false`.
+                      // Không được `return` trước khi gọi logout: nếu không session không clear,
+                      // router/shell dễ lệch trạng thái (crash / về splash khi mở lại app).
+                      if (nav.canPop()) {
+                        await nav.maybePop();
+                      }
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        auth.logout();
+                      });
+                    } else {
+                      if (nav.canPop()) {
+                        await nav.maybePop();
+                      }
+                      if (!context.mounted) return;
+                      auth.logout();
+                    }
+                  },
                   danger: true,
                   showDividerBelow: false,
                 ),
@@ -221,7 +288,7 @@ class AccountScreen extends ConsumerWidget {
           if (!leaderAccount) ...[
             const SizedBox(height: 22),
             MenuSection(
-              title: 'TRUY CẬP NHANH',
+              title: 'Truy cập nhanh',
               child: Column(
                 children: [
                   AccountMenuItem(
@@ -261,7 +328,7 @@ class AccountScreen extends ConsumerWidget {
           ),
           if (!leaderAccount)
             MenuSection(
-              title: 'TRUY CẬP NHANH',
+              title: 'Truy cập nhanh',
               child: Column(
                 children: [
                   AccountMenuItem(
@@ -292,9 +359,10 @@ class AccountScreen extends ConsumerWidget {
     );
 
     if (embeddedInLeaderShell) {
-      return ColoredBox(
-        color: AccountPalette.background,
-        child: body,
+      return Scaffold(
+        backgroundColor: AccountPalette.background,
+        appBar: _leaderAccountAppBar(context),
+        body: body,
       );
     }
 

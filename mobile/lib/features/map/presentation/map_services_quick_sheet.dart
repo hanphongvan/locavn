@@ -117,15 +117,6 @@ class _MapServicesQuickSheetState extends ConsumerState<_MapServicesQuickSheet> 
                   ],
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(18, 0, 18, 8),
-                child: Text(
-                  'Chỉ hiển thị trạm đang bật đủ các dịch vụ đã chọn (điều kiện và).',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: MapScreenPalette.filterTextSecondary,
-                      ),
-                ),
-              ),
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(18, 0, 18, 12),

@@ -37,6 +37,7 @@ import '../../features/store/presentation/store_prices_tab_page.dart';
 import '../../features/store/presentation/store_shell_page.dart';
 import '../../features/reports/presentation/dashboard/loca_dashboard_tokens.dart';
 import '../auth/auth_providers.dart';
+import '../auth/auth_session_controller.dart';
 import '../auth/portal_route_access.dart';
 import 'citizen_guest_route_access.dart';
 import '../../features/auth/presentation/access_denied_page.dart';
@@ -45,6 +46,50 @@ import 'app_root_navigator_key.dart';
 import 'app_routes.dart';
 import 'role_home_navigation.dart';
 
+/// Nhóm shell **tách biệt** trong cây route: khi đổi nhóm (vd Leader → guest Citizen),
+/// [goRouterProvider] tạo **GoRouter mới** và dispose navigator cũ — tránh cùng frame có hai
+/// [StatefulNavigationShell] (duplicate `GlobalKey<StatefulNavigationShellState>`,
+/// `_ElementLifecycle.inactive` khi GoRouter redirect thay shell).
+///
+/// Guest + `Loai == 5` cùng nhóm `consumer` (cùng tab shell `/map`…): đăng nhập/xuất citizen
+/// không recreate router, chỉ redirect + session.
+final _routerPortalShellFamilyProvider = Provider<String>((ref) {
+  return ref.watch(
+    authSessionControllerProvider.select((c) {
+      if (!c.isReady) {
+        return 'loading';
+      }
+      final loai = c.session?.loai;
+      if (loai == null || loai == 5) {
+        return 'consumer';
+      }
+      if (loai == 4) {
+        return 'store';
+      }
+      if (loai == 6) {
+        return 'leader';
+      }
+      if (loai == 1) {
+        return 'admin';
+      }
+      if (loai == 3) {
+        return 'trader';
+      }
+      return 'consumer';
+    }),
+  );
+});
+
+String _initialLocationForAuth(AuthSessionController auth) {
+  if (!auth.isReady) {
+    return AppRoute.splash;
+  }
+  if (!auth.isAuthenticated) {
+    return AppRoute.map.path;
+  }
+  return roleHomeLocationForLoai(auth.session?.loai) ?? AppRoute.map.path;
+}
+
 /// Single [GoRouter] bound to [AuthSessionController] for redirect + refresh.
 ///
 /// After `AppSessionBootstrap` restores local session, [redirect] sends authed users to the
@@ -52,10 +97,11 @@ import 'role_home_navigation.dart';
 /// **Chưa đăng nhập (Citizen guest):** vào `/map` + tra cứu trạm công khai; không ép `/login` toàn app.
 /// Đổi `Loai` khi URL vẫn là shell portal khác → redirect về home đúng role ([PortalRouteAccess.shouldBounceFromForeignPortalShell]).
 final goRouterProvider = Provider<GoRouter>((ref) {
+  ref.watch(_routerPortalShellFamilyProvider);
   final auth = ref.read(authSessionControllerProvider);
   final router = GoRouter(
     navigatorKey: appRootNavigatorKey,
-    initialLocation: AppRoute.splash,
+    initialLocation: _initialLocationForAuth(auth),
     refreshListenable: auth,
     errorBuilder: (context, state) => _RouteNotFoundPage(
       attemptedLocation: state.uri.toString(),

@@ -174,7 +174,7 @@ class _StationMapBottomSheetState extends ConsumerState<StationMapBottomSheet> {
                         children: [
                           Expanded(
                             child: Text(
-                              'Kết quả gần bạn',
+                              'Cửa hàng gần bạn',
                               style: Theme.of(context).textTheme.titleSmall?.copyWith(
                                     fontWeight: FontWeight.w800,
                                     color: MapScreenPalette.textPrimary,

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../../reports/presentation/dashboard/loca_dashboard_tokens.dart';
-import '../../data/leader_retail_service.dart';
+import '../../data/leader_retail_models.dart';
 
-/// KPI card đơn lẻ — 4 ô trên + ô tỷ lệ hoạt động riêng (full-width).
+/// KPI card đơn lẻ — 3 ô tổng + 1 ô tỷ lệ hoạt động riêng (full-width).
 class RetailKpiCard extends StatelessWidget {
   const RetailKpiCard({
     super.key,
@@ -70,57 +70,48 @@ class RetailKpiCard extends StatelessWidget {
   }
 }
 
-/// Filter bar — chip horizontal cho Vùng / Tỉnh / Loại NL / Trạng thái.
+/// Filter bar — 3 chip: Tỉnh / Trạng thái / Đơn vị quản lý + Xoá lọc.
 class RetailFilterBar extends StatelessWidget {
   const RetailFilterBar({
     super.key,
     required this.filter,
-    required this.regions,
     required this.provinces,
+    required this.managingUnits,
     required this.onChanged,
   });
 
   final RetailFilter filter;
-  final List<String> regions;
-  final List<String> provinces;
+  final List<RetailProvinceFilterOption> provinces;
+  final List<RetailManagingUnit> managingUnits;
   final ValueChanged<RetailFilter> onChanged;
 
   @override
   Widget build(BuildContext context) {
+    final selectedProvince = filter.provinceId == null
+        ? null
+        : provinces.firstWhere(
+            (p) => p.id == filter.provinceId,
+            orElse: () => RetailProvinceFilterOption(id: filter.provinceId!, storeCount: 0),
+          );
+    final selectedUnit = filter.managingUnitId == null
+        ? null
+        : managingUnits.firstWhere(
+            (u) => u.id == filter.managingUnitId,
+            orElse: () => RetailManagingUnit(id: filter.managingUnitId!, storeCount: 0),
+          );
+
     return SizedBox(
       height: 42,
       child: ListView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         children: [
-          _DropdownChip<String>(
-            label: 'Vùng',
-            value: filter.region,
-            items: regions,
-            display: (s) => s,
-            onSelected: (v) => onChanged(filter.copyWith(region: v)),
-          ),
-          const SizedBox(width: 8),
-          _DropdownChip<String>(
+          _DropdownChip<RetailProvinceFilterOption>(
             label: 'Tỉnh',
-            value: filter.province,
+            value: selectedProvince,
             items: provinces,
-            display: (s) => s,
-            onSelected: (v) => onChanged(filter.copyWith(province: v)),
-          ),
-          const SizedBox(width: 8),
-          _DropdownChip<RetailFuelType>(
-            label: 'Loại NL',
-            value: filter.fuelType == RetailFuelType.all
-                ? null
-                : filter.fuelType,
-            items: RetailFuelType.values
-                .where((e) => e != RetailFuelType.all)
-                .toList(),
-            display: (e) => e.label,
-            onSelected: (v) => onChanged(
-              filter.copyWith(fuelType: v ?? RetailFuelType.all),
-            ),
+            display: (p) => p.displayName,
+            onSelected: (v) => onChanged(filter.copyWith(provinceId: v?.id)),
           ),
           const SizedBox(width: 8),
           _DropdownChip<RetailStoreStatus>(
@@ -131,7 +122,13 @@ class RetailFilterBar extends StatelessWidget {
             onSelected: (v) => onChanged(filter.copyWith(status: v)),
           ),
           const SizedBox(width: 8),
-          if (_hasAnyFilter)
+          _ManagingUnitChip(
+            selected: selectedUnit,
+            items: managingUnits,
+            onSelected: (v) => onChanged(filter.copyWith(managingUnitId: v?.id)),
+          ),
+          const SizedBox(width: 8),
+          if (filter.hasAny)
             ActionChip(
               avatar: const Icon(Icons.refresh_rounded, size: 16),
               label: const Text('Xoá lọc'),
@@ -141,12 +138,13 @@ class RetailFilterBar extends StatelessWidget {
       ),
     );
   }
+}
 
-  bool get _hasAnyFilter =>
-      filter.region != null ||
-      filter.province != null ||
-      filter.fuelType != RetailFuelType.all ||
-      filter.status != null;
+/// Wrapper bắt buộc cho `PopupMenuButton<T>`: Flutter coi `T? newValue == null` là "user dismissed",
+/// nên `PopupMenuItem(value: null)` không bao giờ trigger `onSelected`. Wrapper non-null tránh ambiguity.
+class _PickValue<T> {
+  const _PickValue(this.value);
+  final T? value;
 }
 
 class _DropdownChip<T> extends StatelessWidget {
@@ -169,16 +167,22 @@ class _DropdownChip<T> extends StatelessWidget {
     final selected = value != null;
     final chipLabel = selected ? display(value as T) : label;
 
-    return PopupMenuButton<T?>(
+    return PopupMenuButton<_PickValue<T>>(
       tooltip: label,
       position: PopupMenuPosition.under,
-      onSelected: onSelected,
+      onSelected: (picked) => onSelected(picked.value),
       itemBuilder: (ctx) {
         return [
-          PopupMenuItem<T?>(value: null, child: Text('Tất cả $label')),
+          PopupMenuItem<_PickValue<T>>(
+            value: const _PickValue(null),
+            child: Text('Tất cả $label'),
+          ),
           const PopupMenuDivider(),
           for (final item in items)
-            PopupMenuItem<T?>(value: item, child: Text(display(item))),
+            PopupMenuItem<_PickValue<T>>(
+              value: _PickValue<T>(item),
+              child: Text(display(item)),
+            ),
         ];
       },
       child: Chip(
@@ -193,9 +197,7 @@ class _DropdownChip<T> extends StatelessWidget {
           fontWeight: FontWeight.w600,
           fontSize: 12.5,
         ),
-        backgroundColor: selected
-            ? LocaDashboardTokens.primaryBlue
-            : Colors.white,
+        backgroundColor: selected ? LocaDashboardTokens.primaryBlue : Colors.white,
         side: BorderSide(
           color: selected
               ? LocaDashboardTokens.primaryBlue
@@ -207,6 +209,301 @@ class _DropdownChip<T> extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Chip "Đơn vị quản lý" — danh sách có thể lên đến hàng nghìn → tap để mở
+/// bottom sheet có search + `ListView.builder` (không materialize toàn bộ qua PopupMenuButton).
+class _ManagingUnitChip extends StatelessWidget {
+  const _ManagingUnitChip({
+    required this.selected,
+    required this.items,
+    required this.onSelected,
+  });
+
+  final RetailManagingUnit? selected;
+  final List<RetailManagingUnit> items;
+  final ValueChanged<RetailManagingUnit?> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final isSelected = selected != null;
+    final chipLabel = isSelected ? selected!.displayName : 'Đơn vị quản lý';
+
+    return InkWell(
+      onTap: items.isEmpty ? null : () => _open(context),
+      borderRadius: BorderRadius.circular(LocaDashboardTokens.radiusPill),
+      child: Chip(
+        avatar: Icon(
+          isSelected ? Icons.business_rounded : Icons.business_outlined,
+          size: 16,
+          color: isSelected ? Colors.white : LocaDashboardTokens.primaryBlue,
+        ),
+        label: Text(chipLabel),
+        labelStyle: TextStyle(
+          color: isSelected ? Colors.white : LocaDashboardTokens.textPrimary,
+          fontWeight: FontWeight.w600,
+          fontSize: 12.5,
+        ),
+        backgroundColor: isSelected ? LocaDashboardTokens.primaryBlue : Colors.white,
+        side: BorderSide(
+          color: isSelected
+              ? LocaDashboardTokens.primaryBlue
+              : LocaDashboardTokens.primaryBlue.withValues(alpha: 0.25),
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(LocaDashboardTokens.radiusPill),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _open(BuildContext context) async {
+    final picked = await showModalBottomSheet<_ManagingUnitPickResult?>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _ManagingUnitPickerSheet(
+        items: items,
+        currentSelectedId: selected?.id,
+      ),
+    );
+    if (picked == null) return; // cancel
+    onSelected(picked.unit);
+  }
+}
+
+/// Bottom sheet chọn đơn vị quản lý — search theo `name`/`code`, lazy `ListView.builder`.
+class _ManagingUnitPickerSheet extends StatefulWidget {
+  const _ManagingUnitPickerSheet({
+    required this.items,
+    required this.currentSelectedId,
+  });
+
+  final List<RetailManagingUnit> items;
+  final int? currentSelectedId;
+
+  @override
+  State<_ManagingUnitPickerSheet> createState() => _ManagingUnitPickerSheetState();
+}
+
+class _ManagingUnitPickerSheetState extends State<_ManagingUnitPickerSheet> {
+  final _searchCtrl = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  List<RetailManagingUnit> get _filtered {
+    if (_query.isEmpty) return widget.items;
+    final q = _query.toLowerCase();
+    return widget.items.where((u) {
+      final name = (u.name ?? '').toLowerCase();
+      final code = (u.code ?? '').toLowerCase();
+      return name.contains(q) || code.contains(q);
+    }).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context).textTheme;
+    final filtered = _filtered;
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.85,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (ctx, controller) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: LocaDashboardTokens.background,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 4,
+                  margin: const EdgeInsets.symmetric(vertical: 12),
+                  decoration: BoxDecoration(
+                    color: LocaDashboardTokens.textSecondary.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.business_rounded,
+                      color: LocaDashboardTokens.primaryBlue,
+                      size: 22,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Đơn vị quản lý',
+                      style: t.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: LocaDashboardTokens.textPrimary,
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      '${filtered.length}/${widget.items.length}',
+                      style: t.labelMedium?.copyWith(
+                        color: LocaDashboardTokens.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: TextField(
+                  controller: _searchCtrl,
+                  textInputAction: TextInputAction.search,
+                  onChanged: (v) => setState(() => _query = v.trim()),
+                  decoration: InputDecoration(
+                    hintText: 'Tìm theo tên hoặc mã đơn vị',
+                    prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                    suffixIcon: _query.isEmpty
+                        ? null
+                        : IconButton(
+                            icon: const Icon(Icons.close_rounded, size: 18),
+                            onPressed: () {
+                              _searchCtrl.clear();
+                              setState(() => _query = '');
+                            },
+                          ),
+                    isDense: true,
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(LocaDashboardTokens.radiusSm),
+                      borderSide: BorderSide(
+                        color: LocaDashboardTokens.primaryBlue.withValues(alpha: 0.2),
+                      ),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  ),
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: ListView.builder(
+                  controller: controller,
+                  itemCount: filtered.length + 1, // +1 for "Tất cả đơn vị" row at top
+                  itemBuilder: (_, i) {
+                    if (i == 0) {
+                      final isAllSelected = widget.currentSelectedId == null;
+                      return _UnitRow(
+                        title: 'Tất cả đơn vị',
+                        subtitle: '${widget.items.length} đơn vị',
+                        selected: isAllSelected,
+                        onTap: () =>
+                            Navigator.of(context).pop(const _ManagingUnitPickResult(null)),
+                      );
+                    }
+                    final unit = filtered[i - 1];
+                    return _UnitRow(
+                      title: unit.displayName,
+                      subtitle: unit.code != null
+                          ? '${unit.code} • ${unit.storeCount} cửa hàng'
+                          : '${unit.storeCount} cửa hàng',
+                      selected: unit.id == widget.currentSelectedId,
+                      onTap: () =>
+                          Navigator.of(context).pop(_ManagingUnitPickResult(unit)),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _UnitRow extends StatelessWidget {
+  const _UnitRow({
+    required this.title,
+    required this.subtitle,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String title;
+  final String subtitle;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context).textTheme;
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: selected
+              ? LocaDashboardTokens.primaryBlue.withValues(alpha: 0.06)
+              : Colors.transparent,
+          border: const Border(
+            bottom: BorderSide(color: Color(0xFFEEF2FA), width: 0.5),
+          ),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: t.bodyMedium?.copyWith(
+                      fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                      color: selected
+                          ? LocaDashboardTokens.primaryBlue
+                          : LocaDashboardTokens.textPrimary,
+                    ),
+                  ),
+                  Text(
+                    subtitle,
+                    style: t.labelSmall?.copyWith(
+                      color: LocaDashboardTokens.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (selected)
+              const Icon(
+                Icons.check_circle_rounded,
+                color: LocaDashboardTokens.primaryBlue,
+                size: 20,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Wrapper để phân biệt "user cancelled" (sheet trả `null`) vs "user chose 'Tất cả đơn vị'"
+/// (trả `_ManagingUnitPickResult(null)` — `unit` field null nhưng object non-null).
+class _ManagingUnitPickResult {
+  const _ManagingUnitPickResult(this.unit);
+  final RetailManagingUnit? unit;
 }
 
 /// Ranking theo tỉnh — list rút gọn, tap để drill-down.
@@ -235,7 +532,7 @@ class RetailProvinceRanking extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
             child: Row(
               children: [
-                Icon(
+                const Icon(
                   Icons.bar_chart_rounded,
                   size: 18,
                   color: LocaDashboardTokens.primaryBlue,
@@ -309,18 +606,19 @@ class _ProvinceRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    stat.province,
+                    stat.displayName,
                     style: t.bodyMedium?.copyWith(
                       fontWeight: FontWeight.w700,
                       color: LocaDashboardTokens.textPrimary,
                     ),
                   ),
-                  Text(
-                    stat.region,
-                    style: t.labelSmall?.copyWith(
-                      color: LocaDashboardTokens.textSecondary,
+                  if (stat.lastUpdatedAt != null)
+                    Text(
+                      'Cập nhật: ${_fmtDate(stat.lastUpdatedAt!)}',
+                      style: t.labelSmall?.copyWith(
+                        color: LocaDashboardTokens.textSecondary,
+                      ),
                     ),
-                  ),
                 ],
               ),
             ),
@@ -360,6 +658,11 @@ class _ProvinceRow extends StatelessWidget {
       ),
     );
   }
+
+  String _fmtDate(DateTime d) {
+    String two(int v) => v.toString().padLeft(2, '0');
+    return '${two(d.day)}/${two(d.month)}/${d.year}';
+  }
 }
 
 class _Metric extends StatelessWidget {
@@ -396,7 +699,7 @@ class _Metric extends StatelessWidget {
   }
 }
 
-/// Card cảnh báo điều hành.
+/// Card cảnh báo điều hành (severity từ BE rule engine).
 class RetailWarningCard extends StatelessWidget {
   const RetailWarningCard({super.key, required this.warning});
   final RetailWarning warning;

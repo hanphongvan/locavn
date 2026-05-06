@@ -108,13 +108,6 @@ class StationListItem extends ConsumerWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Tồn kho theo báo cáo: xem chi tiết trạm.',
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                            color: MapScreenPalette.textSecondary.withValues(alpha: 0.85),
-                          ),
-                    ),
                     const SizedBox(height: 6),
                     ratingAsync.when(
                       data: (r) => Text(

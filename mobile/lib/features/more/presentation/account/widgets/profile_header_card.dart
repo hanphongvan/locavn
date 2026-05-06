@@ -8,10 +8,14 @@ class ProfileHeaderCard extends StatelessWidget {
     super.key,
     required this.session,
     required this.onEditTap,
+    this.roleBadgeLabel,
   });
 
   final AuthSession session;
   final VoidCallback onEditTap;
+
+  /// Nhãn chip vai trò (vd. `Lãnh đạo`). Mặc định hiển thị "Người dùng".
+  final String? roleBadgeLabel;
 
   String get _displayName {
     final d = session.displayName?.trim();
@@ -73,6 +77,7 @@ class ProfileHeaderCard extends StatelessWidget {
                     fontWeight: FontWeight.w900,
                     color: AccountPalette.textPrimary,
                     height: 1.2,
+                    decoration: TextDecoration.none,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -83,6 +88,7 @@ class ProfileHeaderCard extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                     color: AccountPalette.textSecondary,
                     height: 1.3,
+                    decoration: TextDecoration.none,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -93,27 +99,36 @@ class ProfileHeaderCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(color: AccountPalette.border),
                   ),
-                  child: const Text(
-                    'Người dùng',
-                    style: TextStyle(
+                  child: Text(
+                    roleBadgeLabel?.trim().isNotEmpty == true ? roleBadgeLabel!.trim() : 'Người dùng',
+                    style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w800,
                       color: AccountPalette.primaryBlue,
+                      decoration: TextDecoration.none,
                     ),
                   ),
                 ),
               ],
             ),
           ),
-          TextButton(
-            onPressed: onEditTap,
-            style: TextButton.styleFrom(
-              foregroundColor: AccountPalette.primaryBlue,
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            ),
-            child: const Text(
-              'Chỉnh sửa',
-              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: onEditTap,
+              borderRadius: BorderRadius.circular(10),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                child: Text(
+                  'Chỉnh sửa',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                    color: AccountPalette.primaryBlue,
+                    decoration: TextDecoration.none,
+                  ),
+                ),
+              ),
             ),
           ),
         ],

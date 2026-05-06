@@ -247,7 +247,6 @@ class _MapFilterSheetBodyState extends ConsumerState<_MapFilterSheetBody> {
                               if (!_collapsed) ...[
                                 FilterSection(
                                   title: 'Loại đơn vị',
-                                  subtitle: 'Bản đồ hiện ưu tiên cửa hàng bán lẻ; đầu mối sẽ bổ sung khi có dữ liệu.',
                                   child: FilterChipGroup<MapUnitTypeFilter>(
                                     options: const [
                                       FilterChipOption(value: MapUnitTypeFilter.all, label: 'Tất cả'),
@@ -261,9 +260,7 @@ class _MapFilterSheetBodyState extends ConsumerState<_MapFilterSheetBody> {
                                 const SizedBox(height: 22),
                                 FilterSection(
                                   title: 'Loại nhiên liệu',
-                                  subtitle: hideGasFuel
-                                      ? 'Vai trò Lãnh đạo: chỉ Xăng và Dầu.'
-                                      : 'Khí: giá trên bản đồ đang bổ sung — chip không lọc trạm.',
+                                  subtitle: hideGasFuel ? 'Vai trò Lãnh đạo: chỉ Xăng và Dầu.' : null,
                                   child: FilterChipGroup<MapFuelTypeFilter>(
                                     options: [
                                       const FilterChipOption(value: MapFuelTypeFilter.all, label: 'Tất cả'),
@@ -287,8 +284,6 @@ class _MapFilterSheetBodyState extends ConsumerState<_MapFilterSheetBody> {
                                 const SizedBox(height: 22),
                                 FilterSection(
                                   title: 'Dịch vụ',
-                                  subtitle:
-                                      'Chỉ hiển thị trạm đang bật đủ các dịch vụ đã chọn (điều kiện và).',
                                   child: catalogAsync.when(
                                     loading: () => const LinearProgressIndicator(),
                                     error: (e, _) => Text(
@@ -358,7 +353,6 @@ class _MapFilterSheetBodyState extends ConsumerState<_MapFilterSheetBody> {
                                 const SizedBox(height: 22),
                                 FilterSection(
                                   title: 'Đánh giá',
-                                  subtitle: 'Điểm trung bình trên marker sẽ áp dụng khi API bổ sung trường này.',
                                   child: FilterChipGroup<MapRatingFilter>(
                                     options: const [
                                       FilterChipOption(value: MapRatingFilter.all, label: 'Tất cả'),
@@ -515,14 +509,7 @@ class _MapFilterSheetBodyState extends ConsumerState<_MapFilterSheetBody> {
                                         color: MapScreenPalette.filterTextPrimary,
                                       ),
                                 ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'Giá rẻ nhất / đánh giá cao nhất — dữ liệu từ máy chủ.',
-                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                        color: MapScreenPalette.filterTextSecondary,
-                                      ),
-                                ),
-                                const SizedBox(height: 10),
+                                const SizedBox(height: 12),
                                 Row(
                                   children: [
                                     Expanded(

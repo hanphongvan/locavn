@@ -22,10 +22,12 @@ class MenuSection extends StatelessWidget {
           child: Text(
             title,
             style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 0.6,
-              color: AccountPalette.textSecondary.withValues(alpha: 0.95),
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.2,
+              height: 1.2,
+              color: AccountPalette.textSecondary.withValues(alpha: 0.9),
+              decoration: TextDecoration.none,
             ),
           ),
         ),

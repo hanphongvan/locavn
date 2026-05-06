@@ -15,6 +15,8 @@ public static class LeaderDependencyInjection
         services.AddScoped<ILeaderStabilizationFundDataAccess, LeaderStabilizationFundDataAccess>();
         services.AddScoped<IAppSystemSettingsRead, AppSystemSettingsRead>();
         services.AddScoped<IStabilizationFundReportPeriodResolver, StabilizationFundReportPeriodResolver>();
+        services.AddScoped<ILeaderRetailDataAccess, LeaderRetailDataAccess>();
+        services.AddScoped<ILeaderRetailService, LeaderRetailService>();
         return services;
     }
 }

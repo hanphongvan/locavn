@@ -4,13 +4,15 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/router/app_routes.dart';
 import '../../reports/presentation/dashboard/loca_dashboard_tokens.dart';
+import '../data/leader_retail_models.dart';
 import '../data/leader_retail_service.dart';
+import 'leader_retail_ui_limits.dart';
 import 'widgets/retail_widgets.dart';
 
 /// Tab **Bán lẻ** (`Loai == 6`) — KPI cửa hàng + xếp hạng tỉnh + cảnh báo.
 ///
-/// Data: `leaderRetailDashboardProvider` (mock service); tap tỉnh mở
-/// bottom sheet drill-down có nút "Xem trên bản đồ" → `/leader/map`.
+/// Data: `leaderRetailDashboardProvider` (API thật, mock chỉ dev qua kDebugMode flag);
+/// tap tỉnh mở bottom sheet drill-down có nút "Xem trên bản đồ" → `/leader/map`.
 class LeaderRetailScreen extends ConsumerWidget {
   const LeaderRetailScreen({super.key});
 
@@ -18,6 +20,15 @@ class LeaderRetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final dashboard = ref.watch(leaderRetailDashboardProvider);
     final filter = ref.watch(leaderRetailFilterProvider);
+    final provincesAsync = ref.watch(leaderRetailProvincesProvider);
+    final managingUnitsAsync = ref.watch(leaderRetailManagingUnitsProvider);
+
+    debugPrint(
+      '[leader-retail] screen.build '
+      'dashboard=${dashboard.isLoading ? "loading" : dashboard.hasError ? "error(${dashboard.error})" : "data"} '
+      'provinces=${provincesAsync.isLoading ? "loading" : provincesAsync.hasError ? "error" : "ok(${provincesAsync.value?.length})"} '
+      'mgmt=${managingUnitsAsync.isLoading ? "loading" : managingUnitsAsync.hasError ? "error" : "ok(${managingUnitsAsync.value?.length})"}',
+    );
 
     return Container(
       color: LocaDashboardTokens.background,
@@ -25,11 +36,18 @@ class LeaderRetailScreen extends ConsumerWidget {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, _) => _ErrorView(
           message: 'Không tải được dữ liệu: $err',
-          onRetry: () => ref.invalidate(leaderRetailDashboardProvider),
+          onRetry: () {
+            debugPrint('[leader-retail] retry tap → invalidate 3 providers');
+            ref.invalidate(leaderRetailDashboardProvider);
+            ref.invalidate(leaderRetailProvincesProvider);
+            ref.invalidate(leaderRetailManagingUnitsProvider);
+          },
         ),
         data: (data) => RefreshIndicator(
           onRefresh: () async {
             ref.invalidate(leaderRetailDashboardProvider);
+            ref.invalidate(leaderRetailProvincesProvider);
+            ref.invalidate(leaderRetailManagingUnitsProvider);
             await ref.read(leaderRetailDashboardProvider.future);
           },
           child: ListView(
@@ -38,11 +56,16 @@ class LeaderRetailScreen extends ConsumerWidget {
               const SizedBox(height: 4),
               RetailFilterBar(
                 filter: filter,
-                regions: data.regions,
-                provinces: data.provinces.map((p) => p.province).toList(),
-                onChanged: (next) => ref
-                    .read(leaderRetailFilterProvider.notifier)
-                    .state = next,
+                provinces: provincesAsync.maybeWhen(
+                  data: (v) => v,
+                  orElse: () => const <RetailProvinceFilterOption>[],
+                ),
+                managingUnits: managingUnitsAsync.maybeWhen(
+                  data: (v) => v,
+                  orElse: () => const <RetailManagingUnit>[],
+                ),
+                onChanged: (next) =>
+                    ref.read(leaderRetailFilterProvider.notifier).state = next,
               ),
               const SizedBox(height: 12),
               Padding(
@@ -62,12 +85,7 @@ class LeaderRetailScreen extends ConsumerWidget {
                 const SizedBox(height: 8),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Column(
-                    children: [
-                      for (final w in data.warnings)
-                        RetailWarningCard(warning: w),
-                    ],
-                  ),
+                  child: _WarningPreviewList(warnings: data.warnings),
                 ),
                 const SizedBox(height: 8),
               ],
@@ -125,26 +143,11 @@ class _KpiGrid extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: RetailKpiCard(
-                label: 'Tạm dừng',
-                value: '${kpi.pausedStores}',
-                icon: Icons.pause_circle_outline_rounded,
-                iconColor: Colors.amber.shade700,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: RetailKpiCard(
-                label: 'Gián đoạn / hết hàng',
-                value: '${kpi.outOfStockStores}',
-                icon: Icons.error_outline_rounded,
-                iconColor: Colors.redAccent,
-              ),
-            ),
-          ],
+        RetailKpiCard(
+          label: 'Tạm dừng',
+          value: '${kpi.pausedStores}',
+          icon: Icons.pause_circle_outline_rounded,
+          iconColor: Colors.amber.shade700,
         ),
         const SizedBox(height: 10),
         _ActiveRateCard(rate: kpi.activeRate),
@@ -304,18 +307,19 @@ class _ProvinceDetailSheet extends StatelessWidget {
                 ),
               ),
               Text(
-                stat.province,
+                stat.displayName,
                 style: t.headlineSmall?.copyWith(
                   fontWeight: FontWeight.w900,
                   color: LocaDashboardTokens.textPrimary,
                 ),
               ),
-              Text(
-                'Khu vực: ${stat.region}',
-                style: t.bodyMedium?.copyWith(
-                  color: LocaDashboardTokens.textSecondary,
+              if (stat.lastUpdatedAt != null)
+                Text(
+                  'Cập nhật cuối: ${_fmtDate(stat.lastUpdatedAt!)}',
+                  style: t.bodyMedium?.copyWith(
+                    color: LocaDashboardTokens.textSecondary,
+                  ),
                 ),
-              ),
               const SizedBox(height: 16),
               Row(
                 children: [
@@ -339,26 +343,11 @@ class _ProvinceDetailSheet extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: RetailKpiCard(
-                      label: 'Tạm dừng',
-                      value: '${stat.pausedStores}',
-                      icon: Icons.pause_circle_outline_rounded,
-                      iconColor: Colors.amber.shade700,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: RetailKpiCard(
-                      label: 'Gián đoạn',
-                      value: '${stat.outOfStockStores}',
-                      icon: Icons.error_outline_rounded,
-                      iconColor: Colors.redAccent,
-                    ),
-                  ),
-                ],
+              RetailKpiCard(
+                label: 'Tạm dừng',
+                value: '${stat.pausedStores}',
+                icon: Icons.pause_circle_outline_rounded,
+                iconColor: Colors.amber.shade700,
               ),
               const SizedBox(height: 16),
               _ActiveRateCard(rate: stat.activeRate),
@@ -380,6 +369,140 @@ class _ProvinceDetailSheet extends StatelessWidget {
                           BorderRadius.circular(LocaDashboardTokens.radiusMd),
                     ),
                   ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  String _fmtDate(DateTime d) {
+    String two(int v) => v.toString().padLeft(2, '0');
+    return '${two(d.day)}/${two(d.month)}/${d.year}';
+  }
+}
+
+/// Hiển thị tối đa [LeaderRetailUiLimits.initialWarningCount] warning trên màn hình chính.
+/// Nếu số warning vượt ngưỡng → render nút "Xem thêm" mở bottom sheet danh sách đầy đủ.
+class _WarningPreviewList extends StatelessWidget {
+  const _WarningPreviewList({required this.warnings});
+  final List<RetailWarning> warnings;
+
+  @override
+  Widget build(BuildContext context) {
+    final limit = LeaderRetailUiLimits.initialWarningCount;
+    final visible = warnings.length > limit ? warnings.take(limit).toList() : warnings;
+    final remaining = warnings.length - visible.length;
+
+    return Column(
+      children: [
+        for (final w in visible) RetailWarningCard(warning: w),
+        if (remaining > 0)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => _openAll(context),
+                icon: const Icon(Icons.expand_more_rounded, size: 18),
+                label: Text('Xem thêm $remaining cảnh báo'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  foregroundColor: LocaDashboardTokens.primaryBlue,
+                  side: BorderSide(
+                    color: LocaDashboardTokens.primaryBlue.withValues(alpha: 0.4),
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(LocaDashboardTokens.radiusSm),
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  void _openAll(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => _AllWarningsSheet(warnings: warnings),
+    );
+  }
+}
+
+/// Bottom sheet hiển thị toàn bộ warnings — `ListView.builder` lazy render.
+class _AllWarningsSheet extends StatelessWidget {
+  const _AllWarningsSheet({required this.warnings});
+  final List<RetailWarning> warnings;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context).textTheme;
+    return DraggableScrollableSheet(
+      initialChildSize: 0.85,
+      minChildSize: 0.4,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (ctx, controller) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: LocaDashboardTokens.background,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 4,
+                  margin: const EdgeInsets.symmetric(vertical: 12),
+                  decoration: BoxDecoration(
+                    color: LocaDashboardTokens.textSecondary.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.warning_amber_rounded,
+                      color: Colors.redAccent,
+                      size: 22,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Cảnh báo điều hành',
+                      style: t.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: LocaDashboardTokens.textPrimary,
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      '${warnings.length} mục',
+                      style: t.labelMedium?.copyWith(
+                        color: LocaDashboardTokens.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: ListView.builder(
+                  controller: controller,
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                  itemCount: warnings.length,
+                  itemBuilder: (_, i) => RetailWarningCard(warning: warnings[i]),
                 ),
               ),
             ],

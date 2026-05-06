@@ -91,6 +91,20 @@ abstract final class ApiEndpoints {
     return '/api/leader/stabilization-fund/distributors/$id/history';
   }
 
+  /// Bán lẻ — Lãnh đạo (Bearer). Filter: provinceId / status (bool) / managingUnitId.
+  static String leaderRetailDashboard({int? provinceId, bool? status, int? managingUnitId}) {
+    final params = <String, String>{};
+    if (provinceId != null) params['provinceId'] = '$provinceId';
+    if (status != null) params['status'] = status ? 'true' : 'false';
+    if (managingUnitId != null) params['managingUnitId'] = '$managingUnitId';
+    if (params.isEmpty) return '/api/leader/retail/dashboard';
+    final qs = params.entries.map((e) => '${e.key}=${Uri.encodeQueryComponent(e.value)}').join('&');
+    return '/api/leader/retail/dashboard?$qs';
+  }
+
+  static const leaderRetailManagingUnits = '/api/leader/retail/managing-units';
+  static const leaderRetailProvinces = '/api/leader/retail/provinces';
+
   /// Bản đồ điều hành — Lãnh đạo (Bearer).
   static const leaderMapDistributors = '/api/leader/map/distributors';
   static String leaderMapDistributorInventory(int id) => '/api/leader/map/distributors/$id/inventory';

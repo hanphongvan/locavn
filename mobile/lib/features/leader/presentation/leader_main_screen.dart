@@ -5,8 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/auth/portal_loai.dart';
 import '../../../core/auth/role_service.dart';
-import '../../../core/router/app_routes.dart';
 import '../../map/presentation/map_screen_palette.dart';
+import '../../more/presentation/account/account_screen.dart';
 import '../../reports/presentation/dashboard/loca_dashboard_tokens.dart';
 import 'leader_executive_app_bar.dart';
 import 'leader_floating_bottom_nav.dart';
@@ -37,6 +37,21 @@ class LeaderMainScreen extends ConsumerWidget {
   const LeaderMainScreen({super.key, required this.navigationShell});
 
   final StatefulNavigationShell navigationShell;
+
+  /// Mở Account screen bằng Navigator imperative (root navigator), KHÔNG qua go_router.
+  ///
+  /// Lý do: nếu push qua go_router (`context.push('/leader/account')`), shell `LeaderMainScreen`
+  /// vẫn được preserve dưới đáy stack. Khi logout, redirect kéo cả 2 (account + shell) → mount
+  /// Citizen shell mới trong cùng frame → duplicate `GlobalKey<StatefulNavigationShellState>`
+  /// và assertion `_lifecycleState == inactive`. Push raw MaterialPageRoute trên root navigator
+  /// tách AccountScreen khỏi go_router state machinery; root nav tự pop khi router refresh.
+  void _openAccount(BuildContext context) {
+    Navigator.of(context, rootNavigator: true).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => const AccountScreen(embeddedInLeaderShell: true),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -79,7 +94,7 @@ class LeaderMainScreen extends ConsumerWidget {
               filterAction: idx == kLeaderStabilizationFundBranchIndex
                   ? () => ref.read(stabilizationFundFilterBusProvider).open()
                   : null,
-              accountAction: () => context.push(AppRoute.leaderAccount),
+              accountAction: () => _openAccount(context),
             ),
           Expanded(
             child: showExecutiveHeader

@@ -91,7 +91,7 @@ final mapStationListSortProvider = StateProvider<MapStationListSort>(
 /// Vị trí người dùng để tính khoảng cách trong sheet (không tạo dữ liệu giả).
 ///
 /// [FutureProvider] (không autoDispose): cache giữa lần [ref.invalidate] — gọi lại GPS khi
-/// kéo sheet "Kết quả gần bạn" lên, chọn sắp xếp theo khoảng cách, hoặc nút vị trí trên bản đồ.
+/// kéo sheet "Cửa hàng gần bạn" lên, chọn sắp xếp theo khoảng cách, hoặc nút vị trí trên bản đồ.
 final mapSheetUserOriginProvider = FutureProvider<AppLatLng?>((ref) async {
   final r = await requestMapUserLocation();
   return switch (r) {

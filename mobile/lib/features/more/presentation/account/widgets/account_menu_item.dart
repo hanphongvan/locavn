@@ -50,6 +50,7 @@ class AccountMenuItem extends StatelessWidget {
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
                         color: textColor,
+                        decoration: TextDecoration.none,
                       ),
                     ),
                   ),
