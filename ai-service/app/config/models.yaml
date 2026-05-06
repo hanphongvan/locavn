@@ -1,0 +1,53 @@
+# Loca AI Leader Assistant — model routing (Section 17).
+# Phase 1B default: tất cả task → OpenAI (CLOUD_API).
+# Khi chuyển Phase 4 (LOCAL_ONLY), đổi `provider: openai` → `provider: local_ollama`
+# và set `name: qwen3:14b` (hoặc model đã pull về Ollama). Không sửa code Python.
+
+default_provider: openai
+llm_mode: CLOUD_API
+allow_cloud: true
+
+providers:
+  openai:
+    type: openai
+    base_url: "https://api.openai.com/v1"
+    api_key_env: "OPENAI_API_KEY"
+
+  openrouter:
+    type: openai
+    base_url: "https://openrouter.ai/api/v1"
+    api_key_env: "OPENROUTER_API_KEY"
+
+  local_ollama:
+    type: ollama
+    base_url: "http://localhost:11434"
+
+models:
+  intent_classification:
+    provider: openai
+    name: "gpt-4o-mini"
+
+  context_resolver:
+    provider: openai
+    name: "gpt-4o-mini"
+
+  planner:
+    provider: openai
+    name: "gpt-4o-mini"
+
+  answer_composer:
+    provider: openai
+    name: "gpt-4o"
+
+  report_generator:
+    provider: openai
+    name: "gpt-4o"
+
+  suggested_questions:
+    provider: openai
+    name: "gpt-4o-mini"
+
+fallback:
+  enabled: true
+  provider: openai
+  name: "gpt-4o-mini"
