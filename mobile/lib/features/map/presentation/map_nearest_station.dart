@@ -93,8 +93,13 @@ Future<void> presentNearestPetrolStation(
     onResolveDone?.call();
   }
 
-  final items = ref.read(stationMapMarkersProvider).asData?.value.items ?? const <StationMapItem>[];
-  if (items.isEmpty) {
+  // "Gần nhất" bỏ qua chip filter (loại nhiên liệu / giá / dịch vụ / …) — luôn dùng raw items
+  // (`stationMapMarkersFetchProvider`) để filter người dùng không bao giờ làm kết quả trống.
+  // Nếu trạm gần nhất không khớp filter, vẫn hiện qua [mapEphemeralStationProvider] với marker tạm.
+  final filteredItems = ref.read(stationMapMarkersProvider).asData?.value.items ?? const <StationMapItem>[];
+  final rawItems = ref.read(stationMapMarkersFetchProvider).asData?.value.items ?? const <StationMapItem>[];
+  final searchItems = rawItems.isNotEmpty ? rawItems : filteredItems;
+  if (searchItems.isEmpty) {
     fireResolveDone();
     messenger?.showSnackBar(
       const SnackBar(content: Text('Chưa có dữ liệu cây xăng trên bản đồ — tải xong rồi thử lại.')),
@@ -127,7 +132,7 @@ Future<void> presentNearestPetrolStation(
       user = position;
   }
 
-  final resolved = await resolveNearestStation(ref: ref, user: user, loadedItems: items);
+  final resolved = await resolveNearestStation(ref: ref, user: user, loadedItems: searchItems);
   if (!context.mounted) {
     fireResolveDone();
     return;
@@ -141,11 +146,22 @@ Future<void> presentNearestPetrolStation(
     return;
   }
 
-  if (resolved.needsEphemeralMarker) {
+  // Báo cho user biết trạm này nằm ngoài bộ lọc (tránh "marker lạ tự nhiên xuất hiện").
+  final outsideFilter = filteredItems.every((e) => e.stationId != resolved.item.stationId);
+  if (resolved.needsEphemeralMarker || outsideFilter) {
     ref.read(mapEphemeralStationProvider.notifier).state = resolved.item;
   }
 
   fireResolveDone();
+  if (outsideFilter && filteredItems.isNotEmpty) {
+    messenger?.showSnackBar(
+      const SnackBar(
+        content: Text('Trạm gần nhất nằm ngoài bộ lọc hiện tại — đã hiện trên bản đồ.'),
+        duration: Duration(seconds: 4),
+      ),
+    );
+  }
+
   final d = resolved.distanceKm;
   await showMapDiscoveryResultsSheet(
     context: context,
@@ -164,7 +180,7 @@ Future<void> presentNearestPetrolStation(
     initialChildSize: 0.34,
     onStationChosen: (row) async {
       final item = row.item;
-      if (resolved.needsEphemeralMarker) {
+      if (resolved.needsEphemeralMarker || outsideFilter) {
         ref.read(mapEphemeralStationProvider.notifier).state = item;
       }
       await focusMapStationAndOpenSummary(
@@ -172,6 +188,7 @@ Future<void> presentNearestPetrolStation(
         ref,
         item,
         distanceKm: row.distanceKm,
+        framingOrigin: user,
       );
     },
   );
