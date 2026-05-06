@@ -15,7 +15,7 @@ from typing import Any
 from ..schemas.tool import ToolResult
 from ..services.cache_service import CacheService, cache_key
 from ..services.dotnet_api_client import DotnetApiClient, DotnetApiError
-from ..services.metrics_service import get_logger
+from ..services.logging_service import get_logger
 
 
 class ToolError(Exception):

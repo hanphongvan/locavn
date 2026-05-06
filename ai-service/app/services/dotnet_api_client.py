@@ -15,7 +15,7 @@ from typing import Any
 import httpx
 
 from ..config import Settings
-from .metrics_service import get_logger
+from .logging_service import get_logger
 
 _logger = get_logger(__name__)
 
@@ -98,6 +98,42 @@ class DotnetApiClient:
             user_id=user_id,
             last_intent=last_intent,
         )
+
+    async def update_conversation_context_summary(
+        self,
+        *,
+        conversation_id: str,
+        user_id: int,
+        summary: str,
+    ) -> None:
+        """Phase 3 — POST /internal/ai/context-summary. Best-effort: lỗi → log + bỏ qua,
+        không raise lên pipeline."""
+        if not self._internal_key or not conversation_id:
+            return
+        payload = {
+            "conversationId": conversation_id,
+            "userId": user_id,
+            "summary": summary,
+        }
+        try:
+            async with httpx.AsyncClient(timeout=self.LOG_TIMEOUT) as client:
+                response = await client.post(
+                    f"{self._base_url}/internal/ai/context-summary",
+                    json=payload,
+                    headers={self.INTERNAL_KEY_HEADER: self._internal_key},
+                )
+                if response.status_code >= 400:
+                    _logger.warning(
+                        "dotnet_api.context_summary_failed",
+                        status=response.status_code,
+                        body=response.text[:200],
+                    )
+        except (httpx.HTTPError, httpx.TimeoutException) as ex:
+            _logger.warning(
+                "dotnet_api.context_summary_network_error",
+                error=str(ex),
+                conversation_id=conversation_id,
+            )
 
     async def health_check(self) -> bool:
         try:

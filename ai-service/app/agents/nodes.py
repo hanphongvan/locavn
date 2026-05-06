@@ -8,6 +8,7 @@ về dict gồm các field thay đổi (LangGraph merge vào state).
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 import uuid
@@ -19,7 +20,7 @@ from ..security.guard import SecurityException, SecurityGuard
 from ..services.data_sanitizer import sanitize_for_llm
 from ..services.dotnet_api_client import DotnetApiClient
 from ..services.llm_service import LlmService, LlmServiceError
-from ..services.metrics_service import get_logger
+from ..services.logging_service import get_logger
 from ..tools.base_tool import BaseTool
 from .state import AgentState
 
@@ -169,17 +170,29 @@ _RESOLVE_SYSTEM = (
 
 
 async def context_resolver(state: AgentState, deps: Deps) -> AgentState:
-    """Section 2.1 #3 — resolve câu rút gọn dựa vào history."""
+    """Section 2.1 #3 — resolve câu rút gọn dựa vào history.
+
+    Phase 3: nếu có `context_summary` (>10 msg trước đó), đưa summary vào prompt
+    thay vì raw history. Section 19.3 — không đưa toàn bộ history dài vào LLM.
+    """
     raw = state.get("raw_question", "")
     history = state.get("history") or []
+    summary = state.get("context_summary")
 
-    # Không có history → không thể resolve, dùng raw.
-    if not history or not _looks_short(raw):
+    # Không có history và không có summary → không thể resolve.
+    if not _looks_short(raw):
+        return {"resolved_question": raw}
+    if not history and not summary:
         return {"resolved_question": raw}
 
+    history_block = (
+        f"Tóm tắt context trước:\n{summary}\n\n" if summary else ""
+    ) + (
+        f"5 message gần nhất:\n{json.dumps(history[:5], ensure_ascii=False)}"
+        if history else ""
+    )
     user_msg = (
-        f"Lịch sử hội thoại (mới → cũ):\n{json.dumps(history[:5], ensure_ascii=False)}\n\n"
-        f"Câu hỏi mới: {raw}"
+        f"{history_block}\n\nCâu hỏi mới: {raw}"
     )
     try:
         result = await deps.llm.chat_json(
@@ -303,40 +316,70 @@ async def planner(state: AgentState, deps: Deps) -> AgentState:
 # ============================================================================
 
 async def tool_executor(state: AgentState, deps: Deps) -> AgentState:
-    """Section 2.1 #7 — gọi tools theo plan. Validate tên tool nằm trong whitelist."""
+    """Section 2.1 #7 — gọi tools theo plan.
+
+    Phase 3: nếu plan có ≥2 tool và `parallel != False`, chạy song song qua
+    `asyncio.gather` (tool layer Phase 2A đã idempotent — hit cache khi trùng).
+    Plan có thể tắt parallel bằng `plan["parallel"] = False` (vd dòng output
+    của tool A là input của tool B).
+    """
     tools_to_call = state.get("tools_to_call") or []
     plan = state.get("plan") or {}
     params = plan.get("params") or {}
+    parallel_enabled = plan.get("parallel", True) is not False
 
-    results: list[dict[str, Any]] = []
+    valid_calls: list[tuple[str, BaseTool]] = []
     for tool_name in tools_to_call:
         tool = deps.tools.get(tool_name)
         if tool is None:
             _logger.warning("tool_executor.tool_not_found", tool=tool_name)
             continue
-        started = time.perf_counter()
-        try:
-            # Phase 2A: gọi execute() (cache + validator) thay vì run() trực tiếp.
-            result = await tool.execute(params)
-            elapsed_ms = int((time.perf_counter() - started) * 1000)
-            _logger.info(
-                "tool.success",
-                tool=tool_name,
-                duration_ms=elapsed_ms,
-                rows_count=len(result.rows),
-            )
-            results.append(result.model_dump())
-        except Exception as ex:
-            elapsed_ms = int((time.perf_counter() - started) * 1000)
-            _logger.error(
-                "tool.error",
-                tool=tool_name,
-                duration_ms=elapsed_ms,
-                error=str(ex),
-            )
-            results.append({"tool_name": tool_name, "success": False, "error": str(ex), "rows": []})
+        valid_calls.append((tool_name, tool))
+
+    if len(valid_calls) >= 2 and parallel_enabled:
+        results = await _run_tools_parallel(valid_calls, params)
+    else:
+        results = []
+        for tool_name, tool in valid_calls:
+            results.append(await _run_one_tool(tool_name, tool, params))
 
     return {"tool_results": results}
+
+
+async def _run_one_tool(tool_name: str, tool: BaseTool, params: dict[str, Any]) -> dict[str, Any]:
+    """Run 1 tool + log + Prometheus measure_tool. Không raise — wrap thành failed result."""
+    from ..services.metrics_service import measure_tool
+
+    started = time.perf_counter()
+    try:
+        with measure_tool(tool_name):
+            result = await tool.execute(params)
+        elapsed_ms = int((time.perf_counter() - started) * 1000)
+        _logger.info(
+            "tool.success",
+            tool=tool_name,
+            duration_ms=elapsed_ms,
+            rows_count=len(result.rows),
+        )
+        return result.model_dump()
+    except Exception as ex:
+        elapsed_ms = int((time.perf_counter() - started) * 1000)
+        _logger.error(
+            "tool.error",
+            tool=tool_name,
+            duration_ms=elapsed_ms,
+            error=str(ex),
+        )
+        return {"tool_name": tool_name, "success": False, "error": str(ex), "rows": []}
+
+
+async def _run_tools_parallel(
+    calls: list[tuple[str, BaseTool]],
+    params: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """`asyncio.gather` — Phase 3 tăng throughput khi planner ra ≥2 tool độc lập."""
+    coros = [_run_one_tool(name, tool, params) for name, tool in calls]
+    return list(await asyncio.gather(*coros))
 
 
 # ============================================================================
@@ -407,7 +450,12 @@ async def data_analyzer(state: AgentState, deps: Deps) -> AgentState:
 # ============================================================================
 
 async def context_updater(state: AgentState, deps: Deps) -> AgentState:
-    """Section 2.1 #9 — push state context lên .NET API (Phase 1B: stub log)."""
+    """Section 2.1 #9 — push state context lên .NET API.
+
+    Phase 3 thêm: cứ mỗi 5 lượt (history.count = 5, 10, 15, ...) gọi LLM tạo
+    summary ngắn rồi POST /internal/ai/context-summary để .NET lưu vào
+    `AiConversationContexts.ContextJson`. Section 19.3 — phòng prompt phình to.
+    """
     conversation_id = state.get("conversation_id")
     raw_ctx = state.get("raw_context") or {}
     last_result_ref = str(uuid.uuid4()) if state.get("tool_results") else None
@@ -422,6 +470,8 @@ async def context_updater(state: AgentState, deps: Deps) -> AgentState:
             last_fuel_type=raw_ctx.get("fuel_type"),
             last_result_ref=last_result_ref,
         )
+
+        await _maybe_summarize_context(state, deps, conversation_id)
 
     return {"last_result_ref": last_result_ref}
 
@@ -438,6 +488,59 @@ def _topic_from_intent(intent: str) -> str | None:
     if intent == "GENERATE_LEADER_REPORT":
         return "leader_report"
     return None
+
+
+_SUMMARY_SYSTEM = (
+    "Bạn là người tóm tắt hội thoại cho trợ lý AI lãnh đạo xăng dầu. "
+    "Tóm tắt ≤ 6 câu tiếng Việt, giữ: chủ đề chính, vùng/sản phẩm/kỳ, kết luận đã đạt được. "
+    'Trả JSON {"summary": "..."}.'
+)
+
+
+async def _maybe_summarize_context(state: AgentState, deps: Deps, conversation_id: str) -> None:
+    """Mỗi 5 lượt user (history.count chia hết cho 10 — vì 1 lượt = 2 message
+    user+assistant): gọi LLM tóm tắt rồi POST sang .NET API.
+
+    Best-effort: lỗi LLM/HTTP → log warning, không fail pipeline.
+    """
+    history = state.get("history") or []
+    # Phase 3 trigger ngưỡng: cứ thêm 10 message (~5 lượt) thì refresh summary.
+    # +2 vì lượt hiện tại chưa đẩy vào history (user + assistant ở turn này).
+    pending_count = len(history) + 2
+    if pending_count < 10 or pending_count % 10 != 0:
+        return
+
+    raw_question = state.get("resolved_question") or state.get("raw_question", "")
+    answer_text = state.get("answer_text") or ""
+    sample_history = json.dumps(history[-5:], ensure_ascii=False)
+
+    user_msg = (
+        f"5 message gần nhất:\n{sample_history}\n\n"
+        f"Lượt hiện tại — User: {raw_question}\nAI: {answer_text[:500]}"
+    )
+
+    try:
+        result = await deps.llm.chat_json(
+            messages=[
+                {"role": "system", "content": _SUMMARY_SYSTEM},
+                {"role": "user", "content": user_msg},
+            ],
+            task="context_resolver",  # tận dụng model nhỏ gpt-4o-mini.
+            timeout=8.0,
+            max_tokens=300,
+        )
+        summary = (result.get("summary") or "").strip()
+        if not summary:
+            return
+    except LlmServiceError as ex:
+        _logger.warning("context_summary.llm_failed", error=str(ex))
+        return
+
+    await deps.dotnet.update_conversation_context_summary(
+        conversation_id=conversation_id,
+        user_id=state.get("user_id", 0),
+        summary=summary,
+    )
 
 
 # ============================================================================

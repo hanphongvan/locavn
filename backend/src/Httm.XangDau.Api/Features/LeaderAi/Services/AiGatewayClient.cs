@@ -72,6 +72,39 @@ public sealed class AiGatewayClient(
     }
 
     /// <inheritdoc />
+    public async Task<byte[]> GenerateReportPdfAsync(
+        AiGatewayReportRequest payload,
+        CancellationToken cancellationToken)
+    {
+        var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            "ai/leader/report?format=pdf")
+        {
+            Content = JsonContent.Create(payload, options: AiGatewayJson.Options),
+        };
+        if (!string.IsNullOrEmpty(_options.InternalKey))
+            request.Headers.Add(InternalKeyHeader, _options.InternalKey);
+        request.Headers.Add(UserIdHeader, payload.UserId.ToString(CultureInfo.InvariantCulture));
+        request.Headers.Add(UserLoaiHeader, payload.UserLoai.ToString(CultureInfo.InvariantCulture));
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/pdf"));
+
+        try
+        {
+            using (request)
+            using (var response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false))
+            {
+                response.EnsureSuccessStatusCode();
+                return await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            logger.LogWarning(ex, "AI Gateway PDF generation failed.");
+            throw;
+        }
+    }
+
+    /// <inheritdoc />
     public async Task<AiGatewayHealthResult> HealthAsync(CancellationToken cancellationToken)
     {
         var stopwatch = Stopwatch.StartNew();

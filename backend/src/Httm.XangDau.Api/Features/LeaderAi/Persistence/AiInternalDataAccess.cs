@@ -88,6 +88,36 @@ public sealed class AiInternalDataAccess(IConfiguration configuration) : IAiInte
         await conn.ExecuteAsync(command).ConfigureAwait(false);
     }
 
+    /// <inheritdoc />
+    public async Task UpsertContextSummaryAsync(
+        Guid conversationId,
+        int userId,
+        string summary,
+        CancellationToken cancellationToken)
+    {
+        // MERGE atomic upsert — Phase 3 lưu vào LastAnswerSummary để Section 19.3
+        // load context với summary + 5 msg gần nhất.
+        const string sql =
+            """
+            MERGE dbo.AiConversationContexts WITH (HOLDLOCK) AS target
+            USING (VALUES (@ConversationId, @UserId, @Summary)) AS src (ConversationId, UserId, Summary)
+                ON target.ConversationId = src.ConversationId
+            WHEN MATCHED THEN
+                UPDATE SET LastAnswerSummary = src.Summary, UpdatedAt = SYSUTCDATETIME()
+            WHEN NOT MATCHED THEN
+                INSERT (ConversationId, UserId, UserLoai, LastAnswerSummary)
+                VALUES (src.ConversationId, src.UserId, 6, src.Summary);
+            """;
+
+        await using var conn = new SqlConnection(_connectionString);
+        await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
+        var command = new CommandDefinition(
+            sql,
+            new { ConversationId = conversationId, UserId = userId, Summary = summary },
+            cancellationToken: cancellationToken);
+        await conn.ExecuteAsync(command).ConfigureAwait(false);
+    }
+
     private async Task<IReadOnlyList<T>> ExecuteSpAsync<T>(
         string spName,
         DynamicParameters parameters,

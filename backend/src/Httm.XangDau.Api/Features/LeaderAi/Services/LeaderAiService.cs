@@ -50,15 +50,30 @@ public sealed class LeaderAiService(
             dataJson: SerializeContext(request.Context),
             cancellationToken).ConfigureAwait(false);
 
-        var history = await dataAccess
-            .GetRecentMessagesAsync(conversationId, userId, HistoryLimit, cancellationToken)
+        // Phase 3 — đếm tổng message để quyết định summary trimming (Section 19.3).
+        var totalMessages = await dataAccess
+            .GetMessageCountAsync(conversationId, userId, cancellationToken)
             .ConfigureAwait(false);
+        var fetchLimit = totalMessages > 10 ? 5 : HistoryLimit;
+        var history = await dataAccess
+            .GetRecentMessagesAsync(conversationId, userId, fetchLimit, cancellationToken)
+            .ConfigureAwait(false);
+
+        string? contextSummary = null;
+        if (totalMessages > 10)
+        {
+            contextSummary = await dataAccess
+                .GetConversationSummaryAsync(conversationId, userId, cancellationToken)
+                .ConfigureAwait(false);
+        }
 
         AiGatewayChatResponse? gatewayResponse = null;
         try
         {
             gatewayResponse = await aiGateway.ChatAsync(
-                BuildGatewayRequest(userId, userLoai, conversationId, request, history),
+                BuildGatewayRequest(
+                    userId, userLoai, conversationId, request, history, contextSummary,
+                    forceTrim: totalMessages > 10),
                 cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or OperationCanceledException)
@@ -259,8 +274,12 @@ public sealed class LeaderAiService(
         int userLoai,
         Guid conversationId,
         LeaderAiChatRequest request,
-        IReadOnlyList<AiMessageDto> history)
+        IReadOnlyList<AiMessageDto> history,
+        string? contextSummary = null,
+        bool forceTrim = false)
     {
+        // Phase 3 Section 19.3: khi caller đã biết tổng message > 10
+        // (`forceTrim = true`) thì gửi summary + history (đã fetch giới hạn 5).
         var historyPayload = history
             .Where(m => !string.IsNullOrEmpty(m.Content))
             .Select(m => new AiGatewayHistoryMessage(m.Role, m.Content, m.Intent))
@@ -274,6 +293,8 @@ public sealed class LeaderAiService(
             UserId = userId,
             UserLoai = userLoai,
             History = historyPayload,
+            // Chỉ gửi summary khi đã trim — phòng prompt phình to với conversation dài.
+            ContextSummary = forceTrim ? contextSummary : null,
         };
     }
 

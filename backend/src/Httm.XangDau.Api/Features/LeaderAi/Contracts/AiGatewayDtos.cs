@@ -16,10 +16,26 @@ public sealed class AiGatewayChatRequest
     public required int UserId { get; init; }
     public required int UserLoai { get; init; }
     public IReadOnlyList<AiGatewayHistoryMessage> History { get; init; } = Array.Empty<AiGatewayHistoryMessage>();
+
+    /// <summary>
+    /// Phase 3 — khi conversation có > 10 message, .NET API gửi summary thay cho
+    /// history cũ + chỉ kèm 5 message gần nhất (Section 19.3).
+    /// </summary>
+    public string? ContextSummary { get; init; }
 }
 
 /// <summary>1 message lịch sử forward sang AI Gateway.</summary>
 public sealed record AiGatewayHistoryMessage(string Role, string Content, string? Intent);
+
+/// <summary>Phase 3 — payload `/ai/leader/report` (Section 4.1).</summary>
+public sealed class AiGatewayReportRequest
+{
+    public required string Topic { get; init; }
+    public string? ConversationId { get; init; }
+    public LeaderAiChatContext? Context { get; init; }
+    public required int UserId { get; init; }
+    public required int UserLoai { get; init; }
+}
 
 /// <summary>
 /// Response AI Gateway trả về (Section 4.3). <c>data</c> giữ JsonElement vì

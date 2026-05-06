@@ -350,6 +350,59 @@ public sealed class LeaderAiDataAccess(IConfiguration configuration) : ILeaderAi
         return await conn.ExecuteScalarAsync<Guid>(command).ConfigureAwait(false);
     }
 
+    /// <inheritdoc />
+    public async Task<int> GetMessageCountAsync(
+        Guid conversationId,
+        int userId,
+        CancellationToken cancellationToken)
+    {
+        const string sql =
+            """
+            SELECT COUNT(1)
+            FROM dbo.AiMessages m
+            INNER JOIN dbo.AiConversations c ON c.Id = m.ConversationId
+            WHERE m.ConversationId = @ConversationId
+              AND c.UserId = @UserId
+              AND c.IsDeleted = 0;
+            """;
+
+        await using var conn = new SqlConnection(_connectionString);
+        await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
+        var command = new CommandDefinition(
+            sql,
+            new { ConversationId = conversationId, UserId = userId },
+            cancellationToken: cancellationToken);
+        return await conn.ExecuteScalarAsync<int>(command).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<string?> GetConversationSummaryAsync(
+        Guid conversationId,
+        int userId,
+        CancellationToken cancellationToken)
+    {
+        // Phase 3: đọc LastAnswerSummary — Phase 4 sẽ chuyển vào ContextJson.summary
+        // và parse JSON khi schema ổn định.
+        const string sql =
+            """
+            SELECT TOP 1 ctx.LastAnswerSummary
+            FROM dbo.AiConversationContexts ctx
+            INNER JOIN dbo.AiConversations c ON c.Id = ctx.ConversationId
+            WHERE ctx.ConversationId = @ConversationId
+              AND c.UserId = @UserId
+              AND c.IsDeleted = 0
+            ORDER BY ctx.UpdatedAt DESC, ctx.CreatedAt DESC;
+            """;
+
+        await using var conn = new SqlConnection(_connectionString);
+        await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
+        var command = new CommandDefinition(
+            sql,
+            new { ConversationId = conversationId, UserId = userId },
+            cancellationToken: cancellationToken);
+        return await conn.ExecuteScalarAsync<string?>(command).ConfigureAwait(false);
+    }
+
     private sealed record ConversationHeaderRow(
         Guid Id,
         string? Title,

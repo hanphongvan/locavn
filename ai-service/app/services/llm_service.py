@@ -13,7 +13,7 @@ from typing import Any, Protocol
 from openai import AsyncOpenAI, APIError, APITimeoutError
 
 from .dotnet_api_client import DotnetApiClient
-from .metrics_service import get_logger
+from .logging_service import get_logger
 from .model_router import ModelChoice, ModelRouter
 
 _logger = get_logger(__name__)

@@ -7,6 +7,12 @@ python-dotenv==1.0.1
 PyYAML==6.0.2
 structlog==24.4.0
 
+# Phase 3 — Observability + cache + report PDF
+prometheus-client==0.21.1
+redis==5.2.1                # async qua redis.asyncio (aioredis đã merge từ 4.2)
+markdown==3.7
+xhtml2pdf==0.2.16           # pure-Python markdown→HTML→PDF, không cần GTK/wkhtmltopdf
+
 # LLM stack
 openai==1.59.6
 langchain==0.3.13

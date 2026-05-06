@@ -247,6 +247,97 @@ public sealed class LeaderAiServiceIntegrationTests
             Times.Once);
     }
 
+    [Fact(DisplayName = "Phase 3: history > 10 → trim 5 + load summary, ContextSummary forwarded")]
+    public async Task Chat_with_long_history_forwards_summary_and_trimmed_history()
+    {
+        var conversationId = Guid.NewGuid();
+        var dataAccess = new Mock<ILeaderAiDataAccess>();
+
+        // Conversation đã có sẵn 24 message.
+        dataAccess
+            .Setup(d => d.GetConversationDetailAsync(conversationId, UserId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiConversationDetailDto(
+                conversationId, "title", DateTime.UtcNow, null, Array.Empty<AiMessageDto>()));
+        dataAccess
+            .Setup(d => d.GetMessageCountAsync(conversationId, UserId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(24);
+        dataAccess
+            .Setup(d => d.GetConversationSummaryAsync(conversationId, UserId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync("Đã thảo luận 20 lượt về tồn kho RON95 miền Bắc.");
+        // Service chỉ fetch 5 message gần nhất khi history > 10.
+        var recentFive = Enumerable.Range(0, 5).Select(i =>
+            new AiMessageDto(Guid.NewGuid(), conversationId,
+                i % 2 == 0 ? "user" : "assistant", $"msg-{i}", null, null, DateTime.UtcNow.AddMinutes(-5 + i))).ToList();
+        dataAccess
+            .Setup(d => d.GetRecentMessagesAsync(conversationId, UserId, 5, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(recentFive);
+        dataAccess
+            .Setup(d => d.AppendMessageAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Guid.NewGuid());
+
+        AiGatewayChatRequest? captured = null;
+        var aiGateway = new Mock<IAiGatewayClient>();
+        aiGateway
+            .Setup(g => g.ChatAsync(It.IsAny<AiGatewayChatRequest>(), It.IsAny<CancellationToken>()))
+            .Callback<AiGatewayChatRequest, CancellationToken>((req, _) => captured = req)
+            .ReturnsAsync(BuildGatewayResponseWithChart(conversationId));
+
+        var service = BuildService(dataAccess, aiGateway);
+
+        await service.ChatAsync(
+            UserId, UserLoai,
+            new LeaderAiChatRequest("Còn dầu thì sao?", conversationId, null),
+            CancellationToken.None);
+
+        captured.Should().NotBeNull();
+        captured!.History.Should().HaveCount(5);
+        captured.ContextSummary.Should().Contain("Đã thảo luận");
+    }
+
+    [Fact(DisplayName = "Phase 3: history ≤ 10 → no summary forwarded, no GetConversationSummary call")]
+    public async Task Chat_with_short_history_does_not_load_summary()
+    {
+        var conversationId = Guid.NewGuid();
+        var dataAccess = new Mock<ILeaderAiDataAccess>();
+        dataAccess
+            .Setup(d => d.GetConversationDetailAsync(conversationId, UserId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiConversationDetailDto(
+                conversationId, "title", DateTime.UtcNow, null, Array.Empty<AiMessageDto>()));
+        dataAccess
+            .Setup(d => d.GetMessageCountAsync(conversationId, UserId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(6);
+        dataAccess
+            .Setup(d => d.GetRecentMessagesAsync(conversationId, UserId, 10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[]
+            {
+                new AiMessageDto(Guid.NewGuid(), conversationId, "user", "q1", null, null, DateTime.UtcNow.AddMinutes(-3)),
+            });
+        dataAccess
+            .Setup(d => d.AppendMessageAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Guid.NewGuid());
+
+        AiGatewayChatRequest? captured = null;
+        var aiGateway = new Mock<IAiGatewayClient>();
+        aiGateway
+            .Setup(g => g.ChatAsync(It.IsAny<AiGatewayChatRequest>(), It.IsAny<CancellationToken>()))
+            .Callback<AiGatewayChatRequest, CancellationToken>((req, _) => captured = req)
+            .ReturnsAsync(BuildGatewayResponseWithChart(conversationId));
+
+        var service = BuildService(dataAccess, aiGateway);
+
+        await service.ChatAsync(
+            UserId, UserLoai,
+            new LeaderAiChatRequest("Hi", conversationId, null),
+            CancellationToken.None);
+
+        captured!.ContextSummary.Should().BeNull();
+        dataAccess.Verify(
+            d => d.GetConversationSummaryAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
     private static LeaderAiService BuildService(
         Mock<ILeaderAiDataAccess> dataAccess,
         Mock<IAiGatewayClient> aiGateway,

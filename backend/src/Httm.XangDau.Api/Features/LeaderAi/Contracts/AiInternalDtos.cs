@@ -32,6 +32,12 @@ public sealed record AiToolLogRequest(
     string? ErrorMessage,
     int? DurationMs);
 
+/// <summary>Phase 3 — AI Gateway POST mỗi 5 lượt để lưu summary tóm tắt.</summary>
+public sealed record AiContextSummaryRequest(
+    Guid ConversationId,
+    int UserId,
+    string Summary);
+
 // === Response DTOs (.NET → AI Gateway) — đúng output schema Section 11 ===
 
 public sealed record AiFuelInventoryRow(

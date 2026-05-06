@@ -14,7 +14,7 @@ import json
 import time
 from typing import Annotated, AsyncIterator
 
-from fastapi import Depends, FastAPI, Header, HTTPException, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Response, status
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from .agents.fallback import (
@@ -31,8 +31,15 @@ from .security.guard import SecurityGuard
 from .services.cache_service import CacheService
 from .services.dotnet_api_client import DotnetApiClient
 from .services.llm_service import LlmService, OpenAiLlmService
-from .services.metrics_service import configure_logging, get_logger
+from .services.logging_service import configure_logging, get_logger
+from .services.metrics_service import (
+    measure_request,
+    measure_tool,  # noqa: F401 — re-export cho debug.
+    record_security_block,
+    render_metrics,
+)
 from .services.model_router import ModelRouter
+from .services.pdf_service import PdfRenderError, render_markdown_to_pdf
 from .tools.base_tool import BaseTool
 from .tools.fuel_inventory_tool import FuelInventoryTool
 from .tools.fuel_price_tool import FuelPriceTool
@@ -124,7 +131,14 @@ def create_app() -> FastAPI:
 
     @app.get("/health", tags=["meta"])
     async def health():
-        return {"status": "ok", "phase": "1B", "llm_mode": settings.llm_mode}
+        return {"status": "ok", "phase": "3", "llm_mode": settings.llm_mode}
+
+    @app.get("/metrics", tags=["meta"])
+    async def metrics_endpoint():
+        """Phase 3 — Prometheus exposition (Section 9.1). Plain text, không auth
+        (theo convention: scraper internal-network only)."""
+        body, content_type = render_metrics()
+        return Response(content=body, media_type=content_type)
 
     @app.get("/ai/leader/health", tags=["meta"])
     async def ai_leader_health(
@@ -165,14 +179,37 @@ def create_app() -> FastAPI:
             },
         )
 
-    @app.post("/ai/leader/report", response_model=ReportResponse, response_model_by_alias=True, tags=["leader"])
+    @app.post("/ai/leader/report", tags=["leader"])
     async def report(
         request: ReportRequest,
         deps: Annotated[Deps, Depends(get_deps)],
         x_internal_key: Annotated[str | None, Header(alias="X-Internal-Key")] = None,
+        format: Annotated[str, Query(pattern="^(markdown|pdf)$")] = "markdown",
     ):
+        """Phase 3 — `format=markdown` (default) trả JSON ReportResponse;
+        `format=pdf` trả `application/pdf` bytes (xhtml2pdf render từ markdown)."""
         _check_internal_key(settings, x_internal_key)
-        return await _run_report(request, deps, settings)
+        response = await _run_report(request, deps, settings)
+        if format == "pdf":
+            try:
+                pdf_bytes = render_markdown_to_pdf(
+                    response.report_markdown,
+                    title=request.topic,
+                )
+            except PdfRenderError as ex:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"PDF render failed: {ex}",
+                ) from ex
+            filename = f"loca-ai-report-{response.conversation_id or 'unknown'}.pdf"
+            return Response(
+                content=pdf_bytes,
+                media_type="application/pdf",
+                headers={
+                    "Content-Disposition": f'attachment; filename="{filename}"',
+                },
+            )
+        return JSONResponse(content=response.model_dump(by_alias=True))
 
     return app
 
@@ -197,6 +234,8 @@ async def _run_chat(request: ChatRequest, deps: Deps, settings: Settings) -> Cha
         "conversation_id": request.conversation_id,
         "raw_question": request.message,
         "raw_context": request.context.model_dump(by_alias=False) if request.context else None,
+        "history": [m.model_dump(by_alias=False) for m in request.history],
+        "context_summary": request.context_summary,
     }
 
     rate_limit = RateLimitInfo(
@@ -240,14 +279,20 @@ async def _run_chat(request: ChatRequest, deps: Deps, settings: Settings) -> Cha
         )
         return response
 
-    response = await run_with_fallback(
-        coro_factory,
-        user_id=request.user_id,
-        conversation_id=request.conversation_id,
-        raw_question=request.message,
-        timeout_seconds=float(settings.timeout_pipeline_seconds),
-        rate_limit=rate_limit,
-    )
+    # Phase 3 — Prometheus measure_request (Section 9.1).
+    with measure_request() as metrics_bag:
+        response = await run_with_fallback(
+            coro_factory,
+            user_id=request.user_id,
+            conversation_id=request.conversation_id,
+            raw_question=request.message,
+            timeout_seconds=float(settings.timeout_pipeline_seconds),
+            rate_limit=rate_limit,
+        )
+        metrics_bag["intent"] = response.intent
+        metrics_bag["success"] = response.success
+        if response.intent == "SECURITY_BLOCK":
+            record_security_block("medium")
 
     elapsed_ms = int((time.perf_counter() - started) * 1000)
     _logger.info(

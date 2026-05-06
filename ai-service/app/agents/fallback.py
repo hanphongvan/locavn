@@ -11,7 +11,7 @@ from ..schemas.chat import (
     RateLimitInfo,
 )
 from ..security.guard import SecurityException
-from ..services.metrics_service import get_logger
+from ..services.logging_service import get_logger
 
 _logger = get_logger(__name__)
 

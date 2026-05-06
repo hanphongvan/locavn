@@ -78,4 +78,30 @@ public sealed class AiInternalController(IAiInternalDataAccess dataAccess) : Con
         await dataAccess.LogToolCallAsync(request, cancellationToken).ConfigureAwait(false);
         return Accepted();
     }
+
+    /// <summary>
+    /// Phase 3 — AI Gateway POST mỗi 5 lượt để lưu summary tóm tắt vào
+    /// <c>AiConversationContexts.LastAnswerSummary</c> (Section 19.3).
+    /// </summary>
+    [HttpPost("context-summary")]
+    [ProducesResponseType(StatusCodes.Status202Accepted)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> UpsertContextSummary(
+        [FromBody] AiContextSummaryRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request.ConversationId == Guid.Empty || string.IsNullOrWhiteSpace(request.Summary))
+        {
+            return BadRequest(new { message = "conversationId + summary là bắt buộc." });
+        }
+        await dataAccess
+            .UpsertContextSummaryAsync(
+                request.ConversationId,
+                request.UserId,
+                request.Summary,
+                cancellationToken)
+            .ConfigureAwait(false);
+        return Accepted();
+    }
 }

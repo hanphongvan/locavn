@@ -88,6 +88,47 @@ public sealed class AiInternalControllerTests
         body.Rows[0].FuelType.Should().Be("RON95");
     }
 
+    [Fact(DisplayName = "POST /internal/ai/context-summary: forward → 202 Accepted")]
+    public async Task UpsertContextSummary_forwards_to_data_access()
+    {
+        var dataAccess = new Mock<IAiInternalDataAccess>();
+        Guid? capturedConvId = null;
+        string? capturedSummary = null;
+        dataAccess
+            .Setup(d => d.UpsertContextSummaryAsync(
+                It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Callback<Guid, int, string, CancellationToken>((id, _, sum, __) =>
+            {
+                capturedConvId = id;
+                capturedSummary = sum;
+            })
+            .Returns(Task.CompletedTask);
+
+        var controller = new AiInternalController(dataAccess.Object);
+        var convId = Guid.NewGuid();
+        var result = await controller.UpsertContextSummary(
+            new AiContextSummaryRequest(convId, 42, "Tóm tắt 5 lượt về tồn kho RON95."),
+            CancellationToken.None);
+
+        result.Should().BeOfType<AcceptedResult>();
+        capturedConvId.Should().Be(convId);
+        capturedSummary.Should().Contain("Tóm tắt");
+    }
+
+    [Fact(DisplayName = "POST /internal/ai/context-summary: empty summary → 400")]
+    public async Task UpsertContextSummary_rejects_empty_input()
+    {
+        var dataAccess = new Mock<IAiInternalDataAccess>(MockBehavior.Strict);
+        var controller = new AiInternalController(dataAccess.Object);
+
+        var result = await controller.UpsertContextSummary(
+            new AiContextSummaryRequest(Guid.NewGuid(), 42, "  "),
+            CancellationToken.None);
+
+        result.Should().BeOfType<BadRequestObjectResult>();
+        dataAccess.VerifyNoOtherCalls();
+    }
+
     [Fact(DisplayName = "POST /internal/ai/log: forward request xuống data access và trả 202")]
     public async Task LogToolCall_forwards_to_data_access()
     {

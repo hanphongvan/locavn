@@ -52,6 +52,10 @@ class ChatRequest(BaseModel):
     user_loai: int = Field(..., alias="userLoai")
     history: list[HistoryMessage] = Field(default_factory=list)
 
+    #: Phase 3 — khi conversation có > 10 message, .NET API gửi summary tóm tắt
+    #: thay cho lịch sử cũ + chỉ kèm 5 message gần nhất trong `history`.
+    context_summary: str | None = Field(default=None, alias="contextSummary")
+
 
 class ContextState(BaseModel):
     """State context trả về để client tham chiếu lượt sau (Section 4.3)."""

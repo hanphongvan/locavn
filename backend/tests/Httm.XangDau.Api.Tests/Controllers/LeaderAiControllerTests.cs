@@ -157,8 +157,8 @@ public sealed class LeaderAiControllerTests
             new LeaderAiChatRequest("Tạo báo cáo nhanh", null, null),
             CancellationToken.None);
 
-        result.Result.Should().BeOfType<OkObjectResult>();
-        var body = (LeaderAiReportResponse)((OkObjectResult)result.Result!).Value!;
+        result.Should().BeOfType<OkObjectResult>();
+        var body = (LeaderAiReportResponse)((OkObjectResult)result).Value!;
         body.ReportMarkdown.Should().NotBeNullOrWhiteSpace();
         body.Intent.Should().Be("GENERATE_LEADER_REPORT");
     }

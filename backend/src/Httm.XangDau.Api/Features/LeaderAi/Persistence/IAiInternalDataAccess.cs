@@ -28,4 +28,14 @@ public interface IAiInternalDataAccess
     Task LogToolCallAsync(
         AiToolLogRequest request,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Phase 3 — UPSERT <c>AiConversationContexts.LastAnswerSummary</c> theo
+    /// <c>ConversationId</c>. AI Gateway gọi mỗi 5 lượt (Section 19.3).
+    /// </summary>
+    Task UpsertContextSummaryAsync(
+        Guid conversationId,
+        int userId,
+        string summary,
+        CancellationToken cancellationToken);
 }

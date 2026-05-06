@@ -23,6 +23,10 @@ class AgentState(TypedDict, total=False):
     # === Conversation history (node 2) ===
     history: list[dict[str, Any]]
 
+    #: Phase 3 — summary tóm tắt thay cho history cũ khi > 10 message
+    #: (.NET API forward sẵn theo Section 19.3).
+    context_summary: str | None
+
     # === Resolved (node 3) ===
     resolved_question: str
 

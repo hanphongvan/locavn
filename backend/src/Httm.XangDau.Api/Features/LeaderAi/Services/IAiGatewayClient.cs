@@ -21,4 +21,12 @@ public interface IAiGatewayClient
 
     /// <summary>GET /health — đo latency để Controller /health trả về.</summary>
     Task<AiGatewayHealthResult> HealthAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Phase 3 — POST /ai/leader/report?format=pdf, trả PDF bytes. Gateway dùng
+    /// xhtml2pdf render markdown → PDF bytes.
+    /// </summary>
+    Task<byte[]> GenerateReportPdfAsync(
+        AiGatewayReportRequest payload,
+        CancellationToken cancellationToken);
 }

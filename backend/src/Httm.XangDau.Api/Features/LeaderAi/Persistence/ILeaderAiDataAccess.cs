@@ -88,4 +88,24 @@ public interface ILeaderAiDataAccess
         string? reportMarkdown,
         TimeSpan ttl,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Phase 3 — đếm số <c>AiMessages</c> trong 1 conversation. Dùng để quyết định
+    /// trim history khi forward sang AI Gateway (Section 19.3 — > 10 message thì
+    /// dùng summary + 5 message gần nhất).
+    /// </summary>
+    Task<int> GetMessageCountAsync(
+        Guid conversationId,
+        int userId,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Phase 3 — đọc <c>AiConversationContexts.LastAnswerSummary</c>
+    /// (cũng có thể đọc field <c>ContextJson.summary</c> nếu Phase 4 chuyển vào đó).
+    /// Null nếu chưa có summary.
+    /// </summary>
+    Task<string?> GetConversationSummaryAsync(
+        Guid conversationId,
+        int userId,
+        CancellationToken cancellationToken);
 }

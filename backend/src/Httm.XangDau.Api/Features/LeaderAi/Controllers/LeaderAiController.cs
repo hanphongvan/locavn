@@ -123,18 +123,46 @@ public sealed class LeaderAiController(
         return deleted ? Ok(new { success = true }) : NotFound();
     }
 
-    /// <summary>POST /report — sinh báo cáo Markdown qua AI Gateway.</summary>
+    /// <summary>POST /report — sinh báo cáo qua AI Gateway. <c>?format=pdf</c> trả PDF bytes.</summary>
     [HttpPost("report")]
     [ProducesResponseType(typeof(LeaderAiReportResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
-    public async Task<ActionResult<LeaderAiReportResponse>> Report(
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public async Task<IActionResult> Report(
         [FromBody] LeaderAiChatRequest request,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken = default,
+        [FromQuery] string format = "markdown")
     {
         if (!TryGetUser(out var userId, out var userLoai))
             return Unauthorized();
+
+        if (string.Equals(format, "pdf", StringComparison.OrdinalIgnoreCase))
+        {
+            // Phase 3 — proxy AI Gateway PDF render qua xhtml2pdf.
+            var pdfPayload = new AiGatewayReportRequest
+            {
+                Topic = request.Message,
+                ConversationId = request.ConversationId?.ToString(),
+                Context = request.Context,
+                UserId = userId,
+                UserLoai = userLoai,
+            };
+            try
+            {
+                var pdfBytes = await aiGateway.GenerateReportPdfAsync(pdfPayload, cancellationToken)
+                    .ConfigureAwait(false);
+                return File(pdfBytes, "application/pdf",
+                    $"loca-ai-report-{DateTime.UtcNow:yyyyMMddHHmmss}.pdf");
+            }
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+            {
+                return StatusCode(
+                    StatusCodes.Status503ServiceUnavailable,
+                    new { message = "AI Gateway PDF tạm thời không khả dụng.", error = ex.Message });
+            }
+        }
 
         var response = await service.GenerateReportAsync(userId, userLoai, request, cancellationToken)
             .ConfigureAwait(false);
