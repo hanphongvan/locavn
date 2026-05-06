@@ -22,10 +22,36 @@
 	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>vn.httm.xangdau</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>httmxd</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>GMSApiKey</key>
+	<string>$(GMS_API_KEY)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Ứng dụng cần camera để chụp ảnh bảng giá.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>LocaVN dùng Face ID để đăng nhập nhanh khi bạn bật tính năng này.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Ứng dụng cần vị trí để hiển thị bản đồ cây xăng quanh bạn.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Ứng dụng cần truy cập thư viện ảnh để đính kèm minh chứng khi báo cáo vi phạm.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -65,36 +91,6 @@
 		<string>UIInterfaceOrientationPortraitUpsideDown</string>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
-	</array>
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSAllowsLocalNetworking</key>
-		<true/>
-	</dict>
-	<!-- Giá trị do xcconfig inject từ `Flutter/Local.xcconfig` (gitignored).
-	     Xem `Flutter/Local.xcconfig.example` để cấu hình per-dev. -->
-	<key>GMSApiKey</key>
-	<string>$(GMS_API_KEY)</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Ứng dụng cần vị trí để hiển thị bản đồ cây xăng quanh bạn.</string>
-	<key>NSCameraUsageDescription</key>
-	<string>Ứng dụng cần camera để chụp ảnh bảng giá (demo nhận dạng giá).</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Ứng dụng cần truy cập thư viện ảnh để đính kèm minh chứng khi báo cáo vi phạm.</string>
-	<key>NSFaceIDUsageDescription</key>
-	<string>LocaVN dùng Face ID để đăng nhập nhanh khi bạn bật tính năng này.</string>
-	<!-- Deep link: custom scheme httmxd:// (vd link reset-password trong email).
-	     Phase sau sẽ thay/bổ sung Universal Links khi domain ổn định. -->
-	<key>CFBundleURLTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleURLName</key>
-			<string>vn.httm.xangdau</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>httmxd</string>
-			</array>
-		</dict>
 	</array>
 </dict>
 </plist>
