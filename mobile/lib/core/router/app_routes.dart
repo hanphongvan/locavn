@@ -39,9 +39,11 @@ enum AppRoute {
   /// Đặt lại mật khẩu — `POST /api/auth/reset-password?token=` (query tùy chọn, UI đọc `token`).
   static const String resetPassword = '/reset-password';
 
-  /// Shell **Lãnh đạo** (`Loai == 6`) — `LeaderMainScreen`: Tổng quan, Bản đồ, Phân tích, Quỹ bình ổn, Tài khoản.
+  /// Shell **Lãnh đạo** (`Loai == 6`) — `LeaderMainScreen`: Tổng quan, Bản đồ, Bán lẻ, Phân tích, Quỹ bình ổn.
+  /// `leaderAccount` không còn ở bottom tab — mở qua icon AppBar (top-level GoRoute).
   static const String leaderOverview = '/leader/overview';
   static const String leaderMap = '/leader/map';
+  static const String leaderRetail = '/leader/retail';
   static const String leaderAnalytics = '/leader/analytics';
   static const String leaderStabilizationFund = '/leader/stabilization-fund';
   static const String leaderAccount = '/leader/account';

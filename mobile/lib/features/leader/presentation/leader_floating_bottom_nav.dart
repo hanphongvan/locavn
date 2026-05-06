@@ -25,6 +25,11 @@ class LeaderFloatingBottomNav extends StatelessWidget {
     ),
     (outline: Icons.map_outlined, filled: Icons.map_rounded, label: 'Bản đồ'),
     (
+      outline: Icons.storefront_outlined,
+      filled: Icons.storefront_rounded,
+      label: 'Bán lẻ',
+    ),
+    (
       outline: Icons.insights_outlined,
       filled: Icons.insights_rounded,
       label: 'Phân tích',
@@ -33,11 +38,6 @@ class LeaderFloatingBottomNav extends StatelessWidget {
       outline: Icons.account_balance_wallet_outlined,
       filled: Icons.account_balance_wallet_rounded,
       label: 'Quỹ bình ổn',
-    ),
-    (
-      outline: Icons.person_outline_rounded,
-      filled: Icons.person_rounded,
-      label: 'Tài khoản',
     ),
   ];
 

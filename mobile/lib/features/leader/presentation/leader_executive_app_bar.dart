@@ -5,10 +5,17 @@ import 'package:flutter/material.dart';
 /// Nền **xung quanh** thẻ (khe ngang, vùng trên status) do [Scaffold.backgroundColor]
 /// trong [LeaderMainScreen] — đồng bộ theo tab.
 class LeaderExecutiveAppBar extends StatelessWidget {
-  const LeaderExecutiveAppBar({super.key, this.filterAction});
+  const LeaderExecutiveAppBar({
+    super.key,
+    this.filterAction,
+    this.accountAction,
+  });
 
   /// Tab Quỹ bình ổn: mở lọc kỳ BC08.
   final VoidCallback? filterAction;
+
+  /// Mở `/leader/account` — icon person ở góc phải AppBar (thay tab Tài khoản đã bỏ khỏi bottom nav).
+  final VoidCallback? accountAction;
 
   static const Color navyDeep = Color(0xFF0B2F6B);
   static const Color navyMid = Color(0xFF1F3C93);
@@ -91,6 +98,20 @@ class LeaderExecutiveAppBar extends StatelessWidget {
                       icon: Icon(
                         Icons.filter_list_rounded,
                         size: 20,
+                        color: Colors.white.withValues(alpha: 0.95),
+                      ),
+                    ),
+                  if (accountAction != null)
+                    IconButton(
+                      tooltip: 'Tài khoản',
+                      onPressed: accountAction,
+                      style: IconButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.all(6),
+                      ),
+                      icon: Icon(
+                        Icons.person_outline_rounded,
+                        size: 22,
                         color: Colors.white.withValues(alpha: 0.95),
                       ),
                     ),

@@ -138,7 +138,9 @@ abstract final class PortalRouteAccess {
     return false;
   }
 
-  /// **Leader** (`Loai == 6`): chỉ shell lãnh đạo (`/leader/overview` … `/leader/stabilization-fund` … `/leader/account`) + đổi mật khẩu + chi tiết trạm (xem).
+  /// **Leader** (`Loai == 6`): chỉ shell lãnh đạo (`/leader/overview`, `/leader/map`, `/leader/retail`,
+  /// `/leader/analytics`, `/leader/stabilization-fund`) + `/leader/account` (mở qua icon AppBar) +
+  /// đổi mật khẩu + chi tiết trạm (xem).
   ///
   /// Chặn: nhập **giá** / **tồn** (shell cửa hàng, phiếu kho, bản đồ tồn admin), **admin/trader**, dashboard báo cáo `/reports`,
   /// shell **người dân** (Nhiên liệu / xe / CRUD đổ xăng, …).
@@ -163,6 +165,7 @@ abstract final class PortalRouteAccess {
     return path == AppRoute.leaderRoot ||
         path == AppRoute.leaderOverview ||
         path == AppRoute.leaderMap ||
+        path == AppRoute.leaderRetail ||
         path == AppRoute.leaderAnalytics ||
         path == AppRoute.leaderStabilizationFund ||
         path == AppRoute.leaderAccount;

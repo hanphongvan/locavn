@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/auth/portal_loai.dart';
 import '../../../core/auth/role_service.dart';
+import '../../../core/router/app_routes.dart';
 import '../../map/presentation/map_screen_palette.dart';
 import '../../reports/presentation/dashboard/loca_dashboard_tokens.dart';
 import 'leader_executive_app_bar.dart';
@@ -12,10 +13,12 @@ import 'leader_floating_bottom_nav.dart';
 import 'stabilization_fund_filter_bus.dart';
 
 /// Nền [Scaffold] (khe quanh thẻ AppBar + vùng dưới) theo tab — AppBar vẫn gradient navy.
+///
+/// Index sau Phần 2: 0=Tổng quan, 1=Bản đồ, 2=Bán lẻ, 3=Phân tích, 4=Quỹ bình ổn.
 Color _leaderShellCanvasColor(int index) {
   return switch (index) {
     1 => MapScreenPalette.screenBackground,
-    0 || 2 => LocaDashboardTokens.gradientTop,
+    0 || 3 => LocaDashboardTokens.gradientTop,
     _ => LocaDashboardTokens.background,
   };
 }
@@ -23,9 +26,13 @@ Color _leaderShellCanvasColor(int index) {
 /// Index nhánh **Bản đồ** trong [StatefulNavigationShell] (không dùng [LeaderExecutiveAppBar]).
 const int kLeaderMapShellBranchIndex = 1;
 
+/// Index nhánh **Quỹ bình ổn** — tab có nút lọc tháng/năm trên AppBar.
+const int kLeaderStabilizationFundBranchIndex = 4;
+
 /// **LeaderMainScreen** — màn chính lãnh đạo khi `user.Loai == 6` ([PortalLoai.leader]).
 ///
-/// Tabs: **Tổng quan**, **Bản đồ**, **Phân tích**, **Quỹ bình ổn**, **Tài khoản**.
+/// Tabs: **Tổng quan**, **Bản đồ**, **Bán lẻ**, **Phân tích**, **Quỹ bình ổn**.
+/// Tài khoản đã rời bottom nav — mở qua icon trên AppBar (`/leader/account`).
 class LeaderMainScreen extends ConsumerWidget {
   const LeaderMainScreen({super.key, required this.navigationShell});
 
@@ -69,9 +76,10 @@ class LeaderMainScreen extends ConsumerWidget {
         children: [
           if (showExecutiveHeader)
             LeaderExecutiveAppBar(
-              filterAction: idx == 3
+              filterAction: idx == kLeaderStabilizationFundBranchIndex
                   ? () => ref.read(stabilizationFundFilterBusProvider).open()
                   : null,
+              accountAction: () => context.push(AppRoute.leaderAccount),
             ),
           Expanded(
             child: showExecutiveHeader

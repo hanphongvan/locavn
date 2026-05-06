@@ -21,6 +21,7 @@ import '../../features/leader/presentation/leader_analytics_page.dart';
 import '../../features/leader/presentation/leader_map_shell.dart';
 import '../../features/leader/presentation/leader_overview_page.dart';
 import '../../features/leader/presentation/leader_main_screen.dart';
+import '../../features/leader/presentation/leader_retail_screen.dart';
 import '../../features/leader/presentation/stabilization_fund_screen.dart';
 import '../../features/more/presentation/more_shell_page.dart';
 import '../../features/my_vehicles/presentation/my_vehicles_shell_page.dart';
@@ -182,6 +183,16 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           StatefulShellBranch(
             routes: [
               GoRoute(
+                path: AppRoute.leaderRetail,
+                pageBuilder: (context, state) => const NoTransitionPage<void>(
+                  child: LeaderRetailScreen(),
+                ),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
                 path: AppRoute.leaderAnalytics,
                 pageBuilder: (context, state) => const NoTransitionPage<void>(
                   child: LeaderAnalyticsPage(),
@@ -199,17 +210,13 @@ final goRouterProvider = Provider<GoRouter>((ref) {
               ),
             ],
           ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: AppRoute.leaderAccount,
-                pageBuilder: (context, state) => const NoTransitionPage<void>(
-                  child: AccountScreen(embeddedInLeaderShell: true),
-                ),
-              ),
-            ],
-          ),
         ],
+      ),
+      GoRoute(
+        path: AppRoute.leaderAccount,
+        parentNavigatorKey: appRootNavigatorKey,
+        builder: (context, state) =>
+            const AccountScreen(embeddedInLeaderShell: true),
       ),
       GoRoute(
         path: AppRoute.storeRoot,
