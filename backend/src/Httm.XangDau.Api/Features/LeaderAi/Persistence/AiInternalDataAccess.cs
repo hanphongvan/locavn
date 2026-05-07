@@ -12,6 +12,24 @@ namespace Httm.XangDau.Api.Features.LeaderAi.Persistence;
 /// </summary>
 public sealed class AiInternalDataAccess(IConfiguration configuration) : IAiInternalDataAccess
 {
+    /// <summary>
+    /// Hàng đọc từ <c>sp_Ai_GetFuelInventorySummary</c> — Dapper map theo tên cột + setter;
+    /// không map trực tiếp <see cref="AiFuelInventoryRow"/> (positional record: SqlClient trả <c>DATE</c> là <see cref="DateTime"/>, không khớp <see cref="DateOnly"/>).
+    /// </summary>
+    private sealed class FuelInventorySqlRow
+    {
+        public string FuelType { get; set; } = "";
+        public decimal TotalStock { get; set; }
+        public string StockUnit { get; set; } = "";
+        public decimal? PreviousPeriodStock { get; set; }
+        public decimal? ChangePercent { get; set; }
+        public decimal? MinSafeStock { get; set; }
+        public bool IsLowStock { get; set; }
+        public int? RegionId { get; set; }
+        public string? RegionName { get; set; }
+        public DateTime AsOfDate { get; set; }
+    }
+
     private readonly string _connectionString =
         configuration.GetConnectionString(InfrastructureDependencyInjection.DefaultConnectionName)
         ?? throw new InvalidOperationException("DefaultConnection missing.");
@@ -27,8 +45,21 @@ public sealed class AiInternalDataAccess(IConfiguration configuration) : IAiInte
         parameters.Add("@ToDate", request.ToDate?.ToDateTime(TimeOnly.MinValue), DbType.Date);
         parameters.Add("@FuelType", request.FuelType, DbType.String, size: 100);
 
-        return await ExecuteSpAsync<AiFuelInventoryRow>(
+        var raw = await ExecuteSpAsync<FuelInventorySqlRow>(
             "dbo.sp_Ai_GetFuelInventorySummary", parameters, cancellationToken).ConfigureAwait(false);
+        return raw
+            .Select(static r => new AiFuelInventoryRow(
+                r.FuelType,
+                r.TotalStock,
+                r.StockUnit,
+                r.PreviousPeriodStock,
+                r.ChangePercent,
+                r.MinSafeStock,
+                r.IsLowStock,
+                r.RegionId,
+                r.RegionName,
+                DateOnly.FromDateTime(r.AsOfDate)))
+            .ToList();
     }
 
     public async Task<IReadOnlyList<AiFuelPriceRow>> GetFuelPriceTrendAsync(
