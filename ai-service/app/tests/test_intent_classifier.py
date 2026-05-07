@@ -11,6 +11,8 @@ from .conftest import FakeLlmService
 
 SAMPLES = [
     ("Tồn kho xăng dầu toàn quốc hôm nay thế nào?", "FUEL_INVENTORY_SUMMARY"),
+    ("Tồn kho bán lẻ vùng 5?", "RETAIL_FUEL_INVENTORY_SUMMARY"),
+    ("Cây xăng hôm nay còn bao nhiêu xăng?", "RETAIL_FUEL_INVENTORY_SUMMARY"),
     ("Doanh nghiệp nào có tồn kho xăng thấp nhất?", "HEAD_OFFICE_LOW_STOCK_RANKING"),
     ("Giá RON95 trong 3 kỳ gần nhất biến động ra sao?", "FUEL_PRICE_TREND"),
     ("Hiển thị tỉnh có mật độ cây xăng thấp.", "STATION_DENSITY_ANALYSIS"),

@@ -12,6 +12,15 @@ public interface IAiInternalDataAccess
         AiFuelInventoryRequest request,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Phase 2A bugfix — gọi <c>sp_Ai_GetRetailFuelInventorySummary</c> cho intent
+    /// <c>RETAIL_FUEL_INVENTORY_SUMMARY</c>. Khác <see cref="GetFuelInventorySummaryAsync"/>
+    /// (đầu mối) ở chỗ đọc <c>StationInventoryTransaction*</c> + filter <c>FuelProducts.Code</c>.
+    /// </summary>
+    Task<IReadOnlyList<AiFuelInventoryRow>> GetRetailFuelInventorySummaryAsync(
+        AiFuelInventoryRequest request,
+        CancellationToken cancellationToken);
+
     Task<IReadOnlyList<AiFuelPriceRow>> GetFuelPriceTrendAsync(
         AiFuelPriceRequest request,
         CancellationToken cancellationToken);

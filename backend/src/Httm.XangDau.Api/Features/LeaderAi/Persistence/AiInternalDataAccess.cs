@@ -30,6 +30,21 @@ public sealed class AiInternalDataAccess(IConfiguration configuration) : IAiInte
         public DateTime AsOfDate { get; set; }
     }
 
+    /// <summary>
+    /// Hàng đọc từ <c>sp_Ai_GetFuelPriceTrend</c> — Dapper: <c>ROW_NUMBER</c> / biểu thức có thể là <see cref="long"/>,
+    /// <c>DATE</c> là <see cref="DateTime"/>; không map trực tiếp <see cref="AiFuelPriceRow"/> (<see cref="DateOnly"/>, <see cref="int"/>).
+    /// </summary>
+    private sealed class FuelPriceTrendSqlRow
+    {
+        public string FuelType { get; set; } = "";
+        public long PeriodIndex { get; set; }
+        public string PeriodLabel { get; set; } = "";
+        public DateTime EffectiveDate { get; set; }
+        public decimal Price { get; set; }
+        public string PriceUnit { get; set; } = "";
+        public decimal? ChangeFromPrev { get; set; }
+    }
+
     private readonly string _connectionString =
         configuration.GetConnectionString(InfrastructureDependencyInjection.DefaultConnectionName)
         ?? throw new InvalidOperationException("DefaultConnection missing.");
@@ -47,20 +62,38 @@ public sealed class AiInternalDataAccess(IConfiguration configuration) : IAiInte
 
         var raw = await ExecuteSpAsync<FuelInventorySqlRow>(
             "dbo.sp_Ai_GetFuelInventorySummary", parameters, cancellationToken).ConfigureAwait(false);
-        return raw
-            .Select(static r => new AiFuelInventoryRow(
-                r.FuelType,
-                r.TotalStock,
-                r.StockUnit,
-                r.PreviousPeriodStock,
-                r.ChangePercent,
-                r.MinSafeStock,
-                r.IsLowStock,
-                r.RegionId,
-                r.RegionName,
-                DateOnly.FromDateTime(r.AsOfDate)))
-            .ToList();
+        return raw.Select(MapFuelInventoryRow).ToList();
     }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<AiFuelInventoryRow>> GetRetailFuelInventorySummaryAsync(
+        AiFuelInventoryRequest request,
+        CancellationToken cancellationToken)
+    {
+        var parameters = new DynamicParameters();
+        parameters.Add("@RegionId", request.RegionId, DbType.Int32);
+        parameters.Add("@ProvinceId", request.ProvinceId, DbType.Int32);
+        parameters.Add("@FromDate", request.FromDate?.ToDateTime(TimeOnly.MinValue), DbType.Date);
+        parameters.Add("@ToDate", request.ToDate?.ToDateTime(TimeOnly.MinValue), DbType.Date);
+        parameters.Add("@FuelType", request.FuelType, DbType.String, size: 100);
+
+        var raw = await ExecuteSpAsync<FuelInventorySqlRow>(
+            "dbo.sp_Ai_GetRetailFuelInventorySummary", parameters, cancellationToken).ConfigureAwait(false);
+        return raw.Select(MapFuelInventoryRow).ToList();
+    }
+
+    private static AiFuelInventoryRow MapFuelInventoryRow(FuelInventorySqlRow r) =>
+        new(
+            r.FuelType,
+            r.TotalStock,
+            r.StockUnit,
+            r.PreviousPeriodStock,
+            r.ChangePercent,
+            r.MinSafeStock,
+            r.IsLowStock,
+            r.RegionId,
+            r.RegionName,
+            DateOnly.FromDateTime(r.AsOfDate));
 
     public async Task<IReadOnlyList<AiFuelPriceRow>> GetFuelPriceTrendAsync(
         AiFuelPriceRequest request,
@@ -70,8 +103,18 @@ public sealed class AiInternalDataAccess(IConfiguration configuration) : IAiInte
         parameters.Add("@FuelType", request.FuelType ?? "RON95", DbType.String, size: 100);
         parameters.Add("@PeriodCount", request.PeriodCount ?? 3, DbType.Int32);
 
-        return await ExecuteSpAsync<AiFuelPriceRow>(
+        var raw = await ExecuteSpAsync<FuelPriceTrendSqlRow>(
             "dbo.sp_Ai_GetFuelPriceTrend", parameters, cancellationToken).ConfigureAwait(false);
+        return raw
+            .Select(static r => new AiFuelPriceRow(
+                r.FuelType,
+                (int)r.PeriodIndex,
+                r.PeriodLabel,
+                DateOnly.FromDateTime(r.EffectiveDate),
+                r.Price,
+                r.PriceUnit,
+                r.ChangeFromPrev))
+            .ToList();
     }
 
     public async Task<IReadOnlyList<AiHeadOfficeRow>> GetInventoryByHeadOfficeAsync(

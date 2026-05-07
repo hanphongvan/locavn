@@ -43,6 +43,7 @@ from .services.model_router import ModelRouter
 from .services.pdf_service import PdfRenderError, render_markdown_to_pdf
 from .tools.base_tool import BaseTool
 from .tools.fuel_inventory_tool import FuelInventoryTool
+from .tools.retail_fuel_inventory_tool import RetailFuelInventoryTool
 from .tools.fuel_price_tool import FuelPriceTool
 from .tools.head_office_tool import HeadOfficeTool
 from .tools.report_tool import ReportTool
@@ -125,10 +126,11 @@ def get_tools(
     inventory_tool = FuelInventoryTool(**kwargs)
     price_tool = FuelPriceTool(**kwargs)
     tools: dict[str, BaseTool] = {
-        "fuel_inventory_summary":     inventory_tool,
-        "fuel_price_trend":           price_tool,
-        "inventory_by_head_office":   HeadOfficeTool(**kwargs),
-        "station_density_by_province": StationMapTool(**kwargs),
+        "fuel_inventory_summary":         inventory_tool,
+        "retail_fuel_inventory_summary":  RetailFuelInventoryTool(**kwargs),
+        "fuel_price_trend":               price_tool,
+        "inventory_by_head_office":       HeadOfficeTool(**kwargs),
+        "station_density_by_province":    StationMapTool(**kwargs),
         # ReportTool: Phase 3 cần LLM để sinh markdown 5 phần — wire LLM + upstream tools.
         "leader_report":              ReportTool(
             mock_data_path=settings.mock_data_path,

@@ -14,6 +14,7 @@ from app.services.dotnet_api_client import DotnetApiClient
 from app.services.llm_service import LlmService, LlmServiceError
 from app.tools.base_tool import BaseTool
 from app.tools.fuel_inventory_tool import FuelInventoryTool
+from app.tools.retail_fuel_inventory_tool import RetailFuelInventoryTool
 from app.tools.fuel_price_tool import FuelPriceTool
 from app.tools.head_office_tool import HeadOfficeTool
 from app.tools.report_tool import ReportTool
@@ -93,11 +94,12 @@ def dotnet_client(settings) -> DotnetApiClient:
 def tools(settings) -> dict[str, BaseTool]:
     kwargs = {"mock_data_path": settings.mock_data_path, "use_mock": True}
     return {
-        "fuel_inventory_summary":      FuelInventoryTool(**kwargs),
-        "fuel_price_trend":            FuelPriceTool(**kwargs),
-        "inventory_by_head_office":    HeadOfficeTool(**kwargs),
-        "station_density_by_province": StationMapTool(**kwargs),
-        "leader_report":               ReportTool(**kwargs),
+        "fuel_inventory_summary":         FuelInventoryTool(**kwargs),
+        "retail_fuel_inventory_summary":  RetailFuelInventoryTool(**kwargs),
+        "fuel_price_trend":               FuelPriceTool(**kwargs),
+        "inventory_by_head_office":       HeadOfficeTool(**kwargs),
+        "station_density_by_province":    StationMapTool(**kwargs),
+        "leader_report":                  ReportTool(**kwargs),
     }
 
 
