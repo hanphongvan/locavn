@@ -28,6 +28,7 @@ public sealed class AiInternalDataAccess(IConfiguration configuration) : IAiInte
         public int? RegionId { get; set; }
         public string? RegionName { get; set; }
         public DateTime AsOfDate { get; set; }
+        public int? DaysOfStock { get; set; }
     }
 
     /// <summary>
@@ -93,7 +94,8 @@ public sealed class AiInternalDataAccess(IConfiguration configuration) : IAiInte
             r.IsLowStock,
             r.RegionId,
             r.RegionName,
-            DateOnly.FromDateTime(r.AsOfDate));
+            DateOnly.FromDateTime(r.AsOfDate),
+            r.DaysOfStock);
 
     public async Task<IReadOnlyList<AiFuelPriceRow>> GetFuelPriceTrendAsync(
         AiFuelPriceRequest request,
