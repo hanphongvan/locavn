@@ -50,7 +50,8 @@ public sealed record AiFuelInventoryRow(
     bool IsLowStock,
     int? RegionId,
     string? RegionName,
-    DateOnly AsOfDate);
+    DateOnly AsOfDate,
+    int? DaysOfStock = null);
 
 public sealed record AiFuelPriceRow(
     string FuelType,
@@ -70,7 +71,8 @@ public sealed record AiHeadOfficeRow(
     string StockUnit,
     decimal? MinSafeStock,
     bool IsLowStock,
-    int RankNumber);
+    int RankNumber,
+    int? DaysOfStock = null);
 
 public sealed record AiStationDensityRow(
     int ProvinceId,
