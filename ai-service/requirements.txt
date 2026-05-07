@@ -1,0 +1,28 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.4
+pydantic-settings==2.7.0
+httpx==0.28.1
+python-dotenv==1.0.1
+PyYAML==6.0.2
+structlog==24.4.0
+
+# Phase 3 — Observability + cache + report PDF
+prometheus-client==0.21.1
+redis==5.2.1                # async qua redis.asyncio (aioredis đã merge từ 4.2)
+markdown==3.7
+xhtml2pdf==0.2.16           # pure-Python markdown→HTML→PDF, không cần GTK/wkhtmltopdf
+
+# Phase 4 — RAG + Local LLM
+qdrant-client==1.12.1       # Vector DB; embeddings từ Ollama bge-m3 nên không cần torch.
+pypdf==5.1.0                # đọc PDF cho index_documents.py
+
+# LLM stack
+openai==1.59.6
+langchain==0.3.13
+langchain-openai==0.2.14
+langgraph==0.2.62
+
+# Test
+pytest==8.3.4
+pytest-asyncio==0.25.2

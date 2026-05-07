@@ -1,0 +1,11 @@
+[tool.pytest.ini_options]
+testpaths = ["app/tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-q --strict-markers"
+markers = [
+    "integration: tests cần network / OpenAI key thật (skip mặc định)",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]

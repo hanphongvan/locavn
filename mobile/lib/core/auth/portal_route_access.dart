@@ -168,7 +168,8 @@ abstract final class PortalRouteAccess {
         path == AppRoute.leaderRetail ||
         path == AppRoute.leaderAnalytics ||
         path == AppRoute.leaderStabilizationFund ||
-        path == AppRoute.leaderAccount;
+        path == AppRoute.leaderAccount ||
+        path == AppRoute.leaderAiChat;
   }
 
   static bool _isStorePortalPath(String path) {
