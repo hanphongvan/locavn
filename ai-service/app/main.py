@@ -30,6 +30,7 @@ from .schemas.chat import ChatRequest, ChatResponse, RateLimitInfo, ReportReques
 from .security.guard import SecurityGuard
 from .services.cache_service import CacheService
 from .services.dotnet_api_client import DotnetApiClient
+from .services.llm_mode_manager import InvalidLlmMode, LlmModeManager
 from .services.llm_service import LlmService, create_llm_service
 from .services.logging_service import configure_logging, get_logger
 from .services.metrics_service import (
@@ -58,6 +59,12 @@ _logger = get_logger(__name__)
 # có ý nghĩa (nếu init mỗi request thì TTL không hoạt động).
 _cache_singleton = CacheService()
 
+#: Singleton manager — boot từ .env, có thể override qua /admin/llm-mode.
+_llm_mode_manager: LlmModeManager | None = None
+
+#: Cache LlmService theo mode để khi switch không phải re-init OpenAI client mỗi request.
+_llm_service_cache: dict[str, LlmService] = {}
+
 
 def get_security_guard() -> SecurityGuard:
     return SecurityGuard()
@@ -71,13 +78,36 @@ def get_cache() -> CacheService:
     return _cache_singleton
 
 
+def get_llm_mode_manager(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> LlmModeManager:
+    global _llm_mode_manager
+    if _llm_mode_manager is None:
+        _llm_mode_manager = LlmModeManager(
+            boot_mode=settings.llm_mode,
+            ollama_base_url=settings.ollama_base_url,
+        )
+    return _llm_mode_manager
+
+
 def get_llm_service(
     settings: Annotated[Settings, Depends(get_settings)],
     dotnet: Annotated[DotnetApiClient, Depends(get_dotnet_client)],
+    mode_manager: Annotated[LlmModeManager, Depends(get_llm_mode_manager)],
 ) -> LlmService:
-    # Phase 4 — factory chọn provider theo LLM_MODE (CLOUD_API / LOCAL_ONLY / HYBRID_SAFE).
-    router = ModelRouter.load(settings.models_yaml_path, mode=settings.llm_mode)
-    return create_llm_service(settings, router, dotnet_client=dotnet)
+    """Phase 4+ — factory đọc mode từ `LlmModeManager` (override-able via
+    `/admin/llm-mode`), cache LlmService theo mode để switch không tạo
+    OpenAI/Ollama client mới mỗi request."""
+    mode = mode_manager.current_mode
+    cached = _llm_service_cache.get(mode)
+    if cached is not None:
+        return cached
+    router = ModelRouter.load(settings.models_yaml_path, mode=mode)
+    # Override settings.llm_mode để `create_llm_service` chọn đúng provider stack.
+    settings_for_factory = settings.model_copy(update={"llm_mode": mode})
+    service = create_llm_service(settings_for_factory, router, dotnet_client=dotnet)
+    _llm_service_cache[mode] = service
+    return service
 
 
 def get_tools(
@@ -156,8 +186,18 @@ def create_app() -> FastAPI:
     )
 
     @app.get("/health", tags=["meta"])
-    async def health():
-        return {"status": "ok", "phase": "3", "llm_mode": settings.llm_mode}
+    async def health(
+        mode_manager: Annotated[LlmModeManager, Depends(get_llm_mode_manager)],
+    ):
+        status = mode_manager.status()
+        return {
+            "status": "ok",
+            "phase": "4",
+            "llm_mode": status.current_mode,
+            "boot_mode": status.boot_mode,
+            "overridden": status.overridden,
+            "openai_key_configured": status.openai_key_configured,
+        }
 
     @app.get("/metrics", tags=["meta"])
     async def metrics_endpoint():
@@ -169,15 +209,63 @@ def create_app() -> FastAPI:
     @app.get("/ai/leader/health", tags=["meta"])
     async def ai_leader_health(
         dotnet: Annotated[DotnetApiClient, Depends(get_dotnet_client)],
+        mode_manager: Annotated[LlmModeManager, Depends(get_llm_mode_manager)],
     ):
         dotnet_ok = await dotnet.health_check()
+        status = mode_manager.status()
         return {
             "status": "ok",
-            "phase": "1B",
-            "llm_mode": settings.llm_mode,
+            "phase": "4",
+            "llm_mode": status.current_mode,
+            "boot_mode": status.boot_mode,
+            "overridden": status.overridden,
+            "openai_key_configured": status.openai_key_configured,
+            "ollama_base_url": status.ollama_base_url,
+            "available_modes": list(status.available_modes),
             "use_mock_data": settings.use_mock_data,
             "dotnet_api_reachable": dotnet_ok,
         }
+
+    # ------------------------------------------------------------------
+    # Phase 4+ — Admin endpoints để switch LLM mode runtime.
+    # ------------------------------------------------------------------
+
+    @app.get("/admin/llm-mode", tags=["admin"])
+    async def get_llm_mode(
+        mode_manager: Annotated[LlmModeManager, Depends(get_llm_mode_manager)],
+        x_internal_key: Annotated[str | None, Header(alias="X-Internal-Key")] = None,
+    ):
+        _check_internal_key(settings, x_internal_key)
+        st = mode_manager.status()
+        return {
+            "currentMode": st.current_mode,
+            "bootMode": st.boot_mode,
+            "overridden": st.overridden,
+            "openaiKeyConfigured": st.openai_key_configured,
+            "ollamaBaseUrl": st.ollama_base_url,
+            "availableModes": list(st.available_modes),
+        }
+
+    @app.post("/admin/llm-mode", tags=["admin"])
+    async def set_llm_mode(
+        body: dict,
+        mode_manager: Annotated[LlmModeManager, Depends(get_llm_mode_manager)],
+        x_internal_key: Annotated[str | None, Header(alias="X-Internal-Key")] = None,
+    ):
+        """Body: `{"mode": "CLOUD_API"|"LOCAL_ONLY"|"HYBRID_SAFE"}`.
+        Override in-memory — restart sẽ reset về `.env`."""
+        _check_internal_key(settings, x_internal_key)
+        mode = (body or {}).get("mode") or ""
+        try:
+            new_mode = await mode_manager.set_mode(mode)
+        except InvalidLlmMode as ex:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(ex),
+            )
+        # Invalidate cache để request tiếp theo build LlmService với mode mới.
+        _llm_service_cache.clear()
+        return {"currentMode": new_mode, "message": f"Đã chuyển sang {new_mode}."}
 
     @app.post("/ai/leader/chat", response_model=ChatResponse, response_model_by_alias=True, tags=["leader"])
     async def chat(
@@ -240,11 +328,15 @@ def create_app() -> FastAPI:
     return app
 
 
-def _check_internal_key(settings: Settings, header_value: str | None) -> None:
+def _check_internal_key(settings: Settings | None, header_value: str | None) -> None:
     """Section 2 — chỉ .NET API được gọi AI Gateway. Khi `AI_GATEWAY_INTERNAL_KEY`
     rỗng (dev), bỏ qua check để dev local dễ test bằng curl.
+
+    `settings` truyền vào có thể là cache cũ (closure từ create_app) — Phase 4+
+    re-read qua `get_settings()` để admin có thể đổi env không cần restart.
     """
-    expected = settings.ai_gateway_internal_key
+    runtime = get_settings()
+    expected = runtime.ai_gateway_internal_key or (settings.ai_gateway_internal_key if settings else "")
     if not expected:
         return
     if header_value != expected:

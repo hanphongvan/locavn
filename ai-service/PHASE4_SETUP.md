@@ -108,7 +108,48 @@ Nếu p95 > 30s, các tinh chỉnh phổ biến:
 | Cache miss nhiều | Chuyển `CACHE_BACKEND=redis` để share giữa worker |
 | RAG search > 1s | Tạo index Qdrant với `quantization` (Phase 5) |
 
-## 7. Verify không có outbound OpenAI
+## 7. Switch giữa OpenAI ↔ Ollama runtime (không cần restart)
+
+Phase 4+ thêm `/admin/llm-mode` cho ops hoặc demo nhanh giữa các mode.
+Bảo vệ bằng `X-Internal-Key` (cùng `AiGateway:InternalKey`).
+
+```bash
+# Đọc mode hiện tại + provider availability.
+curl -H "X-Internal-Key: $AI_GATEWAY_INTERNAL_KEY" \
+  http://localhost:8001/admin/llm-mode
+# {
+#   "currentMode": "CLOUD_API",
+#   "bootMode": "CLOUD_API",
+#   "overridden": false,
+#   "openaiKeyConfigured": true,
+#   "ollamaBaseUrl": "http://localhost:11434",
+#   "availableModes": ["CLOUD_API", "LOCAL_ONLY", "HYBRID_SAFE"]
+# }
+
+# Chuyển sang LOCAL_ONLY (qwen3) cho demo dữ liệu nhạy cảm.
+curl -X POST -H "X-Internal-Key: $AI_GATEWAY_INTERNAL_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"LOCAL_ONLY"}' \
+  http://localhost:8001/admin/llm-mode
+# {"currentMode":"LOCAL_ONLY","message":"Đã chuyển sang LOCAL_ONLY."}
+
+# Chuyển ngược về CLOUD_API.
+curl -X POST -H "X-Internal-Key: $AI_GATEWAY_INTERNAL_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"CLOUD_API"}' \
+  http://localhost:8001/admin/llm-mode
+
+# Hoặc HYBRID_SAFE (Section 10.1 — task chính local, report cloud).
+curl -X POST -H "X-Internal-Key: $AI_GATEWAY_INTERNAL_KEY" \
+  -d '{"mode":"HYBRID_SAFE"}' http://localhost:8001/admin/llm-mode
+```
+
+**Lưu ý:**
+- Override **chỉ in-memory** — restart service sẽ reset về `LLM_MODE` trong `.env`. Đây là design có chủ ý: prod env không bị "kẹt" mode sai.
+- Để persist qua restart, sửa `.env` rồi restart service.
+- Mode đang dùng cũng hiện trong `/health` + `/ai/leader/health` (`llm_mode` + `boot_mode` + `overridden` flag) — Flutter/Quản trị có thể đọc để hiển thị badge.
+
+## 8. Verify không có outbound OpenAI
 
 Trên máy chạy AI Gateway, monitor:
 
@@ -123,7 +164,7 @@ Get-NetTCPConnection | Where-Object RemoteAddress -like "*openai*"
 Bắn 5 câu mẫu Section 18 vào `/ai/leader/chat` rồi confirm zero packets gửi
 tới `api.openai.com`. Đây là kiểm chứng cuối cùng cho LOCAL_ONLY.
 
-## 8. Limitations & known issues
+## 9. Limitations & known issues
 
 - **Ollama không support batch embedding** — `index_documents.py` chạy tuần tự.
   Index 100 PDF có thể mất 5-10 phút trên RTX 3090.
