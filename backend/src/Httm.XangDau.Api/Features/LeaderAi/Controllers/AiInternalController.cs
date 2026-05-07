@@ -29,6 +29,23 @@ public sealed class AiInternalController(IAiInternalDataAccess dataAccess) : Con
         return Ok(new AiInternalRowsResponse<AiFuelInventoryRow>(rows, rows.Count));
     }
 
+    /// <summary>
+    /// Phase 2A bugfix — endpoint riêng cho intent <c>RETAIL_FUEL_INVENTORY_SUMMARY</c>.
+    /// Đọc tồn kho cửa hàng (<c>StationInventoryTransaction*</c>) thay vì đầu mối (<c>QT_TK_ThongKe*</c>).
+    /// </summary>
+    [HttpPost("retail-fuel-inventory")]
+    [ProducesResponseType(typeof(AiInternalRowsResponse<AiFuelInventoryRow>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public async Task<ActionResult<AiInternalRowsResponse<AiFuelInventoryRow>>> RetailFuelInventory(
+        [FromBody] AiFuelInventoryRequest request,
+        CancellationToken cancellationToken)
+    {
+        var rows = await dataAccess.GetRetailFuelInventorySummaryAsync(request, cancellationToken)
+            .ConfigureAwait(false);
+        return Ok(new AiInternalRowsResponse<AiFuelInventoryRow>(rows, rows.Count));
+    }
+
     [HttpPost("fuel-price")]
     [ProducesResponseType(typeof(AiInternalRowsResponse<AiFuelPriceRow>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]

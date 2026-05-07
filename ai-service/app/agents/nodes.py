@@ -27,12 +27,13 @@ from .state import AgentState
 _logger = get_logger(__name__)
 
 
-# Section 3.3 — 12 intent Phase 1.
+# Section 3.3 — 13 intent (Phase 1: 12 + Phase 2A bugfix: RETAIL_FUEL_INVENTORY_SUMMARY).
 ALLOWED_INTENTS = (
-    "FUEL_INVENTORY_SUMMARY",
+    "FUEL_INVENTORY_SUMMARY",            # mặc định = đầu mối/thương nhân (QT_TK_ThongKe*)
     "FUEL_INVENTORY_BY_REGION",
     "FUEL_INVENTORY_BY_HEAD_OFFICE",
     "HEAD_OFFICE_LOW_STOCK_RANKING",
+    "RETAIL_FUEL_INVENTORY_SUMMARY",     # chỉ khi hỏi rõ "tồn kho bán lẻ" / "tồn kho cửa hàng"
     "FUEL_PRICE_TREND",
     "IMPORT_EXPORT_SUMMARY",
     "STATION_DENSITY_ANALYSIS",
@@ -45,10 +46,11 @@ ALLOWED_INTENTS = (
 
 # Map intent → tool name (Section 11). UNKNOWN / HELP_USAGE / DASHBOARD_EXPLAIN không gọi tool.
 _INTENT_TO_TOOLS: dict[str, list[str]] = {
-    "FUEL_INVENTORY_SUMMARY": ["fuel_inventory_summary"],
-    "FUEL_INVENTORY_BY_REGION": ["fuel_inventory_summary"],
-    "FUEL_INVENTORY_BY_HEAD_OFFICE": ["inventory_by_head_office"],
+    "FUEL_INVENTORY_SUMMARY": ["fuel_inventory_summary"],          # đầu mối
+    "FUEL_INVENTORY_BY_REGION": ["fuel_inventory_summary"],        # đầu mối, filter province
+    "FUEL_INVENTORY_BY_HEAD_OFFICE": ["inventory_by_head_office"], # đầu mối, group by don_vi_cap1
     "HEAD_OFFICE_LOW_STOCK_RANKING": ["inventory_by_head_office"],
+    "RETAIL_FUEL_INVENTORY_SUMMARY": ["retail_fuel_inventory_summary"],  # cửa hàng bán lẻ
     "FUEL_PRICE_TREND": ["fuel_price_trend"],
     "STATION_DENSITY_ANALYSIS": ["station_density_by_province"],
     "STATION_MAP_LAYER": ["station_density_by_province"],
@@ -243,11 +245,15 @@ _CLASSIFIER_SYSTEM = (
     "Bạn là bộ phân loại intent cho trợ lý AI lãnh đạo xăng dầu Việt Nam. "
     "Phân loại câu hỏi vào ĐÚNG MỘT trong các intent sau:\n"
     + ", ".join(ALLOWED_INTENTS)
-    + "\n\nQuy tắc:\n"
-    "- Tồn kho tổng → FUEL_INVENTORY_SUMMARY\n"
-    "- Tồn kho theo vùng → FUEL_INVENTORY_BY_REGION\n"
-    "- Tồn kho theo doanh nghiệp đầu mối → FUEL_INVENTORY_BY_HEAD_OFFICE\n"
-    "- Doanh nghiệp tồn kho thấp / xếp hạng thấp → HEAD_OFFICE_LOW_STOCK_RANKING\n"
+    + "\n\nQuy tắc QUAN TRỌNG về tồn kho — phải phân biệt 2 nguồn dữ liệu:\n"
+    "- 'Tồn kho xăng dầu' / 'tồn kho cả nước' / 'tồn kho hôm nay' (KHÔNG nhắc 'bán lẻ')\n"
+    "  → FUEL_INVENTORY_SUMMARY (mặc định = ĐẦU MỐI/THƯƠNG NHÂN, đây là số liệu chính lãnh đạo quan tâm)\n"
+    "- 'Tồn kho bán lẻ' / 'tồn kho cửa hàng' / 'cây xăng còn bao nhiêu' / 'trạm còn xăng'\n"
+    "  → RETAIL_FUEL_INVENTORY_SUMMARY (chỉ khi nói RÕ về bán lẻ/cửa hàng)\n"
+    "- 'Tồn kho theo vùng' / 'tồn kho miền' → FUEL_INVENTORY_BY_REGION (đầu mối, filter)\n"
+    "- 'Tồn kho theo doanh nghiệp đầu mối' / 'doanh nghiệp X tồn kho' → FUEL_INVENTORY_BY_HEAD_OFFICE\n"
+    "- 'Doanh nghiệp đầu mối tồn kho thấp' / 'xếp hạng thấp' → HEAD_OFFICE_LOW_STOCK_RANKING\n\n"
+    "Các quy tắc khác:\n"
     "- Giá / biến động giá / kỳ điều hành → FUEL_PRICE_TREND\n"
     "- Nhập xuất → IMPORT_EXPORT_SUMMARY\n"
     "- Mật độ cây xăng / phân tích tỉnh → STATION_DENSITY_ANALYSIS\n"

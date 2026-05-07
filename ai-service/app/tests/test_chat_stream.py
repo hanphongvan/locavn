@@ -11,6 +11,7 @@ from app.main import app, get_deps
 from app.security.guard import SecurityGuard
 from app.services.dotnet_api_client import DotnetApiClient
 from app.tools.fuel_inventory_tool import FuelInventoryTool
+from app.tools.retail_fuel_inventory_tool import RetailFuelInventoryTool
 from app.tools.fuel_price_tool import FuelPriceTool
 from app.tools.head_office_tool import HeadOfficeTool
 from app.tools.report_tool import ReportTool
@@ -33,11 +34,12 @@ def _build_overrides() -> Deps:
         guard=SecurityGuard(),
         dotnet=DotnetApiClient(settings),
         tools={
-            "fuel_inventory_summary":      FuelInventoryTool(**kwargs),
-            "fuel_price_trend":            FuelPriceTool(**kwargs),
-            "inventory_by_head_office":    HeadOfficeTool(**kwargs),
-            "station_density_by_province": StationMapTool(**kwargs),
-            "leader_report":               ReportTool(**kwargs),
+            "fuel_inventory_summary":         FuelInventoryTool(**kwargs),
+            "retail_fuel_inventory_summary":  RetailFuelInventoryTool(**kwargs),
+            "fuel_price_trend":               FuelPriceTool(**kwargs),
+            "inventory_by_head_office":       HeadOfficeTool(**kwargs),
+            "station_density_by_province":    StationMapTool(**kwargs),
+            "leader_report":                  ReportTool(**kwargs),
         },
     )
 

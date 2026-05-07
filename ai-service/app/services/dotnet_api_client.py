@@ -150,6 +150,10 @@ class DotnetApiClient:
     async def get_fuel_inventory(self, params: dict[str, Any]) -> dict[str, Any]:
         return await self._post_sp("/internal/ai/fuel-inventory", params)
 
+    async def get_retail_fuel_inventory(self, params: dict[str, Any]) -> dict[str, Any]:
+        """Phase 2A bugfix — chỉ trigger bởi intent RETAIL_FUEL_INVENTORY_SUMMARY."""
+        return await self._post_sp("/internal/ai/retail-fuel-inventory", params)
+
     async def get_fuel_price(self, params: dict[str, Any]) -> dict[str, Any]:
         return await self._post_sp("/internal/ai/fuel-price", params)
 
