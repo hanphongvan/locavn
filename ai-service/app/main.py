@@ -30,7 +30,7 @@ from .schemas.chat import ChatRequest, ChatResponse, RateLimitInfo, ReportReques
 from .security.guard import SecurityGuard
 from .services.cache_service import CacheService
 from .services.dotnet_api_client import DotnetApiClient
-from .services.llm_service import LlmService, OpenAiLlmService
+from .services.llm_service import LlmService, create_llm_service
 from .services.logging_service import configure_logging, get_logger
 from .services.metrics_service import (
     measure_request,
@@ -75,14 +75,16 @@ def get_llm_service(
     settings: Annotated[Settings, Depends(get_settings)],
     dotnet: Annotated[DotnetApiClient, Depends(get_dotnet_client)],
 ) -> LlmService:
-    router = ModelRouter.load(settings.models_yaml_path)
-    return OpenAiLlmService(router, dotnet_client=dotnet)
+    # Phase 4 — factory chọn provider theo LLM_MODE (CLOUD_API / LOCAL_ONLY / HYBRID_SAFE).
+    router = ModelRouter.load(settings.models_yaml_path, mode=settings.llm_mode)
+    return create_llm_service(settings, router, dotnet_client=dotnet)
 
 
 def get_tools(
     settings: Annotated[Settings, Depends(get_settings)],
     dotnet: Annotated[DotnetApiClient, Depends(get_dotnet_client)],
     cache: Annotated[CacheService, Depends(get_cache)],
+    llm: Annotated[LlmService, Depends(get_llm_service)],
 ) -> dict[str, BaseTool]:
     kwargs = {
         "mock_data_path": settings.mock_data_path,
@@ -90,19 +92,43 @@ def get_tools(
         "dotnet_client": dotnet,
         "cache": cache,
     }
+    inventory_tool = FuelInventoryTool(**kwargs)
+    price_tool = FuelPriceTool(**kwargs)
     tools: dict[str, BaseTool] = {
-        "fuel_inventory_summary":     FuelInventoryTool(**kwargs),
-        "fuel_price_trend":           FuelPriceTool(**kwargs),
+        "fuel_inventory_summary":     inventory_tool,
+        "fuel_price_trend":           price_tool,
         "inventory_by_head_office":   HeadOfficeTool(**kwargs),
         "station_density_by_province": StationMapTool(**kwargs),
-        # ReportTool không cần SP → use_mock=True luôn để bỏ qua dotnet_client check.
+        # ReportTool: Phase 3 cần LLM để sinh markdown 5 phần — wire LLM + upstream tools.
         "leader_report":              ReportTool(
             mock_data_path=settings.mock_data_path,
             use_mock=True,
             dotnet_client=dotnet,
             cache=cache,
+            llm=llm,
+            upstream_tools={
+                "fuel_inventory_summary": inventory_tool,
+                "fuel_price_trend": price_tool,
+            },
         ),
     }
+
+    # Phase 4 — DocumentRAGTool chỉ wire khi Qdrant URL được cấu hình.
+    # Nếu Qdrant down → tool sẽ fail soft và trả error thay vì crash app boot.
+    if settings.qdrant_url:
+        from .services.embedding_service import EmbeddingService
+        from .services.qdrant_service import QdrantService
+        from .tools.document_rag_tool import DocumentRAGTool
+
+        tools["document_rag"] = DocumentRAGTool(
+            embedding=EmbeddingService(base_url=settings.ollama_base_url),
+            qdrant=QdrantService(url=settings.qdrant_url),
+            mock_data_path=settings.mock_data_path,
+            use_mock=True,  # bypass BaseTool's dotnet check (RAG không gọi SP).
+            dotnet_client=dotnet,
+            cache=cache,
+        )
+
     return tools
 
 

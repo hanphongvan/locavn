@@ -54,8 +54,10 @@ _INTENT_TO_TOOLS: dict[str, list[str]] = {
     "STATION_MAP_LAYER": ["station_density_by_province"],
     "GENERATE_LEADER_REPORT": ["fuel_inventory_summary", "leader_report"],
     "IMPORT_EXPORT_SUMMARY": [],  # chưa có SP cho Phase 1B
-    "LEADER_DASHBOARD_EXPLAIN": [],
-    "HELP_USAGE": [],
+    # Phase 4 — RAG: 2 intent này thường hỏi giải đáp dashboard / hướng dẫn,
+    # tài liệu nghiệp vụ trong Qdrant cung cấp answer chính xác hơn LLM tự sinh.
+    "LEADER_DASHBOARD_EXPLAIN": ["document_rag"],
+    "HELP_USAGE": ["document_rag"],
     "UNKNOWN": [],
 }
 
@@ -303,6 +305,8 @@ async def planner(state: AgentState, deps: Deps) -> AgentState:
         "intent": intent,
         "tools": tools,
         "params": {
+            # Phase 4 — `query` cho DocumentRAGTool dùng resolved_question (đã expand từ context_resolver).
+            "query": state.get("resolved_question") or state.get("raw_question", ""),
             "fuel_type": raw_ctx.get("fuel_type"),
             "region_id": raw_ctx.get("region_id"),
             "province_id": raw_ctx.get("province_id"),
@@ -397,10 +401,18 @@ _ANALYZER_SYSTEM = (
 
 
 async def data_analyzer(state: AgentState, deps: Deps) -> AgentState:
-    """Section 2.1 #8 — sanitize tool result → LLM analyze → state.summary/chart."""
+    """Section 2.1 #8 — sanitize tool result → LLM analyze → state.summary/chart.
+
+    Phase 4: chạy `anomaly_detector` trước LLM, gắn cảnh báo vào summary +
+    đính kèm answerText prefix để lãnh đạo thấy ngay (Phase 4 yêu cầu 5).
+    """
     raw_results = state.get("tool_results") or []
     if not raw_results:
-        return {"summary": None, "table": None, "chart": None, "map": None}
+        return {"summary": None, "table": None, "chart": None, "map": None, "anomalies": []}
+
+    # Phase 4 — anomaly detection pure logic (không cần LLM).
+    from .anomaly_detector import detect_from_tool_results, format_warning_text
+    anomalies = detect_from_tool_results(raw_results)
 
     # Section 10.4 — sanitize TRƯỚC khi đưa vào LLM context.
     sanitized = [sanitize_for_llm(r) for r in raw_results]
@@ -413,35 +425,53 @@ async def data_analyzer(state: AgentState, deps: Deps) -> AgentState:
             table_rows = rows[:50]  # client UI hiển thị tối đa 50 row.
             break
 
+    # Phase 4 — đưa anomalies vào prompt để LLM nhận biết và đề xuất hành động.
+    analyzer_payload = {
+        "tool_results": sanitized,
+        "detected_anomalies": [a.to_dict() for a in anomalies],
+    }
+
     try:
         analyzed = await deps.llm.chat_json(
             messages=[
                 {"role": "system", "content": _ANALYZER_SYSTEM},
-                {"role": "user", "content": json.dumps(sanitized, ensure_ascii=False)},
+                {"role": "user", "content": json.dumps(analyzer_payload, ensure_ascii=False)},
             ],
             task="answer_composer",  # Section 10.2 — gpt-4o cho phân tích chính.
             timeout=20.0,
             max_tokens=600,
+            user_id=state.get("user_id"),
         )
     except LlmServiceError as ex:
         _logger.warning("data_analyzer.fallback", error=str(ex))
-        # Fallback: trả summary thuần từ tool, không sinh chart.
+        # Fallback: trả summary thuần từ tool + anomalies, không sinh chart.
         first = raw_results[0]
+        warning_prefix = format_warning_text(anomalies)
         return {
-            "summary": first.get("summary"),
+            "summary": {**(first.get("summary") or {}), "warningPrefix": warning_prefix},
             "table": table_rows,
             "chart": None,
             "map": None,
+            "anomalies": [a.to_dict() for a in anomalies],
         }
 
     chart = analyzed.get("chart")
     if chart and not isinstance(chart, dict):
         chart = None
+
+    summary = analyzed.get("summary") or {}
+    if anomalies:
+        summary = {**summary, "anomalies": [a.to_dict() for a in anomalies]}
+        warning_prefix = format_warning_text(anomalies)
+        if warning_prefix:
+            summary["warningPrefix"] = warning_prefix
+
     return {
-        "summary": analyzed.get("summary"),
+        "summary": summary,
         "table": table_rows,
         "chart": chart,
         "map": None,
+        "anomalies": [a.to_dict() for a in anomalies],
     }
 
 
@@ -595,6 +625,13 @@ async def answer_composer(state: AgentState, deps: Deps) -> AgentState:
 
     if not answer_text:
         answer_text = _template_answer(state)
+
+    # Phase 4 — chèn cảnh báo (LOW_STOCK / STOCK_DROP_SHARP / ...) vào đầu answerText
+    # để lãnh đạo thấy trước khi đọc nội dung phân tích chính.
+    summary = state.get("summary") or {}
+    warning_prefix = summary.get("warningPrefix") if isinstance(summary, dict) else None
+    if isinstance(warning_prefix, str) and warning_prefix.strip():
+        answer_text = f"{warning_prefix}\n\n{answer_text}"
 
     suggestions: list[str] = []
     try:

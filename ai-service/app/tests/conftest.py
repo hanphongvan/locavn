@@ -41,6 +41,7 @@ class FakeLlmService:
         *,
         timeout: float = 30.0,
         max_tokens: int | None = None,
+        user_id: int | None = None,
     ) -> str:
         self.calls.append((task, messages))
         result = self.responses_text.get(task, "")
@@ -53,6 +54,7 @@ class FakeLlmService:
         *,
         timeout: float = 30.0,
         max_tokens: int | None = None,
+        user_id: int | None = None,
     ) -> dict[str, Any]:
         self.calls.append((task, messages))
         result = self.responses_json.get(task)

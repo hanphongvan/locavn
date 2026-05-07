@@ -13,6 +13,10 @@ redis==5.2.1                # async qua redis.asyncio (aioredis đã merge từ 
 markdown==3.7
 xhtml2pdf==0.2.16           # pure-Python markdown→HTML→PDF, không cần GTK/wkhtmltopdf
 
+# Phase 4 — RAG + Local LLM
+qdrant-client==1.12.1       # Vector DB; embeddings từ Ollama bge-m3 nên không cần torch.
+pypdf==5.1.0                # đọc PDF cho index_documents.py
+
 # LLM stack
 openai==1.59.6
 langchain==0.3.13

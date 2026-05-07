@@ -5,11 +5,17 @@ Branch logic (e.g. UNKNOWN bypass tool_executor) sẽ tinh chỉnh ở Phase 2+.
 """
 from __future__ import annotations
 
+import time
+
 from langgraph.graph import END, StateGraph
 
+from ..services.logging_service import get_logger
+from ..services.metrics_service import ai_tool_duration_ms
 from . import nodes
 from .nodes import Deps
 from .state import AgentState
+
+_logger = get_logger(__name__)
 
 
 def build_graph(deps: Deps):
@@ -43,9 +49,34 @@ def build_graph(deps: Deps):
 
 
 def _bind(func, deps: Deps):
-    """Tạo closure async với deps cố định để LangGraph chỉ cần truyền state."""
-    async def runner(state: AgentState):
-        return await func(state, deps)
+    """Tạo closure async với deps cố định + Phase 4 latency tracking.
 
-    runner.__name__ = func.__name__
+    Re-use `ai_tool_duration_ms` (label `tool=node:<name>`) để cùng dashboard
+    Grafana hiển thị tool + node latency. Log warning nếu node > 10s
+    (Phase 4 yêu cầu 6) để alert khi prompt phình to.
+    """
+    node_name = func.__name__
+    metric_label = f"node:{node_name}"
+
+    async def runner(state: AgentState):
+        started = time.perf_counter()
+        try:
+            result = await func(state, deps)
+            elapsed_ms = (time.perf_counter() - started) * 1000
+            ai_tool_duration_ms.labels(tool=metric_label, status="success").observe(elapsed_ms)
+            if elapsed_ms > 10_000:
+                _logger.warning(
+                    "node.slow",
+                    node=node_name,
+                    duration_ms=int(elapsed_ms),
+                    threshold_ms=10_000,
+                    suggestion="reduce prompt size hoặc tách bước",
+                )
+            return result
+        except Exception:
+            elapsed_ms = (time.perf_counter() - started) * 1000
+            ai_tool_duration_ms.labels(tool=metric_label, status="error").observe(elapsed_ms)
+            raise
+
+    runner.__name__ = node_name
     return runner

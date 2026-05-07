@@ -50,6 +50,9 @@ class AgentState(TypedDict, total=False):
     chart: dict[str, Any] | None
     map: dict[str, Any] | None
 
+    #: Phase 4 — list anomaly từ `anomaly_detector` (LOW_STOCK / STOCK_DROP_SHARP / LOW_DENSITY).
+    anomalies: list[dict[str, Any]]
+
     # === Context update (node 9) ===
     last_result_ref: str | None
 
