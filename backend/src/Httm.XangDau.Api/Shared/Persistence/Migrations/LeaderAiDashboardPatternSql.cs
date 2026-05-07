@@ -131,7 +131,7 @@ internal static class LeaderAiDashboardPatternSql
                 END,
                 RegionId    = CAST(NULL AS INT),
                 RegionName  = CAST(NULL AS NVARCHAR(200)),
-                AsOfDate    = DATEFROMPARTS(@Nam, @Thang, 1),
+                AsOfDate    = EOMONTH(DATEFROMPARTS(@Nam, @Thang, 1)),
                 DaysOfStock = CASE
                     WHEN (c.TonDau + c.NhapTrongKy - c.TonCuoi) > 0
                     THEN CAST(c.TonCuoi / ((c.TonDau + c.NhapTrongKy - c.TonCuoi) / 30.0) AS INT)
