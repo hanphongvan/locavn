@@ -19,9 +19,9 @@ public sealed record LeaderAiChatContext(
 /// Body của <c>POST /api/leader-ai/chat</c>.
 /// </summary>
 public sealed record LeaderAiChatRequest(
-    // Cú pháp [property: ...] để DataAnnotation áp lên property auto-gen của record positional —
-    // [Required] trên parameter không tự propagate xuống property nên ModelValidation sẽ bỏ qua.
-    [property: Required(AllowEmptyStrings = false), MinLength(1), MaxLength(2000)]
+    // Validation phải gắn parameter của primary constructor (không dùng [property: ...]) —
+    // ASP.NET Core model validation sẽ ném InvalidOperationException nếu chỉ có metadata trên property.
+    [Required(AllowEmptyStrings = false), MinLength(1), MaxLength(2000)]
     string Message,
     Guid? ConversationId,
     LeaderAiChatContext? Context);

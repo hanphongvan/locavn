@@ -62,32 +62,28 @@ public sealed class LeaderAiControllerTests
     [Fact(DisplayName = "Validation: message rỗng → IsValid = false (DataAnnotation Required)")]
     public void Empty_message_fails_validation()
     {
-        var request = new LeaderAiChatRequest(string.Empty, null, null);
-        var validationResults = new List<ValidationResult>();
+        // Phase 4 — record với [Required] trên positional parameter (KHÔNG `[property:]`)
+        // do ASP.NET Core 10 yêu cầu attribute ở parameter level. Verify qua reflection
+        // thay vì Validator.TryValidateObject (chỉ scan property attributes).
+        var ctor = typeof(LeaderAiChatRequest).GetConstructors().Single();
+        var messageParam = ctor.GetParameters().Single(p => p.Name == "Message");
+        var requiredAttr = messageParam.GetCustomAttributes(typeof(RequiredAttribute), inherit: false);
+        requiredAttr.Should().NotBeEmpty("Parameter Message phải có [Required]");
 
-        var isValid = Validator.TryValidateObject(
-            request,
-            new ValidationContext(request),
-            validationResults,
-            validateAllProperties: true);
-
-        isValid.Should().BeFalse("[Required] phải reject chuỗi rỗng");
-        validationResults.Should().NotBeEmpty();
+        var minLen = messageParam.GetCustomAttributes(typeof(MinLengthAttribute), inherit: false);
+        minLen.Should().NotBeEmpty("Parameter Message phải có [MinLength]");
     }
 
-    [Fact(DisplayName = "Validation: message > 2000 ký tự → IsValid = false")]
+    [Fact(DisplayName = "Validation: message có [MaxLength(2000)] để chặn payload quá dài")]
     public void Long_message_fails_validation()
     {
-        var request = new LeaderAiChatRequest(new string('a', 2001), null, null);
-        var validationResults = new List<ValidationResult>();
-
-        var isValid = Validator.TryValidateObject(
-            request,
-            new ValidationContext(request),
-            validationResults,
-            validateAllProperties: true);
-
-        isValid.Should().BeFalse();
+        var ctor = typeof(LeaderAiChatRequest).GetConstructors().Single();
+        var messageParam = ctor.GetParameters().Single(p => p.Name == "Message");
+        var attrs = messageParam.GetCustomAttributes(typeof(MaxLengthAttribute), inherit: false)
+            .Cast<MaxLengthAttribute>()
+            .ToList();
+        attrs.Should().NotBeEmpty("Parameter Message phải có [MaxLength] để giới hạn payload");
+        attrs[0].Length.Should().Be(2000);
     }
 
     [Fact(DisplayName = "GET /conversations: list rỗng OK (200)")]

@@ -93,13 +93,8 @@ public sealed class RateLimitMiddleware(RequestDelegate next, ILogger<RateLimitM
 
     private static bool TryGetUserId(ClaimsPrincipal user, out int userId)
     {
-        // Portal JWT chuẩn dùng NameIdentifier (đã map từ "sub").
-        var nameId = user.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (int.TryParse(nameId, out userId))
-            return true;
-
-        var sub = user.FindFirstValue("sub");
-        return int.TryParse(sub, out userId);
+        // Phase 4 — dùng UserIdentityResolver để xử lý cả int legacy + GUID Identity.
+        return UserIdentityResolver.TryResolve(user, out userId, out _);
     }
 
     private static void SetRateLimitHeaders(HttpResponse response, AiRateLimitResult result)

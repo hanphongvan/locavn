@@ -192,8 +192,9 @@ public sealed class LeaderAiController(
         userId = 0;
         userLoai = 0;
 
-        var nameId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
-        if (!int.TryParse(nameId, NumberStyles.Integer, CultureInfo.InvariantCulture, out userId))
+        // Phase 4 — dùng UserIdentityResolver để xử lý cả int legacy và GUID Identity
+        // (`AspNetUsers.Id` là string GUID, hash → stable Int32 dương).
+        if (!UserIdentityResolver.TryResolve(User, out userId, out _))
             return false;
 
         var loaiClaim = User.FindFirstValue("Loai");
