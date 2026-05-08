@@ -69,6 +69,17 @@ class Settings(BaseSettings):
     # === Qdrant (Phase 4) ===
     qdrant_url: str = Field(default="http://localhost:6333")
 
+    # === Phase 5F — Dynamic query DB connection (ai_readonly user) ===
+    # Empty default → ReadonlyDb degrade gracefully (không wire DynamicQueryTool).
+    # Format: ODBC connection string đầy đủ, vd:
+    #   "DRIVER={ODBC Driver 18 for SQL Server};SERVER=localhost,1433;
+    #    DATABASE=DMP;UID=ai_readonly;PWD=...;TrustServerCertificate=yes"
+    ai_readonly_connection_string: str = Field(default="")
+    ai_readonly_pool_size: int = Field(default=5)
+    ai_readonly_query_timeout: int = Field(default=10)   # seconds
+    ai_readonly_lock_timeout_ms: int = Field(default=5000)
+    ai_readonly_query_governor_cost_limit: int = Field(default=30)
+
     @property
     def models_yaml_path(self) -> Path:
         """Đường dẫn tuyệt đối tới `app/config/models.yaml`."""
