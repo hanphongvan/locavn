@@ -1,0 +1,44 @@
+# =============================================================================
+# LocaVN — root docker-compose
+#
+# Hiện tại chỉ orchestrate Qdrant cho RAG (Phase 4: loca_documents,
+# Phase 5D dự kiến: ai_schema_catalog).
+#
+# AI Gateway (ai-service/) và Ollama vẫn chạy uvicorn/local trên host
+# nên QDRANT_URL trong ai-service/.env trỏ http://localhost:6333.
+# Network locavn-ai-network được khai báo sẵn để sau này compose-hoá
+# AI Gateway có thể join chung mà không phải sửa Qdrant.
+#
+# Quản lý qua scripts/qdrant-{up,down,status,reset}.sh
+# Tài liệu: docs/infrastructure/qdrant-setup.md
+# =============================================================================
+
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.12.1   # PIN: phải match qdrant-client trong ai-service/requirements.txt
+    container_name: locavn-qdrant
+    restart: unless-stopped
+    ports:
+      - "6333:6333"   # HTTP REST API
+      - "6334:6334"   # gRPC
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    healthcheck:
+      # Image qdrant/qdrant minimal: KHÔNG có curl/wget. Dùng bash TCP probe
+      # vào port 6333 để xác nhận server đang lắng nghe.
+      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/6333' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - locavn-ai-network
+
+volumes:
+  qdrant_storage:
+    name: locavn-qdrant-storage
+
+networks:
+  locavn-ai-network:
+    name: locavn-ai-network
+    driver: bridge
