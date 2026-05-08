@@ -266,6 +266,102 @@ class DotnetApiClient:
             _logger.warning("dotnet_api.log_tool_call_failed", error=str(ex), tool_name=tool_name)
 
     # ------------------------------------------------------------------
+    # Phase 5F — Dynamic query log + candidate intent upsert
+    # ------------------------------------------------------------------
+
+    async def log_dynamic_query(
+        self,
+        *,
+        log_id: str,
+        conversation_id: str | None,
+        message_id: str | None,
+        user_id: int,
+        original_question: str,
+        normalized_question: str | None,
+        entity_code: str | None,
+        plan_json: str | None,
+        generated_sql: str | None,
+        sql_parameters: str | None,
+        rows_returned: int | None,
+        duration_ms: int,
+        status: str,
+        error_message: str | None,
+        safety_checks_json: str | None,
+        confidence_score: float | None,
+    ) -> None:
+        """Phase 5F — best-effort write `AiDynamicQueryLogs`. Status enum
+        khớp CK_AiDynamicQueryLogs_Status (Phase 5A migration)."""
+        if not self._internal_key:
+            return
+        payload = {
+            "logId": log_id,
+            "conversationId": conversation_id,
+            "messageId": message_id,
+            "userId": user_id,
+            "originalQuestion": original_question,
+            "normalizedQuestion": normalized_question,
+            "entityCode": entity_code,
+            "planJson": plan_json,
+            "generatedSql": generated_sql,
+            "sqlParameters": sql_parameters,
+            "rowsReturned": rows_returned,
+            "durationMs": duration_ms,
+            "status": status,
+            "errorMessage": error_message,
+            "safetyChecksJson": safety_checks_json,
+            "confidenceScore": confidence_score,
+        }
+        try:
+            async with httpx.AsyncClient(timeout=self.LOG_TIMEOUT) as client:
+                await client.post(
+                    f"{self._base_url}/internal/ai/dynamic-query-log",
+                    json=payload,
+                    headers={self.INTERNAL_KEY_HEADER: self._internal_key},
+                )
+        except (httpx.HTTPError, httpx.TimeoutException) as ex:
+            _logger.warning(
+                "dotnet_api.log_dynamic_query_failed",
+                log_id=log_id, status=status, error=str(ex),
+            )
+
+    async def upsert_candidate_intent(
+        self,
+        *,
+        question_fingerprint: str,
+        sample_question: str,
+        normalized_question: str,
+        entity_code: str,
+        plan_json: str,
+    ) -> None:
+        """Phase 5F → 5G self-improving — UPSERT `AiCandidateIntents`. Best-effort.
+
+        IF EXISTS (cùng QuestionFingerprint): UsageCount += 1, SuccessCount += 1,
+            LastUsedAt = SYSUTCDATETIME(). Status giữ nguyên.
+        ELSE: INSERT mới với Status='pending', UsageCount=1, SuccessCount=1.
+        """
+        if not self._internal_key:
+            return
+        payload = {
+            "questionFingerprint": question_fingerprint,
+            "sampleQuestion": sample_question,
+            "normalizedQuestion": normalized_question,
+            "entityCode": entity_code,
+            "generatedPlanJson": plan_json,
+        }
+        try:
+            async with httpx.AsyncClient(timeout=self.LOG_TIMEOUT) as client:
+                await client.post(
+                    f"{self._base_url}/internal/ai/candidate-intent",
+                    json=payload,
+                    headers={self.INTERNAL_KEY_HEADER: self._internal_key},
+                )
+        except (httpx.HTTPError, httpx.TimeoutException) as ex:
+            _logger.warning(
+                "dotnet_api.upsert_candidate_intent_failed",
+                fingerprint=question_fingerprint, error=str(ex),
+            )
+
+    # ------------------------------------------------------------------
     # Internals
     # ------------------------------------------------------------------
 
