@@ -24,6 +24,7 @@ from .agents.fallback import (
 )
 from .agents.graph import build_graph
 from .agents.nodes import Deps
+from .agents.plan_generator import QueryPlanGenerator
 from .agents.state import AgentState
 from .config import Settings, get_settings
 from .schemas.chat import ChatRequest, ChatResponse, RateLimitInfo, ReportRequest, ReportResponse
@@ -71,6 +72,11 @@ _llm_service_cache: dict[str, LlmService] = {}
 #: None khi Qdrant không cấu hình → graph degrade (UNKNOWN intent về answer_composer
 #: trả message generic). Lazy build trong factory để app boot không fail.
 _schema_retriever_singleton = None
+
+#: Phase 5E — singleton QueryPlanGenerator (state-less, có thể share). Cache
+#: theo `id(LlmService)` vì LlmService có thể swap khi admin đổi LLM_MODE
+#: runtime — sub-instance khác nhau cho từng mode.
+_plan_generator_cache: dict[int, QueryPlanGenerator] = {}
 
 
 def get_security_guard() -> SecurityGuard:
@@ -201,6 +207,22 @@ def get_schema_retriever(
     return _schema_retriever_singleton
 
 
+def get_plan_generator(
+    llm: Annotated[LlmService, Depends(get_llm_service)],
+) -> QueryPlanGenerator:
+    """Phase 5E — singleton QueryPlanGenerator per LlmService instance.
+
+    Re-init khi admin đổi LLM_MODE (LlmService instance đổi → cache miss).
+    Prompt template load 1 lần ở constructor → tránh disk IO mỗi request.
+    """
+    cached = _plan_generator_cache.get(id(llm))
+    if cached is not None:
+        return cached
+    generator = QueryPlanGenerator(llm=llm)
+    _plan_generator_cache[id(llm)] = generator
+    return generator
+
+
 def get_deps(
     llm: Annotated[LlmService, Depends(get_llm_service)],
     guard: Annotated[SecurityGuard, Depends(get_security_guard)],
@@ -209,6 +231,9 @@ def get_deps(
     schema_retriever: Annotated[
         SchemaRetriever | None, Depends(get_schema_retriever)
     ] = None,
+    plan_generator: Annotated[
+        QueryPlanGenerator, Depends(get_plan_generator)
+    ] = None,
 ) -> Deps:
     return Deps(
         llm=llm,
@@ -216,6 +241,7 @@ def get_deps(
         dotnet=dotnet,
         tools=tools,
         schema_retriever=schema_retriever,
+        plan_generator=plan_generator,
     )
 
 
