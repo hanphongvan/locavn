@@ -790,29 +790,56 @@ async def answer_composer(state: AgentState, deps: Deps) -> AgentState:
     """Section 2.1 #10 — sinh `answer_text` + 3 câu gợi ý.
 
     Ưu tiên format cho UNKNOWN intent:
-    1. Phase 5E — `query_plan` hợp lệ + confidence ≥ PLAN_CONFIDENCE_THRESHOLD
-       → render plan markdown preview tự nhiên hoá. KHÔNG gọi LLM.
-    2. Phase 5D — `candidate_entities` không rỗng → liệt kê candidate
-       (placeholder, dùng khi plan generation fail / confidence thấp).
-    3. Fallback template UNKNOWN generic.
+    1. Phase 5F — `query_result.status == 'success'` → render data table
+       với plan context. KHÔNG gọi LLM (deterministic format).
+    2. Phase 5F — `query_result.status` là failure (safety_blocked/timeout/
+       execution_failed/sql_invalid) → fallback render plan preview Phase 5E
+       + Vietnamese error message kèm.
+    3. Phase 5F — `query_result.status == 'no_data'` → render plan preview
+       + thông báo "không có dữ liệu khớp".
+    4. Phase 5E — plan hợp lệ + confidence ≥ threshold + KHÔNG có
+       query_result (executor skip vì tool degrade) → render plan preview.
+    5. Phase 5D — `candidate_entities` không rỗng → liệt kê candidate.
+    6. Fallback template UNKNOWN generic.
     """
     intent = state.get("intent", "UNKNOWN")
     candidates = state.get("candidate_entities") or []
     query_plan = state.get("query_plan")
     plan_confidence = state.get("plan_confidence")
+    query_result = state.get("query_result")
 
-    # Phase 5E early-return: plan hợp lệ + confidence cao → render preview.
-    if (
-        intent == "UNKNOWN"
-        and isinstance(query_plan, dict)
-        and isinstance(plan_confidence, (int, float))
-        and plan_confidence >= PLAN_CONFIDENCE_THRESHOLD
-    ):
-        return _format_plan_response(query_plan, candidates)
+    if intent == "UNKNOWN":
+        # Phase 5F — có query_result → render theo status.
+        if isinstance(query_result, dict):
+            status = query_result.get("status")
+            if status == "success":
+                return _format_dynamic_query_response(
+                    query_plan=query_plan, candidates=candidates,
+                    query_result=query_result,
+                )
+            if status == "no_data":
+                return _format_no_data_response(
+                    query_plan=query_plan, candidates=candidates,
+                )
+            # Failure status: fallback Phase 5E preview + thông báo lỗi.
+            if isinstance(query_plan, dict):
+                return _format_plan_response(
+                    query_plan, candidates,
+                    query_failure_status=status,
+                    query_failure_message=query_result.get("error_message"),
+                )
 
-    # Phase 5D fallback: UNKNOWN + có candidate → format response liệt kê.
-    if intent == "UNKNOWN" and candidates:
-        return _format_candidate_entities_response(candidates)
+        # Phase 5E early-return: plan hợp lệ + confidence cao → render preview.
+        if (
+            isinstance(query_plan, dict)
+            and isinstance(plan_confidence, (int, float))
+            and plan_confidence >= PLAN_CONFIDENCE_THRESHOLD
+        ):
+            return _format_plan_response(query_plan, candidates)
+
+        # Phase 5D fallback: UNKNOWN + có candidate → format response liệt kê.
+        if candidates:
+            return _format_candidate_entities_response(candidates)
 
     # Báo cáo: đã có report_markdown trong tool_results → đưa thẳng.
     report_markdown: str | None = None
@@ -898,18 +925,19 @@ def _answer_type_for(state: AgentState, report_markdown: str | None) -> str:
 def _format_plan_response(
     plan: dict[str, Any],
     candidates: list[dict[str, Any]],
+    *,
+    query_failure_status: str | None = None,
+    query_failure_message: str | None = None,
 ) -> dict[str, Any]:
-    """Phase 5E — render QueryPlan thành markdown preview tự nhiên hoá.
+    """Phase 5E/5F — render QueryPlan thành markdown preview tự nhiên hoá.
 
-    KHÔNG sinh SQL string (đó là Phase 5F). Chỉ tóm tắt:
-    - Entity được chọn (display_name từ candidate).
-    - Filter quan trọng (Việt hoá column → giá trị).
-    - Aggregate / orderBy / limit.
-    - analysisIntent nếu có.
-    - Confidence + explanation.
+    Phase 5E: chỉ preview plan (chưa exec).
+    Phase 5F: nếu `query_failure_status` set, kèm thông báo lỗi đã xảy ra
+    khi exec (timeout/safety_blocked/...) — user thấy vì sao không có data
+    + có thể formulate lại câu hỏi.
 
-    Suggested questions: lấy sample đầu tiên của top 3 candidate (giúp user
-    formulate câu hỏi tinh hơn cho lượt tới).
+    KHÔNG sinh SQL string. Chỉ tóm tắt entity / filter / aggregate /
+    analysisIntent / confidence + suggested questions.
     """
     entity_code = plan.get("entity") or ""
     display_name = entity_code
@@ -965,10 +993,23 @@ def _format_plan_response(
         )
 
     lines.append("")
-    lines.append(
-        f"Mức tự tin của em: **{confidence:.0%}**. "
-        "Phase 5F sẽ thực thi truy vấn — hiện tại em chỉ trình bày kế hoạch để anh/chị xác nhận."
-    )
+    if query_failure_status is None:
+        lines.append(
+            f"Mức tự tin của em: **{confidence:.0%}**. "
+            "Hệ thống đang trình bày kế hoạch — anh/chị có thể đặt câu hỏi cụ thể hơn nếu cần."
+        )
+    else:
+        # Phase 5F failure paths — user-facing Vietnamese message.
+        failure_label = _VN_QUERY_FAILURE_LABEL.get(
+            query_failure_status, "không thể truy vấn dữ liệu"
+        )
+        lines.append(f"⚠️ Truy vấn không hoàn tất: **{failure_label}**.")
+        if query_failure_message:
+            # Trim nội dung kỹ thuật, chỉ hiển thị tóm tắt.
+            lines.append(f"_Chi tiết: {query_failure_message[:200]}_")
+        lines.append(
+            "Anh/chị có thể thu hẹp khoảng thời gian / điều kiện và hỏi lại."
+        )
 
     suggestions: list[str] = []
     for cand in candidates[:3]:
@@ -994,6 +1035,122 @@ _VN_INTENT_LABEL: dict[str, str] = {
     "rank_by_change": "Xếp hạng theo mức tăng/giảm",
     "latest_per_group": "Lấy giá trị mới nhất của mỗi nhóm",
 }
+
+
+# Phase 5F — DynamicQueryResult.status → user-facing Vietnamese label.
+_VN_QUERY_FAILURE_LABEL: dict[str, str] = {
+    "sql_invalid": "lỗi cấu trúc truy vấn",
+    "safety_blocked": "vi phạm chính sách bảo mật",
+    "execution_failed": "lỗi cơ sở dữ liệu",
+    "timeout": "truy vấn vượt thời gian cho phép",
+    "plan_invalid": "kế hoạch truy vấn không hợp lệ",
+}
+
+
+# Số dòng tối đa hiển thị trong markdown table response (UI-friendly).
+_RESPONSE_TABLE_PREVIEW_ROWS = 20
+
+
+def _format_dynamic_query_response(
+    *,
+    query_plan: dict[str, Any] | None,
+    candidates: list[dict[str, Any]],
+    query_result: dict[str, Any],
+) -> dict[str, Any]:
+    """Phase 5F — render kết quả `success` thành markdown table + plan
+    context. KHÔNG gọi LLM (deterministic format).
+
+    State output:
+    - `answer_text`: markdown summary
+    - `answer_type`: "mixed" (có table)
+    - `table`: list dict (rows) → client UI render thành table riêng
+    """
+    rows = query_result.get("rows") or []
+    rows_count = int(query_result.get("rows_returned") or len(rows))
+    duration_ms = int(query_result.get("duration_ms") or 0)
+
+    entity_code = (query_plan or {}).get("entity") or ""
+    display_name = entity_code
+    explanation = ""
+    if isinstance(query_plan, dict):
+        explanation = (query_plan.get("explanation") or "").strip()
+    for c in candidates:
+        if c.get("entity_code") == entity_code:
+            display_name = c.get("display_name") or entity_code
+            break
+
+    lines: list[str] = []
+    lines.append(
+        f"Em đã tổng hợp **{rows_count} dòng** dữ liệu từ "
+        f"**{display_name}** trong {duration_ms}ms."
+    )
+    if explanation:
+        lines.append("")
+        lines.append(f"_{explanation}_")
+
+    # Inline preview top N rows trong markdown — client UI có thể render
+    # table riêng từ state.table (không bắt buộc đọc qua answer_text).
+    preview_rows = rows[:_RESPONSE_TABLE_PREVIEW_ROWS]
+    if preview_rows:
+        lines.append("")
+        columns = list(preview_rows[0].keys())
+        lines.append("| " + " | ".join(columns) + " |")
+        lines.append("|" + "|".join(["---"] * len(columns)) + "|")
+        for row in preview_rows:
+            cell_values = [_stringify_cell(row.get(c)) for c in columns]
+            lines.append("| " + " | ".join(cell_values) + " |")
+        if rows_count > len(preview_rows):
+            lines.append("")
+            lines.append(
+                f"_Hiển thị {len(preview_rows)}/{rows_count} dòng. Anh/chị "
+                "có thể xuất file để xem đầy đủ._"
+            )
+
+    suggestions: list[str] = []
+    for cand in candidates[:3]:
+        samples = cand.get("sample_questions") or []
+        if samples:
+            suggestions.append(samples[0])
+    while len(suggestions) < 3:
+        suggestions.append("So sánh với kỳ trước để xem biến động.")
+        if len(suggestions) >= 3:
+            break
+
+    return {
+        "answer_text": "\n".join(lines),
+        "answer_type": "mixed" if preview_rows else "text",
+        "suggested_questions": suggestions[:3],
+        "report_markdown": None,
+        "table": preview_rows,
+    }
+
+
+def _format_no_data_response(
+    *,
+    query_plan: dict[str, Any] | None,
+    candidates: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Phase 5F — query exec OK nhưng 0 row. Render plan preview + thông báo."""
+    base = _format_plan_response(
+        query_plan or {}, candidates,
+        query_failure_status=None,   # không phải failure
+    )
+    base["answer_text"] = (
+        "ℹ️ Em không tìm thấy dòng dữ liệu nào khớp các điều kiện đã đặt.\n\n"
+        + base["answer_text"]
+    )
+    return base
+
+
+def _stringify_cell(value: Any) -> str:
+    """Convert 1 cell value sang string an toàn cho markdown table.
+    None → '—', bool → Có/Không, datetime → ISO, escape `|`."""
+    if value is None:
+        return "—"
+    if isinstance(value, bool):
+        return "Có" if value else "Không"
+    s = str(value)
+    return s.replace("|", "\\|").replace("\n", " ")
 
 
 def _format_filter_line(f: dict[str, Any]) -> str:
