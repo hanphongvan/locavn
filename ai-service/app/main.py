@@ -24,6 +24,7 @@ from .agents.fallback import (
 )
 from .agents.graph import build_graph
 from .agents.nodes import Deps
+from .agents.plan_generator import QueryPlanGenerator
 from .agents.state import AgentState
 from .config import Settings, get_settings
 from .schemas.chat import ChatRequest, ChatResponse, RateLimitInfo, ReportRequest, ReportResponse
@@ -41,6 +42,7 @@ from .services.metrics_service import (
 )
 from .services.model_router import ModelRouter
 from .services.pdf_service import PdfRenderError, render_markdown_to_pdf
+from .services.schema_retriever import SchemaRetriever
 from .tools.base_tool import BaseTool
 from .tools.fuel_inventory_tool import FuelInventoryTool
 from .tools.retail_fuel_inventory_tool import RetailFuelInventoryTool
@@ -65,6 +67,16 @@ _llm_mode_manager: LlmModeManager | None = None
 
 #: Cache LlmService theo mode để khi switch không phải re-init OpenAI client mỗi request.
 _llm_service_cache: dict[str, LlmService] = {}
+
+#: Phase 5D — singleton SchemaRetriever (Qdrant collection ai_schema_catalog).
+#: None khi Qdrant không cấu hình → graph degrade (UNKNOWN intent về answer_composer
+#: trả message generic). Lazy build trong factory để app boot không fail.
+_schema_retriever_singleton = None
+
+#: Phase 5E — singleton QueryPlanGenerator (state-less, có thể share). Cache
+#: theo `id(LlmService)` vì LlmService có thể swap khi admin đổi LLM_MODE
+#: runtime — sub-instance khác nhau cho từng mode.
+_plan_generator_cache: dict[int, QueryPlanGenerator] = {}
 
 
 def get_security_guard() -> SecurityGuard:
@@ -164,13 +176,73 @@ def get_tools(
     return tools
 
 
+def get_schema_retriever(
+    settings: Annotated[Settings, Depends(get_settings)],
+    dotnet: Annotated[DotnetApiClient, Depends(get_dotnet_client)],
+) -> SchemaRetriever | None:
+    """Phase 5D — singleton SchemaRetriever wired vào collection ai_schema_catalog.
+
+    Lazy build deps (EmbeddingService + QdrantService) chỉ khi Qdrant cấu hình.
+    Nếu `qdrant_url` rỗng → trả None, graph degrade (UNKNOWN intent đi
+    answer_composer template).
+    """
+    global _schema_retriever_singleton
+    if _schema_retriever_singleton is not None:
+        return _schema_retriever_singleton
+    if not settings.qdrant_url:
+        return None
+    from .services.embedding_service import EmbeddingService
+    from .services.qdrant_service import QdrantService
+    from .services.schema_retriever import SCHEMA_COLLECTION_NAME, SCHEMA_VECTOR_SIZE
+
+    _schema_retriever_singleton = SchemaRetriever(
+        embedding=EmbeddingService(base_url=settings.ollama_base_url),
+        qdrant=QdrantService(
+            url=settings.qdrant_url,
+            collection=SCHEMA_COLLECTION_NAME,
+            vector_size=SCHEMA_VECTOR_SIZE,
+        ),
+        dotnet=dotnet,
+    )
+    return _schema_retriever_singleton
+
+
+def get_plan_generator(
+    llm: Annotated[LlmService, Depends(get_llm_service)],
+) -> QueryPlanGenerator:
+    """Phase 5E — singleton QueryPlanGenerator per LlmService instance.
+
+    Re-init khi admin đổi LLM_MODE (LlmService instance đổi → cache miss).
+    Prompt template load 1 lần ở constructor → tránh disk IO mỗi request.
+    """
+    cached = _plan_generator_cache.get(id(llm))
+    if cached is not None:
+        return cached
+    generator = QueryPlanGenerator(llm=llm)
+    _plan_generator_cache[id(llm)] = generator
+    return generator
+
+
 def get_deps(
     llm: Annotated[LlmService, Depends(get_llm_service)],
     guard: Annotated[SecurityGuard, Depends(get_security_guard)],
     dotnet: Annotated[DotnetApiClient, Depends(get_dotnet_client)],
     tools: Annotated[dict, Depends(get_tools)],
+    schema_retriever: Annotated[
+        SchemaRetriever | None, Depends(get_schema_retriever)
+    ] = None,
+    plan_generator: Annotated[
+        QueryPlanGenerator, Depends(get_plan_generator)
+    ] = None,
 ) -> Deps:
-    return Deps(llm=llm, guard=guard, dotnet=dotnet, tools=tools)
+    return Deps(
+        llm=llm,
+        guard=guard,
+        dotnet=dotnet,
+        tools=tools,
+        schema_retriever=schema_retriever,
+        plan_generator=plan_generator,
+    )
 
 
 # ---------------------------------------------------------------------------

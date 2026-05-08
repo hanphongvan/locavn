@@ -89,3 +89,44 @@ public sealed record AiStationDensityRow(
 public sealed record AiInternalRowsResponse<T>(
     IReadOnlyList<T> Rows,
     int Count);
+
+// === Phase 5D — Schema Catalog (Section 8 + 14.4 của docs/loca-ai-phase5.md) ===
+
+/// <summary>
+/// Entry trả về cho AI Gateway từ <c>GET /internal/ai/schema-catalog</c>.
+/// Các field JSON trong DB (<c>AllowedColumnsJson</c>, ...) đã được data access
+/// deserialize sẵn để Python không phải parse lần nữa khi index Qdrant.
+/// </summary>
+/// <remarks>
+/// Endpoint chỉ trả entity <c>IsEnabled = 1</c> nên DTO không expose field
+/// <c>IsEnabled</c> (luôn true). Phase 5G nếu cần admin view sẽ tạo DTO riêng.
+/// <para>
+/// <see cref="AllowedJoins"/> phân biệt 2 trạng thái: <c>null</c> = entity không
+/// khai báo joins (DB lưu SQL NULL); empty list = cấu hình rỗng có chủ đích
+/// (DB lưu <c>"[]"</c>). Phase 5E SqlBuilder sẽ phân biệt 2 case này.
+/// </para>
+/// </remarks>
+public sealed record SchemaCatalogEntryDto(
+    string EntityCode,
+    string DisplayName,
+    string Description,
+    string DataLayer,
+    string BaseView,
+    string PrimaryKey,
+    IReadOnlyList<string> AllowedColumns,
+    IReadOnlyList<string> AllowedFilters,
+    IReadOnlyList<string> AllowedAggregates,
+    IReadOnlyList<JoinSpecDto>? AllowedJoins,
+    IReadOnlyList<string> SampleQuestions,
+    int DefaultLimit,
+    int MaxLimit,
+    int SensitivityLevel,
+    int RequiredRoleLoai,
+    DateTime Created,
+    DateTime? Modified);
+
+/// <summary>
+/// JSON shape của 1 entry trong <c>AiSchemaCatalog.AllowedJoinsJson</c>.
+/// Vd: <c>{"view":"DM_Tinh","key":"TinhId = DM_Tinh.Id"}</c>.
+/// </summary>
+public sealed record JoinSpecDto(string View, string Key);

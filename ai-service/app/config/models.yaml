@@ -40,6 +40,11 @@ models:
   report_generator:
     provider: openai
     name: "gpt-4o"
+  # Phase 5E — Query Plan Generator (Section 14.5: gpt-4o cho chất lượng JSON
+  # plan + reasoning về whitelist columns/aggregates).
+  plan_generator:
+    provider: openai
+    name: "gpt-4o"
   suggested_questions:
     provider: openai
     name: "gpt-4o-mini"
@@ -63,6 +68,9 @@ models_local:
   report_generator:
     provider: local_ollama
     name: "qwen3:14b"
+  plan_generator:
+    provider: local_ollama
+    name: "qwen3:14b"
   suggested_questions:
     provider: local_ollama
     name: "qwen3:8b"
@@ -83,6 +91,11 @@ models_hybrid:
     provider: local_ollama
     name: "qwen3:14b"
   report_generator:
+    provider: openai
+    name: "gpt-4o"
+  # HYBRID_SAFE: plan generation đụng schema metadata không nhạy cảm dữ liệu
+  # → để cloud cho chất lượng JSON plan tốt hơn (giống report_generator).
+  plan_generator:
     provider: openai
     name: "gpt-4o"
   suggested_questions:

@@ -37,6 +37,25 @@ class AgentState(TypedDict, total=False):
     intent: str
     confidence: float
 
+    # === Schema Retriever (Phase 5D — chỉ chạy khi intent=UNKNOWN) ===
+    #: List CandidateEntity.to_dict() — top entity match từ Qdrant collection
+    #: ai_schema_catalog. Empty khi Schema Retriever degrade hoặc không có
+    #: chunk vượt score_threshold.
+    candidate_entities: list[dict[str, Any]]
+    #: Parallel array với candidate_entities — score top mỗi entity.
+    candidate_entity_scores: list[float]
+
+    # === Query Plan Generator (Phase 5E — chỉ chạy khi candidate_entities ≠ []) ===
+    #: `QueryPlan.model_dump(by_alias=True)` — None nếu generation fail
+    #: (out_of_scope, JSON parse fail, validation fail sau retry, LLM down).
+    query_plan: dict[str, Any] | None
+    #: Confidence của plan (0.0–1.0). Phục vụ routing nhanh không phải
+    #: re-deserialize. None khi plan generation fail.
+    plan_confidence: float | None
+    #: Lý do plan generation fail — log warning để Phase 5G self-improving
+    #: phân tích pattern. None khi success.
+    plan_error: str | None
+
     # === Plan (node 6) ===
     plan: dict[str, Any]
     tools_to_call: list[str]

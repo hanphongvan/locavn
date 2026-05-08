@@ -16,12 +16,15 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..schemas.chat import ChatContext
+from ..schemas.query_plan import PLAN_CONFIDENCE_THRESHOLD
 from ..security.guard import SecurityException, SecurityGuard
 from ..services.data_sanitizer import sanitize_for_llm
 from ..services.dotnet_api_client import DotnetApiClient
 from ..services.llm_service import LlmService, LlmServiceError
 from ..services.logging_service import get_logger
+from ..services.schema_retriever import SchemaRetriever, SchemaRetrieverError
 from ..tools.base_tool import BaseTool
+from .plan_generator import PlanGenerationError, QueryPlanGenerator
 from .state import AgentState
 
 _logger = get_logger(__name__)
@@ -66,13 +69,24 @@ _INTENT_TO_TOOLS: dict[str, list[str]] = {
 
 @dataclass(frozen=True, slots=True)
 class Deps:
-    """Dependency bundle inject vào mọi node — pytest swap `LlmService` thành Fake."""
+    """Dependency bundle inject vào mọi node — pytest swap `LlmService` thành Fake.
+
+    `schema_retriever` optional (default None) để pytest cũ không phải sửa và
+    để app boot không fail khi Qdrant down (degrade — UNKNOWN intent vẫn rơi
+    về answer_composer trả message generic).
+
+    Phase 5E thêm `plan_generator` (cũng optional). None → node `plan_generator`
+    skip thẳng (state.plan_error = "plan_generator_disabled"), composer
+    fallback Phase 5D placeholder. Pytest cũ không phải wire.
+    """
 
     llm: LlmService
     guard: SecurityGuard
     dotnet: DotnetApiClient
     tools: dict[str, BaseTool]
     user_loai_required: int = 6
+    schema_retriever: SchemaRetriever | None = None
+    plan_generator: QueryPlanGenerator | None = None
 
 
 # ============================================================================
@@ -288,6 +302,93 @@ async def intent_classifier(state: AgentState, deps: Deps) -> AgentState:
         intent = "UNKNOWN"
     confidence = float(result.get("confidence", 0.0))
     return {"intent": intent, "confidence": confidence}
+
+
+# ============================================================================
+# Node 5b — schema_retriever (Phase 5D, branch UNKNOWN intent)
+# ============================================================================
+
+async def schema_retriever(state: AgentState, deps: Deps) -> AgentState:
+    """Section 4 (Phase 5) — search top entity liên quan cho intent=UNKNOWN.
+
+    Chỉ chạy khi `intent == UNKNOWN` (graph conditional edge đã filter).
+    Degrade gracefully: nếu retriever chưa wire (Qdrant down) hoặc search
+    fail → trả `candidate_entities = []` để answer_composer fallback về
+    template UNKNOWN response generic.
+
+    Phase 5E sẽ thay edge `schema_retriever → answer_composer` bằng
+    `schema_retriever → plan_generator → ...` khi `candidate_entities` không
+    rỗng và `confidence >= threshold`.
+    """
+    if deps.schema_retriever is None:
+        _logger.warning("schema_retriever.disabled_qdrant_or_no_wire")
+        return {"candidate_entities": [], "candidate_entity_scores": []}
+
+    question = state.get("resolved_question") or state.get("raw_question", "")
+    try:
+        candidates = await deps.schema_retriever.find_relevant_entities(question)
+    except SchemaRetrieverError as ex:
+        # find_relevant_entities đã catch graceful — đây là defense-in-depth
+        # cho lỗi không lường được (vd embedding service crash giữa chừng).
+        _logger.warning("schema_retriever.unexpected_error", error=str(ex))
+        return {"candidate_entities": [], "candidate_entity_scores": []}
+
+    return {
+        "candidate_entities": [c.to_dict() for c in candidates],
+        "candidate_entity_scores": [c.score for c in candidates],
+    }
+
+
+# ============================================================================
+# Node 5c — plan_generator (Phase 5E, branch UNKNOWN intent + có candidate)
+# ============================================================================
+
+async def plan_generator(state: AgentState, deps: Deps) -> AgentState:
+    """Section 14.5 — sinh `QueryPlan` từ resolved_question + candidates.
+
+    Chỉ chạy khi route_after_schema_retriever trả `"plan_generator"` (đã
+    đảm bảo `candidate_entities` không rỗng).
+
+    Degrade gracefully (RP-5):
+    - `deps.plan_generator is None` (DI không wire): set plan_error, route
+      về answer_composer → fallback Phase 5D placeholder.
+    - LLM fail / out_of_scope / validation fail sau retry: set plan_error,
+      log warning với câu hỏi gốc + reason để Phase 5G self-improving phân
+      tích pattern. Composer fallback Phase 5D.
+    """
+    if deps.plan_generator is None:
+        return {
+            "query_plan": None,
+            "plan_confidence": None,
+            "plan_error": "plan_generator_disabled",
+        }
+
+    question = state.get("resolved_question") or state.get("raw_question", "")
+    candidates = state.get("candidate_entities") or []
+
+    try:
+        plan = await deps.plan_generator.generate(question, candidates)
+    except PlanGenerationError as ex:
+        # Phase 5G self-improving: log đủ context để analyze pattern câu hỏi
+        # nào hay fail. KHÔNG return error visible cho user (composer fallback).
+        _logger.warning(
+            "plan_generator.failed",
+            question=question[:200],
+            candidate_codes=[c.get("entity_code") for c in candidates[:3]],
+            reason=str(ex)[:300],
+        )
+        return {
+            "query_plan": None,
+            "plan_confidence": None,
+            "plan_error": str(ex),
+        }
+
+    # by_alias=True để JSON match camelCase trong schema doc Section 9.1.
+    return {
+        "query_plan": plan.model_dump(by_alias=True),
+        "plan_confidence": plan.confidence,
+        "plan_error": None,
+    }
 
 
 # ============================================================================
@@ -597,8 +698,32 @@ _SUGGEST_SYSTEM = (
 
 
 async def answer_composer(state: AgentState, deps: Deps) -> AgentState:
-    """Section 2.1 #10 — sinh `answer_text` + 3 câu gợi ý."""
+    """Section 2.1 #10 — sinh `answer_text` + 3 câu gợi ý.
+
+    Ưu tiên format cho UNKNOWN intent:
+    1. Phase 5E — `query_plan` hợp lệ + confidence ≥ PLAN_CONFIDENCE_THRESHOLD
+       → render plan markdown preview tự nhiên hoá. KHÔNG gọi LLM.
+    2. Phase 5D — `candidate_entities` không rỗng → liệt kê candidate
+       (placeholder, dùng khi plan generation fail / confidence thấp).
+    3. Fallback template UNKNOWN generic.
+    """
     intent = state.get("intent", "UNKNOWN")
+    candidates = state.get("candidate_entities") or []
+    query_plan = state.get("query_plan")
+    plan_confidence = state.get("plan_confidence")
+
+    # Phase 5E early-return: plan hợp lệ + confidence cao → render preview.
+    if (
+        intent == "UNKNOWN"
+        and isinstance(query_plan, dict)
+        and isinstance(plan_confidence, (int, float))
+        and plan_confidence >= PLAN_CONFIDENCE_THRESHOLD
+    ):
+        return _format_plan_response(query_plan, candidates)
+
+    # Phase 5D fallback: UNKNOWN + có candidate → format response liệt kê.
+    if intent == "UNKNOWN" and candidates:
+        return _format_candidate_entities_response(candidates)
 
     # Báo cáo: đã có report_markdown trong tool_results → đưa thẳng.
     report_markdown: str | None = None
@@ -679,6 +804,165 @@ def _answer_type_for(state: AgentState, report_markdown: str | None) -> str:
     if has_table:
         return "mixed"
     return "text"
+
+
+def _format_plan_response(
+    plan: dict[str, Any],
+    candidates: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Phase 5E — render QueryPlan thành markdown preview tự nhiên hoá.
+
+    KHÔNG sinh SQL string (đó là Phase 5F). Chỉ tóm tắt:
+    - Entity được chọn (display_name từ candidate).
+    - Filter quan trọng (Việt hoá column → giá trị).
+    - Aggregate / orderBy / limit.
+    - analysisIntent nếu có.
+    - Confidence + explanation.
+
+    Suggested questions: lấy sample đầu tiên của top 3 candidate (giúp user
+    formulate câu hỏi tinh hơn cho lượt tới).
+    """
+    entity_code = plan.get("entity") or ""
+    display_name = entity_code
+    for c in candidates:
+        if c.get("entity_code") == entity_code:
+            display_name = c.get("display_name") or entity_code
+            break
+
+    explanation = (plan.get("explanation") or "").strip()
+    confidence = float(plan.get("confidence") or 0.0)
+    aggregates = plan.get("aggregates") or []
+    filters = plan.get("filters") or []
+    order_by = plan.get("orderBy") or []
+    group_by = plan.get("groupBy") or []
+    limit = int(plan.get("limit") or 0)
+    analysis_intent = plan.get("analysisIntent") or None
+
+    lines: list[str] = []
+    lines.append(
+        f"Em đã hiểu câu hỏi liên quan tới **{display_name}** (`{entity_code}`)."
+    )
+    if explanation:
+        lines.append("")
+        lines.append(f"Diễn giải: _{explanation}_")
+
+    lines.append("")
+    lines.append("**Em sẽ tổng hợp dữ liệu theo:**")
+    if filters:
+        for f in filters:
+            line = _format_filter_line(f)
+            if line:
+                lines.append(f"- {line}")
+    if aggregates:
+        for a in aggregates:
+            lines.append(
+                f"- Tính `{a.get('function')}({a.get('column')})` "
+                f"→ {a.get('alias')}"
+            )
+    if group_by:
+        lines.append(f"- Nhóm theo: {', '.join(f'`{c}`' for c in group_by)}")
+    if order_by:
+        ob_parts = [
+            f"`{ob.get('column')}` ({ob.get('direction', 'asc').upper()})"
+            for ob in order_by
+        ]
+        lines.append(f"- Sắp xếp: {', '.join(ob_parts)}")
+    if limit:
+        lines.append(f"- Giới hạn: {limit} dòng")
+    if analysis_intent:
+        intent_type = analysis_intent.get("type")
+        lines.append(
+            f"- Phân tích cao cấp: **{_VN_INTENT_LABEL.get(intent_type, intent_type)}**"
+        )
+
+    lines.append("")
+    lines.append(
+        f"Mức tự tin của em: **{confidence:.0%}**. "
+        "Phase 5F sẽ thực thi truy vấn — hiện tại em chỉ trình bày kế hoạch để anh/chị xác nhận."
+    )
+
+    suggestions: list[str] = []
+    for cand in candidates[:3]:
+        samples = cand.get("sample_questions") or []
+        if samples:
+            suggestions.append(samples[0])
+    # Bù nếu < 3 sample
+    while len(suggestions) < 3:
+        suggestions.append("Cho tôi biết chi tiết hơn về dữ liệu này.")
+        if len(suggestions) >= 3:
+            break
+
+    return {
+        "answer_text": "\n".join(lines),
+        "answer_type": "text",
+        "suggested_questions": suggestions[:3],
+        "report_markdown": None,
+    }
+
+
+_VN_INTENT_LABEL: dict[str, str] = {
+    "compare_with_previous_period": "So sánh kỳ này với kỳ trước",
+    "rank_by_change": "Xếp hạng theo mức tăng/giảm",
+    "latest_per_group": "Lấy giá trị mới nhất của mỗi nhóm",
+}
+
+
+def _format_filter_line(f: dict[str, Any]) -> str:
+    """Việt hoá ngắn 1 filter cho markdown preview."""
+    column = f.get("column") or "?"
+    op = f.get("op") or "?"
+    value = f.get("value")
+    value_ref = f.get("valueRef")
+
+    if op in ("is_null", "is_not_null"):
+        suffix = "không có giá trị" if op == "is_null" else "có giá trị"
+        return f"Lọc: `{column}` {suffix}"
+
+    op_label = {
+        "eq": "=", "ne": "≠", "gt": ">", "gte": "≥", "lt": "<", "lte": "≤",
+        "in": "thuộc", "between": "trong khoảng", "like": "khớp pattern",
+    }.get(op, op)
+
+    if value_ref:
+        return f"Lọc: `{column}` {op_label} `{value_ref}`"
+    return f"Lọc: `{column}` {op_label} `{value}`"
+
+
+def _format_candidate_entities_response(candidates: list[dict[str, Any]]) -> dict[str, Any]:
+    """Phase 5D — placeholder response cho UNKNOWN-có-candidate.
+
+    Format theo Q5 design (Sub-step 3.3): liệt kê display_name + entity_code +
+    score, đề xuất user hỏi chi tiết hơn. Phase 5E sẽ thay bằng dynamic query
+    thực qua Plan Generator + SQL Builder.
+
+    Suggested questions: lấy sample_question đầu tiên của top 3 candidate (nếu
+    có) — gợi ý cho user formulate câu hỏi cụ thể hơn.
+    """
+    lines = ["Tôi không chắc câu hỏi này thuộc loại nào, nhưng có thể liên quan:"]
+    for idx, cand in enumerate(candidates, start=1):
+        display = cand.get("display_name") or cand.get("entity_code") or "(unknown)"
+        code = cand.get("entity_code") or ""
+        score = float(cand.get("score") or 0.0)
+        lines.append(f"{idx}. **{display}** (`{code}`) — tin cậy {score:.2f}")
+    lines.append("")
+    lines.append("Anh/chị có thể hỏi chi tiết hơn về một trong các chủ đề trên.")
+
+    suggestions: list[str] = []
+    for cand in candidates[:3]:
+        samples = cand.get("sample_questions") or []
+        if samples:
+            suggestions.append(samples[0])
+        else:
+            display = cand.get("display_name") or cand.get("entity_code") or ""
+            if display:
+                suggestions.append(f"Cho tôi biết về {display}")
+
+    return {
+        "answer_text": "\n".join(lines),
+        "answer_type": "text",
+        "suggested_questions": suggestions,
+        "report_markdown": None,
+    }
 
 
 def _template_answer(state: AgentState) -> str:

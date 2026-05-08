@@ -1,7 +1,15 @@
-"""LangGraph build — kết nối 10 node tuần tự (Section 2.1).
+"""LangGraph build — Phase 5D + 5E conditional branching.
 
 Phase 1B đi tuyến tính: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10.
-Branch logic (e.g. UNKNOWN bypass tool_executor) sẽ tinh chỉnh ở Phase 2+.
+Phase 5D thêm node `schema_retriever` (5b) trên nhánh UNKNOWN.
+Phase 5E thêm node `plan_generator` (5c) sau schema_retriever khi có candidate:
+
+    intent_classifier ─┬─[≠ UNKNOWN]──→ planner → tool_executor → ...
+                       └─[= UNKNOWN]──→ schema_retriever ─┬─[no cand]──→ answer_composer
+                                                          └─[≥1 cand]─→ plan_generator → answer_composer
+
+`plan_generator` always falls back to answer_composer (Phase 5F sẽ branch
+plan-valid+confidence-cao → sql_builder → safety_gate → ...).
 """
 from __future__ import annotations
 
@@ -11,7 +19,7 @@ from langgraph.graph import END, StateGraph
 
 from ..services.logging_service import get_logger
 from ..services.metrics_service import ai_tool_duration_ms
-from . import nodes
+from . import nodes, routing
 from .nodes import Deps
 from .state import AgentState
 
@@ -27,6 +35,8 @@ def build_graph(deps: Deps):
     builder.add_node("context_resolver",          _bind(nodes.context_resolver, deps))
     builder.add_node("security_guard",            _bind(nodes.security_guard, deps))
     builder.add_node("intent_classifier",         _bind(nodes.intent_classifier, deps))
+    builder.add_node("schema_retriever",          _bind(nodes.schema_retriever, deps))
+    builder.add_node("plan_generator",            _bind(nodes.plan_generator, deps))
     builder.add_node("planner",                   _bind(nodes.planner, deps))
     builder.add_node("tool_executor",             _bind(nodes.tool_executor, deps))
     builder.add_node("data_analyzer",             _bind(nodes.data_analyzer, deps))
@@ -38,7 +48,34 @@ def build_graph(deps: Deps):
     builder.add_edge("conversation_context_loader","context_resolver")
     builder.add_edge("context_resolver",          "security_guard")
     builder.add_edge("security_guard",            "intent_classifier")
-    builder.add_edge("intent_classifier",         "planner")
+
+    # Phase 5D — conditional branch: UNKNOWN intent → Schema Retriever; còn lại → Planner.
+    builder.add_conditional_edges(
+        "intent_classifier",
+        routing.route_after_intent_classifier,
+        {
+            "schema_retriever": "schema_retriever",
+            "planner": "planner",
+        },
+    )
+    # Phase 5E — sau schema_retriever: có candidate → plan_generator;
+    # không candidate → answer_composer (template UNKNOWN generic).
+    builder.add_conditional_edges(
+        "schema_retriever",
+        routing.route_after_schema_retriever,
+        {
+            "plan_generator": "plan_generator",
+            "answer_composer": "answer_composer",
+        },
+    )
+    # Phase 5E — sau plan_generator: luôn về answer_composer (composer chọn
+    # format dựa trên query_plan + plan_confidence). Phase 5F sẽ branch SQL.
+    builder.add_conditional_edges(
+        "plan_generator",
+        routing.route_after_plan_generator,
+        {"answer_composer": "answer_composer"},
+    )
+
     builder.add_edge("planner",                   "tool_executor")
     builder.add_edge("tool_executor",             "data_analyzer")
     builder.add_edge("data_analyzer",             "context_updater")
