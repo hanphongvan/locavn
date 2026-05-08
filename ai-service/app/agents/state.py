@@ -37,6 +37,14 @@ class AgentState(TypedDict, total=False):
     intent: str
     confidence: float
 
+    # === Schema Retriever (Phase 5D — chỉ chạy khi intent=UNKNOWN) ===
+    #: List CandidateEntity.to_dict() — top entity match từ Qdrant collection
+    #: ai_schema_catalog. Empty khi Schema Retriever degrade hoặc không có
+    #: chunk vượt score_threshold.
+    candidate_entities: list[dict[str, Any]]
+    #: Parallel array với candidate_entities — score top mỗi entity.
+    candidate_entity_scores: list[float]
+
     # === Plan (node 6) ===
     plan: dict[str, Any]
     tools_to_call: list[str]

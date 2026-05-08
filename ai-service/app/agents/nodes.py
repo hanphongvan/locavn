@@ -21,6 +21,7 @@ from ..services.data_sanitizer import sanitize_for_llm
 from ..services.dotnet_api_client import DotnetApiClient
 from ..services.llm_service import LlmService, LlmServiceError
 from ..services.logging_service import get_logger
+from ..services.schema_retriever import SchemaRetriever, SchemaRetrieverError
 from ..tools.base_tool import BaseTool
 from .state import AgentState
 
@@ -66,13 +67,19 @@ _INTENT_TO_TOOLS: dict[str, list[str]] = {
 
 @dataclass(frozen=True, slots=True)
 class Deps:
-    """Dependency bundle inject vào mọi node — pytest swap `LlmService` thành Fake."""
+    """Dependency bundle inject vào mọi node — pytest swap `LlmService` thành Fake.
+
+    `schema_retriever` optional (default None) để pytest cũ không phải sửa và
+    để app boot không fail khi Qdrant down (degrade — UNKNOWN intent vẫn rơi
+    về answer_composer trả message generic).
+    """
 
     llm: LlmService
     guard: SecurityGuard
     dotnet: DotnetApiClient
     tools: dict[str, BaseTool]
     user_loai_required: int = 6
+    schema_retriever: SchemaRetriever | None = None
 
 
 # ============================================================================
@@ -288,6 +295,41 @@ async def intent_classifier(state: AgentState, deps: Deps) -> AgentState:
         intent = "UNKNOWN"
     confidence = float(result.get("confidence", 0.0))
     return {"intent": intent, "confidence": confidence}
+
+
+# ============================================================================
+# Node 5b — schema_retriever (Phase 5D, branch UNKNOWN intent)
+# ============================================================================
+
+async def schema_retriever(state: AgentState, deps: Deps) -> AgentState:
+    """Section 4 (Phase 5) — search top entity liên quan cho intent=UNKNOWN.
+
+    Chỉ chạy khi `intent == UNKNOWN` (graph conditional edge đã filter).
+    Degrade gracefully: nếu retriever chưa wire (Qdrant down) hoặc search
+    fail → trả `candidate_entities = []` để answer_composer fallback về
+    template UNKNOWN response generic.
+
+    Phase 5E sẽ thay edge `schema_retriever → answer_composer` bằng
+    `schema_retriever → plan_generator → ...` khi `candidate_entities` không
+    rỗng và `confidence >= threshold`.
+    """
+    if deps.schema_retriever is None:
+        _logger.warning("schema_retriever.disabled_qdrant_or_no_wire")
+        return {"candidate_entities": [], "candidate_entity_scores": []}
+
+    question = state.get("resolved_question") or state.get("raw_question", "")
+    try:
+        candidates = await deps.schema_retriever.find_relevant_entities(question)
+    except SchemaRetrieverError as ex:
+        # find_relevant_entities đã catch graceful — đây là defense-in-depth
+        # cho lỗi không lường được (vd embedding service crash giữa chừng).
+        _logger.warning("schema_retriever.unexpected_error", error=str(ex))
+        return {"candidate_entities": [], "candidate_entity_scores": []}
+
+    return {
+        "candidate_entities": [c.to_dict() for c in candidates],
+        "candidate_entity_scores": [c.score for c in candidates],
+    }
 
 
 # ============================================================================
@@ -597,8 +639,18 @@ _SUGGEST_SYSTEM = (
 
 
 async def answer_composer(state: AgentState, deps: Deps) -> AgentState:
-    """Section 2.1 #10 — sinh `answer_text` + 3 câu gợi ý."""
+    """Section 2.1 #10 — sinh `answer_text` + 3 câu gợi ý.
+
+    Phase 5D: nếu `intent=UNKNOWN` mà Schema Retriever đã match được entity
+    (`candidate_entities` không rỗng) → trả response liệt kê candidate, KHÔNG
+    gọi LLM (placeholder cho Phase 5E sẽ replace bằng dynamic query thực).
+    """
     intent = state.get("intent", "UNKNOWN")
+    candidates = state.get("candidate_entities") or []
+
+    # Phase 5D early-return: UNKNOWN + có candidate → format response liệt kê.
+    if intent == "UNKNOWN" and candidates:
+        return _format_candidate_entities_response(candidates)
 
     # Báo cáo: đã có report_markdown trong tool_results → đưa thẳng.
     report_markdown: str | None = None
@@ -679,6 +731,43 @@ def _answer_type_for(state: AgentState, report_markdown: str | None) -> str:
     if has_table:
         return "mixed"
     return "text"
+
+
+def _format_candidate_entities_response(candidates: list[dict[str, Any]]) -> dict[str, Any]:
+    """Phase 5D — placeholder response cho UNKNOWN-có-candidate.
+
+    Format theo Q5 design (Sub-step 3.3): liệt kê display_name + entity_code +
+    score, đề xuất user hỏi chi tiết hơn. Phase 5E sẽ thay bằng dynamic query
+    thực qua Plan Generator + SQL Builder.
+
+    Suggested questions: lấy sample_question đầu tiên của top 3 candidate (nếu
+    có) — gợi ý cho user formulate câu hỏi cụ thể hơn.
+    """
+    lines = ["Tôi không chắc câu hỏi này thuộc loại nào, nhưng có thể liên quan:"]
+    for idx, cand in enumerate(candidates, start=1):
+        display = cand.get("display_name") or cand.get("entity_code") or "(unknown)"
+        code = cand.get("entity_code") or ""
+        score = float(cand.get("score") or 0.0)
+        lines.append(f"{idx}. **{display}** (`{code}`) — tin cậy {score:.2f}")
+    lines.append("")
+    lines.append("Anh/chị có thể hỏi chi tiết hơn về một trong các chủ đề trên.")
+
+    suggestions: list[str] = []
+    for cand in candidates[:3]:
+        samples = cand.get("sample_questions") or []
+        if samples:
+            suggestions.append(samples[0])
+        else:
+            display = cand.get("display_name") or cand.get("entity_code") or ""
+            if display:
+                suggestions.append(f"Cho tôi biết về {display}")
+
+    return {
+        "answer_text": "\n".join(lines),
+        "answer_type": "text",
+        "suggested_questions": suggestions,
+        "report_markdown": None,
+    }
 
 
 def _template_answer(state: AgentState) -> str:
