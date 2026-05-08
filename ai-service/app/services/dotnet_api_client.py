@@ -163,6 +163,74 @@ class DotnetApiClient:
     async def get_station_density(self, params: dict[str, Any]) -> dict[str, Any]:
         return await self._post_sp("/internal/ai/station-density", params)
 
+    # ------------------------------------------------------------------
+    # Phase 5D — Schema Catalog (GET endpoint).
+    # ------------------------------------------------------------------
+
+    async def fetch_schema_catalog(self) -> list[dict[str, Any]]:
+        """Phase 5D — `GET /internal/ai/schema-catalog` → list 8 entity AI.
+
+        Response shape (`AiInternalRowsResponse<SchemaCatalogEntryDto>`):
+            `{"rows": [{...}, ...], "count": 8}`
+
+        Trả raw camelCase entries từ JSON — caller (`SchemaRetriever`) tự
+        normalize sang snake_case trước khi build chunk.
+
+        Raises:
+            DotnetApiError: thiếu internal key, 4xx auth, hoặc timeout sau 2 lần.
+
+        Note: Code retry/backoff trùng pattern với `_post_sp` — Phase 5G sẽ
+        refactor thành `_request_with_retry` chung khi technical-debt session.
+        """
+        if not self._internal_key:
+            raise DotnetApiError(
+                "AI_GATEWAY_INTERNAL_KEY chưa được set — không thể fetch schema catalog."
+            )
+
+        url = f"{self._base_url}/internal/ai/schema-catalog"
+        headers = {self.INTERNAL_KEY_HEADER: self._internal_key}
+
+        last_error: Exception | None = None
+        for attempt in range(2):
+            try:
+                async with httpx.AsyncClient(timeout=self.SP_TIMEOUT) as client:
+                    response = await client.get(url, headers=headers)
+                response.raise_for_status()
+                body = response.json()
+                rows = body.get("rows") or []
+                if not isinstance(rows, list):
+                    raise DotnetApiError(
+                        f"/internal/ai/schema-catalog trả `rows` không phải list: {type(rows).__name__}"
+                    )
+                return list(rows)
+            except httpx.TimeoutException as ex:
+                last_error = ex
+                _logger.warning(
+                    "dotnet_api.schema_catalog_timeout",
+                    attempt=attempt + 1,
+                    timeout=self.SP_TIMEOUT,
+                )
+                await asyncio.sleep(0.2)
+            except httpx.HTTPStatusError as ex:
+                # 4xx (auth/validation) — không retry, lỗi ở config.
+                raise DotnetApiError(
+                    f".NET API /internal/ai/schema-catalog trả {ex.response.status_code}: "
+                    f"{ex.response.text[:200]}"
+                ) from ex
+            except httpx.HTTPError as ex:
+                last_error = ex
+                _logger.warning(
+                    "dotnet_api.schema_catalog_network_error",
+                    attempt=attempt + 1,
+                    error=str(ex),
+                )
+                await asyncio.sleep(0.2)
+
+        raise DotnetApiError(
+            f".NET API /internal/ai/schema-catalog không phản hồi sau 2 lần "
+            f"(timeout={self.SP_TIMEOUT}s)."
+        ) from last_error
+
     async def log_tool_call(
         self,
         *,
