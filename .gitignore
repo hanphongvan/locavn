@@ -156,3 +156,15 @@ backend/src/Httm.XangDau.Api/appsettings.Production.json
 !backend/src/Httm.XangDau.Api/appsettings.example.json
 !backend/src/Httm.XangDau.Api/appsettings.Development.example.json
 !backend/src/Httm.XangDau.Api/appsettings.Production.example.json
+
+# === Antigravity / Claude Code workspace ===
+.claude/
+
+# === Test/debug artifacts ===
+backend/body.json
+backend/response.json
+*.tmp.json
+
+# === PR drafts ===
+PR_DESCRIPTION.md
+PR_DESCRIPTION_*.md
