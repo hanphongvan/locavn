@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/map/app_lat_lng.dart';
 import '../../../core/map/app_map.dart';
@@ -335,6 +336,15 @@ class _LeaderMapInventoryPageState extends ConsumerState<LeaderMapInventoryPage>
 
   @override
   Widget build(BuildContext context) {
+    final shellState = StatefulNavigationShell.maybeOf(context);
+    final mapTabVisible =
+        shellState == null || shellState.currentIndex == kLeaderMapShellBranchIndex;
+    if (!mapTabVisible) {
+      _controller = null;
+      _busy = false;
+      _idleDebounce?.cancel();
+    }
+
     final distAsync = ref.watch(leaderMapDistributorsProvider);
     final ui = ref.watch(leaderMapUiProvider);
     ref.listen(leaderMapDistributorsProvider, (_, _) => _scheduleApply());
@@ -370,29 +380,32 @@ class _LeaderMapInventoryPageState extends ConsumerState<LeaderMapInventoryPage>
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        AppMap(
-                          key: const ValueKey('leaderInventoryMap'),
-                          initialCameraPosition: _initial,
-                          markers: _markers,
-                          myLocationEnabled: _myLocationEnabled,
-                          myLocationButtonEnabled: false,
-                          zoomControlsEnabled: false,
-                          compassEnabled: true,
-                          onMapCreated: (c) {
-                            _controller = c;
-                            WidgetsBinding.instance.addPostFrameCallback((_) async {
-                              if (!mounted) return;
-                              final pending = _pendingRetailZoomCenter;
-                              if (pending != null && ref.read(leaderMapUiProvider).showRetailStores) {
-                                setState(() => _pendingRetailZoomCenter = null);
-                                await _animateRetailViewportTo(pending);
-                              }
-                              _scheduleApply();
-                            });
-                          },
-                          onCameraIdle: _scheduleApply,
-                        ),
-                        if (distAsync.isLoading)
+                        if (mapTabVisible)
+                          AppMap(
+                            key: const ValueKey('leaderInventoryMap'),
+                            initialCameraPosition: _initial,
+                            markers: _markers,
+                            myLocationEnabled: _myLocationEnabled,
+                            myLocationButtonEnabled: false,
+                            zoomControlsEnabled: false,
+                            compassEnabled: true,
+                            onMapCreated: (c) {
+                              _controller = c;
+                              WidgetsBinding.instance.addPostFrameCallback((_) async {
+                                if (!mounted) return;
+                                final pending = _pendingRetailZoomCenter;
+                                if (pending != null && ref.read(leaderMapUiProvider).showRetailStores) {
+                                  setState(() => _pendingRetailZoomCenter = null);
+                                  await _animateRetailViewportTo(pending);
+                                }
+                                _scheduleApply();
+                              });
+                            },
+                            onCameraIdle: _scheduleApply,
+                          )
+                        else
+                          const ColoredBox(color: MapScreenPalette.screenBackground),
+                        if (mapTabVisible && distAsync.isLoading)
                           Container(
                             color: MapScreenPalette.screenBackground.withValues(alpha: 0.85),
                             alignment: Alignment.center,
@@ -405,7 +418,7 @@ class _LeaderMapInventoryPageState extends ConsumerState<LeaderMapInventoryPage>
                               ],
                             ),
                           ),
-                        if (distAsync.hasError)
+                        if (mapTabVisible && distAsync.hasError)
                           Positioned(
                             left: 8,
                             right: 8,
@@ -427,7 +440,7 @@ class _LeaderMapInventoryPageState extends ConsumerState<LeaderMapInventoryPage>
                       ],
                     ),
                   ),
-                  if (_busy)
+                  if (mapTabVisible && _busy)
                     const Positioned.fill(
                       child: IgnorePointer(
                         child: Center(
@@ -439,36 +452,37 @@ class _LeaderMapInventoryPageState extends ConsumerState<LeaderMapInventoryPage>
                         ),
                       ),
                     ),
-                  Positioned(
-                    right: 12,
-                    top: topInset + toolbarChromeHeight + 10,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _LeaderRoundMapButton(
-                          icon: Icons.add_rounded,
-                          onPressed: () async {
-                            final c = _controller;
-                            if (c == null) return;
-                            final z = await c.getZoomLevel();
-                            if (z == null) return;
-                            await c.animateCamera(AppMapCameraUpdate.zoomTo(z + 1));
-                          },
-                        ),
-                        const SizedBox(height: 10),
-                        _LeaderRoundMapButton(
-                          icon: Icons.remove_rounded,
-                          onPressed: () async {
-                            final c = _controller;
-                            if (c == null) return;
-                            final z = await c.getZoomLevel();
-                            if (z == null) return;
-                            await c.animateCamera(AppMapCameraUpdate.zoomTo((z - 1).clamp(3, 21)));
-                          },
-                        ),
-                      ],
+                  if (mapTabVisible)
+                    Positioned(
+                      right: 12,
+                      top: topInset + toolbarChromeHeight + 10,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _LeaderRoundMapButton(
+                            icon: Icons.add_rounded,
+                            onPressed: () async {
+                              final c = _controller;
+                              if (c == null) return;
+                              final z = await c.getZoomLevel();
+                              if (z == null) return;
+                              await c.animateCamera(AppMapCameraUpdate.zoomTo(z + 1));
+                            },
+                          ),
+                          const SizedBox(height: 10),
+                          _LeaderRoundMapButton(
+                            icon: Icons.remove_rounded,
+                            onPressed: () async {
+                              final c = _controller;
+                              if (c == null) return;
+                              final z = await c.getZoomLevel();
+                              if (z == null) return;
+                              await c.animateCamera(AppMapCameraUpdate.zoomTo((z - 1).clamp(3, 21)));
+                            },
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
                 ],
               ),
             ),

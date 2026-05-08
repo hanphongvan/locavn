@@ -7,6 +7,7 @@ import '../../../core/auth/portal_loai.dart';
 import '../../../core/auth/role_service.dart';
 import '../../../core/router/app_routes.dart';
 import '../../map/presentation/map_screen_palette.dart';
+import '../map/leader_map_constants.dart';
 import '../../more/presentation/account/account_screen.dart';
 import '../../reports/presentation/dashboard/loca_dashboard_tokens.dart';
 import 'leader_executive_app_bar.dart';
@@ -24,9 +25,6 @@ Color _leaderShellCanvasColor(int index) {
     _ => LocaDashboardTokens.background,
   };
 }
-
-/// Index nhánh **Bản đồ** trong [StatefulNavigationShell] (không dùng [LeaderExecutiveAppBar]).
-const int kLeaderMapShellBranchIndex = 1;
 
 /// Index nhánh **Quỹ bình ổn** — tab có nút lọc tháng/năm trên AppBar.
 const int kLeaderStabilizationFundBranchIndex = 4;

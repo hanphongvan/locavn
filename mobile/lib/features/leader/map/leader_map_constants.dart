@@ -3,6 +3,14 @@ import 'dart:math' as math;
 import '../../../core/map/app_lat_lng.dart';
 import '../../../core/map/app_lat_lng_bounds.dart';
 
+/// Index nhánh **Bản đồ** trong shell tab lãnh đạo (`StatefulShellRoute.indexedStack`) —
+/// phải khớp thứ tự `branches` trong `go_router` (0=Tổng quan, 1=Bản đồ, …).
+///
+/// Dùng để **không mount** `AppMap` khi tab khác đang active: `IndexedStack` vẫn build
+/// mọi nhánh; Google Map platform view offstage trên Android dễ gây crash resize
+/// (`SurfaceProducer` null).
+const int kLeaderMapShellBranchIndex = 1;
+
 /// Khung mặc định (toàn quốc), cùng ý với bản đồ trạm chính.
 const AppLatLng kLeaderMapCenterVietnam = AppLatLng(15.9266657, 107.9650855);
 
