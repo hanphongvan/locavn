@@ -1,4 +1,4 @@
-"""Phase 5D — pytest cho conditional routing functions.
+"""Phase 5D + 5E — pytest cho conditional routing functions.
 
 Pure functions: input = AgentState dict, output = node name string.
 Không cần mock — test logic branching trực tiếp.
@@ -8,6 +8,7 @@ from __future__ import annotations
 from app.agents.nodes import ALLOWED_INTENTS
 from app.agents.routing import (
     route_after_intent_classifier,
+    route_after_plan_generator,
     route_after_schema_retriever,
 )
 
@@ -40,11 +41,48 @@ def test_route_lowercase_intent_does_not_match_unknown():
     assert route_after_intent_classifier({"intent": "unknown"}) == "planner"
 
 
-def test_route_after_schema_retriever_phase5d_unconditional():
-    """Phase 5D: schema_retriever luôn đi answer_composer (placeholder response).
-    Phase 5E sẽ branch theo candidate_entities — test này sẽ phải cập nhật."""
+# ---------------------------------------------------------------------------
+# Phase 5E — schema_retriever → plan_generator | answer_composer
+# ---------------------------------------------------------------------------
+
+def test_route_after_schema_retriever_no_candidates_fallback_composer():
+    """Schema Retriever miss / Qdrant down → empty candidates → composer
+    (fallback template UNKNOWN generic, không gọi plan_generator vô ích)."""
     assert route_after_schema_retriever({}) == "answer_composer"
     assert route_after_schema_retriever({"candidate_entities": []}) == "answer_composer"
+    assert route_after_schema_retriever({"candidate_entities": None}) == "answer_composer"
+
+
+def test_route_after_schema_retriever_has_candidates_goes_plan_generator():
+    """Có ≥1 candidate → đi plan_generator để LLM sinh JSON plan."""
     assert route_after_schema_retriever({
-        "candidate_entities": [{"entity_code": "x"}],
+        "candidate_entities": [{"entity_code": "head_office_inventory"}],
+    }) == "plan_generator"
+    assert route_after_schema_retriever({
+        "candidate_entities": [
+            {"entity_code": "e1"}, {"entity_code": "e2"}, {"entity_code": "e3"},
+        ],
+    }) == "plan_generator"
+
+
+# ---------------------------------------------------------------------------
+# Phase 5E — plan_generator → answer_composer (unconditional in 5E)
+# ---------------------------------------------------------------------------
+
+def test_route_after_plan_generator_phase5e_unconditional():
+    """Phase 5E: plan_generator luôn về answer_composer. Composer tự quyết
+    format dựa trên query_plan + plan_confidence (≥ threshold → render plan
+    preview; thấp hơn / None → fallback Phase 5D candidate response).
+
+    Phase 5F sẽ branch: plan ok + confidence cao → sql_builder."""
+    assert route_after_plan_generator({}) == "answer_composer"
+    assert route_after_plan_generator({"plan_error": "plan_generator_disabled"}) == "answer_composer"
+    assert route_after_plan_generator({
+        "query_plan": {"entity": "x", "confidence": 0.9},
+        "plan_confidence": 0.9,
+    }) == "answer_composer"
+    assert route_after_plan_generator({
+        "query_plan": None,
+        "plan_confidence": None,
+        "plan_error": "out_of_scope: ...",
     }) == "answer_composer"
