@@ -138,4 +138,48 @@ public sealed class AiInternalController(IAiInternalDataAccess dataAccess) : Con
             .ConfigureAwait(false);
         return Ok(new AiInternalRowsResponse<SchemaCatalogEntryDto>(rows, rows.Count));
     }
+
+    /// <summary>
+    /// Phase 5F — AI Gateway POST sau mỗi dynamic query (success / fail) để
+    /// log vào <c>AiDynamicQueryLogs</c>. Status enum khớp
+    /// <c>CK_AiDynamicQueryLogs_Status</c> (Phase 5A migration).
+    /// </summary>
+    [HttpPost("dynamic-query-log")]
+    [ProducesResponseType(StatusCodes.Status202Accepted)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> LogDynamicQuery(
+        [FromBody] AiDynamicQueryLogRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request.LogId == Guid.Empty || string.IsNullOrWhiteSpace(request.Status))
+        {
+            return BadRequest(new { message = "logId + status là bắt buộc." });
+        }
+        await dataAccess.LogDynamicQueryAsync(request, cancellationToken).ConfigureAwait(false);
+        return Accepted();
+    }
+
+    /// <summary>
+    /// Phase 5F → 5G self-improving — AI Gateway UPSERT khi dynamic query
+    /// success. EXISTS: UsageCount + 1, SuccessCount + 1, refresh LastUsedAt.
+    /// NOT EXISTS: INSERT mới với Status='pending' để admin Phase 5G review.
+    /// </summary>
+    [HttpPost("candidate-intent")]
+    [ProducesResponseType(StatusCodes.Status202Accepted)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> UpsertCandidateIntent(
+        [FromBody] AiCandidateIntentUpsertRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.QuestionFingerprint)
+            || string.IsNullOrWhiteSpace(request.EntityCode))
+        {
+            return BadRequest(new { message = "questionFingerprint + entityCode là bắt buộc." });
+        }
+        await dataAccess.UpsertCandidateIntentAsync(request, cancellationToken)
+            .ConfigureAwait(false);
+        return Accepted();
+    }
 }

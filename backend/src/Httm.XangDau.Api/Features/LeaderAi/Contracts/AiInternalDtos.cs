@@ -127,6 +127,49 @@ public sealed record SchemaCatalogEntryDto(
 
 /// <summary>
 /// JSON shape của 1 entry trong <c>AiSchemaCatalog.AllowedJoinsJson</c>.
-/// Vd: <c>{"view":"DM_Tinh","key":"TinhId = DM_Tinh.Id"}</c>.
+/// Phase 5F canonical (sau migration <c>20260509000000_FixAllowedJoinsCanonicalFormat</c>):
+/// <c>{"targetEntity":"DM_Tinh","onLeftColumn":"TinhId","onRightColumn":"Id","joinType":"left"}</c>.
+/// Khớp với <c>QueryPlan.JoinClause</c> Pydantic schema bên AI Gateway.
 /// </summary>
-public sealed record JoinSpecDto(string View, string Key);
+public sealed record JoinSpecDto(
+    string TargetEntity,
+    string OnLeftColumn,
+    string OnRightColumn,
+    string JoinType);
+
+// === Phase 5F — Dynamic Query Log + Candidate Intent ===
+
+/// <summary>
+/// Phase 5F — payload AI Gateway POST cho mỗi dynamic query (success / fail).
+/// Status enum khớp <c>CK_AiDynamicQueryLogs_Status</c> (Phase 5A migration).
+/// </summary>
+public sealed record AiDynamicQueryLogRequest(
+    Guid LogId,
+    Guid? ConversationId,
+    Guid? MessageId,
+    int UserId,
+    string OriginalQuestion,
+    string? NormalizedQuestion,
+    string? EntityCode,
+    string? PlanJson,
+    string? GeneratedSql,
+    string? SqlParameters,
+    int? RowsReturned,
+    int DurationMs,
+    string Status,
+    string? ErrorMessage,
+    string? SafetyChecksJson,
+    decimal? ConfidenceScore);
+
+/// <summary>
+/// Phase 5F → 5G self-improving — AI Gateway UPSERT khi dynamic query success.
+/// IF EXISTS (cùng <c>QuestionFingerprint</c>): UsageCount += 1, SuccessCount += 1,
+/// LastUsedAt = SYSUTCDATETIME(). Status giữ nguyên ('pending' / 'approved' / ...).
+/// ELSE: INSERT mới với Status='pending', UsageCount=1, SuccessCount=1.
+/// </summary>
+public sealed record AiCandidateIntentUpsertRequest(
+    string QuestionFingerprint,
+    string SampleQuestion,
+    string NormalizedQuestion,
+    string EntityCode,
+    string GeneratedPlanJson);
