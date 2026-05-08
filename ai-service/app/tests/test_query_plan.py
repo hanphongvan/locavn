@@ -19,7 +19,8 @@ from app.schemas.query_plan import (
     JoinClause,
     OrderByClause,
     QueryPlan,
-    _collect_allowed_join_targets,
+    _join_matches_allowed,
+    _parse_allowed_joins,
     _strip_alias_prefix,
 )
 
@@ -382,6 +383,7 @@ def test_validate_against_entity_join_with_null_allowed_joins_rejected():
 
 
 def test_validate_against_entity_join_target_not_in_allowed_joins():
+    """Plan join sang entity không có trong canonical allowed_joins → reject."""
     p = QueryPlan.model_validate(_basic_plan(
         joins=[{
             "targetEntity": "totally_random_entity",
@@ -391,13 +393,32 @@ def test_validate_against_entity_join_target_not_in_allowed_joins():
     ))
     with pytest.raises(ValueError, match="allowed_joins"):
         p.validate_against_entity(_entity(allowed_joins=[
-            {"view": "DM_Tinh", "key": "TinhId = DM_Tinh.Id"},
+            {"targetEntity": "DM_Tinh", "onLeftColumn": "TinhId",
+             "onRightColumn": "Id", "joinType": "left"},
         ]))
 
 
-def test_validate_against_entity_join_loose_match_seed_view_format():
-    """Phase 5E loose: target khớp với `view` field của seed format
-    {view, key}. TECH-DEBT-5E-001: Phase 5F sẽ enforce strict 5-field."""
+def test_validate_against_entity_join_canonical_format_passes():
+    """Phase 5F: canonical 5-field format. Plan + entity allowed_joins khớp
+    target_entity + on_left_column + on_right_column + join_type → pass."""
+    p = QueryPlan.model_validate(_basic_plan(
+        joins=[{
+            "targetEntity": "DM_Tinh",
+            "onLeftColumn": "TinhId",
+            "onRightColumn": "Id",
+            "joinType": "left",
+            "asAlias": "t",
+        }],
+    ))
+    p.validate_against_entity(_entity(allowed_joins=[
+        {"targetEntity": "DM_Tinh", "onLeftColumn": "TinhId",
+         "onRightColumn": "Id", "joinType": "left"},
+    ]))   # không raise
+
+
+def test_validate_against_entity_join_legacy_view_format_rejected():
+    """TECH-DEBT-5E-001 resolved: Phase 5F parser KHÔNG còn accept format cũ
+    {view, key}. Migration 20260509000000 đã re-seed canonical."""
     p = QueryPlan.model_validate(_basic_plan(
         joins=[{
             "targetEntity": "DM_Tinh",
@@ -405,24 +426,45 @@ def test_validate_against_entity_join_loose_match_seed_view_format():
             "asAlias": "t",
         }],
     ))
-    # Không raise — `DM_Tinh` matched view field của allowed_joins seed.
-    p.validate_against_entity(_entity(allowed_joins=[
-        {"view": "DM_Tinh", "key": "TinhId = DM_Tinh.Id"},
-    ]))
+    with pytest.raises(ValueError, match="allowed_joins"):
+        p.validate_against_entity(_entity(allowed_joins=[
+            {"view": "DM_Tinh", "key": "TinhId = DM_Tinh.Id"},   # legacy format
+        ]))
 
 
-def test_validate_against_entity_join_match_target_entity_format():
-    """Section 9.5 doc format `{targetEntity}` cũng match (forward-compat)."""
+def test_validate_against_entity_join_type_mismatch_rejected():
+    """Plan join_type='inner' vs allowed='left' → reject (chặt hơn loose)."""
     p = QueryPlan.model_validate(_basic_plan(
         joins=[{
-            "targetEntity": "head_office_fund_balance",
-            "onLeftColumn": "DonViId", "onRightColumn": "DonViId",
-            "asAlias": "fund",
+            "targetEntity": "DM_Tinh",
+            "onLeftColumn": "TinhId", "onRightColumn": "Id",
+            "joinType": "inner",   # plan muốn inner
+            "asAlias": "t",
         }],
     ))
-    p.validate_against_entity(_entity(allowed_joins=[
-        {"targetEntity": "head_office_fund_balance", "joinType": "inner"},
-    ]))
+    with pytest.raises(ValueError, match="allowed_joins"):
+        p.validate_against_entity(_entity(allowed_joins=[
+            {"targetEntity": "DM_Tinh", "onLeftColumn": "TinhId",
+             "onRightColumn": "Id", "joinType": "left"},   # allowed chỉ left
+        ]))
+
+
+def test_validate_against_entity_join_columns_mismatch_rejected():
+    """Plan onLeftColumn / onRightColumn không khớp allowed → reject."""
+    p = QueryPlan.model_validate(_basic_plan(
+        joins=[{
+            "targetEntity": "DM_Tinh",
+            "onLeftColumn": "DonViId",   # sai cột
+            "onRightColumn": "Id",
+            "joinType": "left",
+            "asAlias": "t",
+        }],
+    ))
+    with pytest.raises(ValueError, match="allowed_joins"):
+        p.validate_against_entity(_entity(allowed_joins=[
+            {"targetEntity": "DM_Tinh", "onLeftColumn": "TinhId",
+             "onRightColumn": "Id", "joinType": "left"},
+        ]))
 
 
 # ---------------------------------------------------------------------------
@@ -435,22 +477,51 @@ def test_strip_alias_prefix():
     assert _strip_alias_prefix("a.b.c") == "c"
 
 
-def test_collect_allowed_join_targets_handles_both_formats():
-    """TECH-DEBT-5E-001: parser accept cả seed format (Section 8) lẫn doc
-    Section 9.5 format. Phase 5F sẽ chuẩn hoá."""
-    targets = _collect_allowed_join_targets([
-        {"view": "DM_Tinh", "key": "..."},
-        {"targetEntity": "head_office_fund_balance"},
-        {"target_entity": "another"},
+def test_parse_allowed_joins_canonical_format():
+    """Canonical 5-field — parser trả list dict snake_case."""
+    specs = _parse_allowed_joins([
+        {"targetEntity": "DM_Tinh", "onLeftColumn": "TinhId",
+         "onRightColumn": "Id", "joinType": "left"},
+        {"targetEntity": "head_office_fund_balance",
+         "onLeftColumn": "DonViId", "onRightColumn": "DonViId"},   # joinType default inner
     ])
-    assert targets == {"DM_Tinh", "head_office_fund_balance", "another"}
+    assert len(specs) == 2
+    assert specs[0]["target_entity"] == "DM_Tinh"
+    assert specs[0]["join_type"] == "left"
+    assert specs[1]["join_type"] == "inner"   # default
 
 
-def test_collect_allowed_join_targets_empty_list():
-    assert _collect_allowed_join_targets([]) == set()
+def test_parse_allowed_joins_legacy_format_skipped():
+    """Format cũ {view, key} thiếu canonical fields → skip (entry invalid)."""
+    specs = _parse_allowed_joins([
+        {"view": "DM_Tinh", "key": "TinhId = DM_Tinh.Id"},
+        {"targetEntity": "valid_entity", "onLeftColumn": "A", "onRightColumn": "B"},
+    ])
+    assert len(specs) == 1
+    assert specs[0]["target_entity"] == "valid_entity"
 
 
-def test_collect_allowed_join_targets_non_list_returns_empty():
-    """Defensive: input bất ngờ (None / dict) → empty set."""
-    assert _collect_allowed_join_targets(None) == set()
-    assert _collect_allowed_join_targets({"x": "y"}) == set()
+def test_parse_allowed_joins_empty_or_invalid_input():
+    assert _parse_allowed_joins([]) == []
+    assert _parse_allowed_joins(None) == []
+    assert _parse_allowed_joins({"x": "y"}) == []
+
+
+def test_join_matches_allowed_exact_match():
+    j = JoinClause(targetEntity="DM_Tinh", onLeftColumn="TinhId",
+                   onRightColumn="Id", joinType="left", asAlias="t")
+    specs = _parse_allowed_joins([
+        {"targetEntity": "DM_Tinh", "onLeftColumn": "TinhId",
+         "onRightColumn": "Id", "joinType": "left"},
+    ])
+    assert _join_matches_allowed(j, specs) is True
+
+
+def test_join_matches_allowed_no_match_when_columns_differ():
+    j = JoinClause(targetEntity="DM_Tinh", onLeftColumn="WrongCol",
+                   onRightColumn="Id", joinType="left", asAlias="t")
+    specs = _parse_allowed_joins([
+        {"targetEntity": "DM_Tinh", "onLeftColumn": "TinhId",
+         "onRightColumn": "Id", "joinType": "left"},
+    ])
+    assert _join_matches_allowed(j, specs) is False
