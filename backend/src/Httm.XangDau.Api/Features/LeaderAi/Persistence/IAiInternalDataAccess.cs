@@ -47,4 +47,12 @@ public interface IAiInternalDataAccess
         int userId,
         string summary,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Phase 5D — đọc danh sách entity AI được phép từ <c>AiSchemaCatalog WHERE IsEnabled=1</c>.
+    /// AI Gateway dùng để index Qdrant collection <c>ai_schema_catalog</c>
+    /// (Section 14.4 của <c>docs/loca-ai-phase5.md</c>).
+    /// </summary>
+    Task<IReadOnlyList<SchemaCatalogEntryDto>> GetSchemaCatalogAsync(
+        CancellationToken cancellationToken);
 }

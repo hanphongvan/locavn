@@ -121,4 +121,21 @@ public sealed class AiInternalController(IAiInternalDataAccess dataAccess) : Con
             .ConfigureAwait(false);
         return Accepted();
     }
+
+    /// <summary>
+    /// Phase 5D — đọc danh sách entity AI được phép. AI Gateway gọi 1 lần khi
+    /// <c>scripts/index_schema_catalog.py</c> boot, hoặc khi worker re-index theo
+    /// <c>AiReindexQueue</c> (Phase 5G). Chỉ trả entity <c>IsEnabled = 1</c>.
+    /// </summary>
+    [HttpGet("schema-catalog")]
+    [ProducesResponseType(typeof(AiInternalRowsResponse<SchemaCatalogEntryDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public async Task<ActionResult<AiInternalRowsResponse<SchemaCatalogEntryDto>>> SchemaCatalog(
+        CancellationToken cancellationToken)
+    {
+        var rows = await dataAccess.GetSchemaCatalogAsync(cancellationToken)
+            .ConfigureAwait(false);
+        return Ok(new AiInternalRowsResponse<SchemaCatalogEntryDto>(rows, rows.Count));
+    }
 }
