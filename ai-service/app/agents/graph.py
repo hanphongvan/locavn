@@ -1,15 +1,19 @@
-"""LangGraph build — Phase 5D + 5E conditional branching.
+"""LangGraph build — Phase 5D + 5E + 5F conditional branching.
 
 Phase 1B đi tuyến tính: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10.
-Phase 5D thêm node `schema_retriever` (5b) trên nhánh UNKNOWN.
-Phase 5E thêm node `plan_generator` (5c) sau schema_retriever khi có candidate:
+Phase 5D thêm `schema_retriever` (5b) trên nhánh UNKNOWN.
+Phase 5E thêm `plan_generator` (5c) sau schema_retriever khi có candidate.
+Phase 5F thêm `dynamic_query_executor` (5d) sau plan_generator khi plan
+ok + confidence ≥ threshold:
 
     intent_classifier ─┬─[≠ UNKNOWN]──→ planner → tool_executor → ...
                        └─[= UNKNOWN]──→ schema_retriever ─┬─[no cand]──→ answer_composer
-                                                          └─[≥1 cand]─→ plan_generator → answer_composer
-
-`plan_generator` always falls back to answer_composer (Phase 5F sẽ branch
-plan-valid+confidence-cao → sql_builder → safety_gate → ...).
+                                                          └─[≥1 cand]─→ plan_generator
+                                                                          ├─[plan ok + conf≥0.7]
+                                                                          │   → dynamic_query_executor
+                                                                          │   → answer_composer
+                                                                          └─[plan fail / conf thấp]
+                                                                              → answer_composer
 """
 from __future__ import annotations
 
@@ -37,6 +41,7 @@ def build_graph(deps: Deps):
     builder.add_node("intent_classifier",         _bind(nodes.intent_classifier, deps))
     builder.add_node("schema_retriever",          _bind(nodes.schema_retriever, deps))
     builder.add_node("plan_generator",            _bind(nodes.plan_generator, deps))
+    builder.add_node("dynamic_query_executor",    _bind(nodes.dynamic_query_executor, deps))
     builder.add_node("planner",                   _bind(nodes.planner, deps))
     builder.add_node("tool_executor",             _bind(nodes.tool_executor, deps))
     builder.add_node("data_analyzer",             _bind(nodes.data_analyzer, deps))
@@ -68,11 +73,21 @@ def build_graph(deps: Deps):
             "answer_composer": "answer_composer",
         },
     )
-    # Phase 5E — sau plan_generator: luôn về answer_composer (composer chọn
-    # format dựa trên query_plan + plan_confidence). Phase 5F sẽ branch SQL.
+    # Phase 5F — sau plan_generator: plan ok + confidence ≥ 0.7 → exec SQL,
+    # ngược lại → composer fallback Phase 5E preview.
     builder.add_conditional_edges(
         "plan_generator",
         routing.route_after_plan_generator,
+        {
+            "dynamic_query_executor": "dynamic_query_executor",
+            "answer_composer": "answer_composer",
+        },
+    )
+    # Phase 5F — dynamic_query_executor luôn về composer (composer kiểm tra
+    # status để render: success → table, fail → fallback message).
+    builder.add_conditional_edges(
+        "dynamic_query_executor",
+        routing.route_after_dynamic_query_executor,
         {"answer_composer": "answer_composer"},
     )
 

@@ -56,6 +56,12 @@ class AgentState(TypedDict, total=False):
     #: phân tích pattern. None khi success.
     plan_error: str | None
 
+    # === Dynamic Query Executor (Phase 5F — chỉ chạy khi plan ok + confidence cao) ===
+    #: `DynamicQueryResult.to_state_dict()` — status / rows / duration / sql /
+    #: error_message / log_id. None khi tool degrade (deps.dynamic_query_tool=None
+    #: hoặc routing skip vì confidence thấp).
+    query_result: dict[str, Any] | None
+
     # === Plan (node 6) ===
     plan: dict[str, Any]
     tools_to_call: list[str]

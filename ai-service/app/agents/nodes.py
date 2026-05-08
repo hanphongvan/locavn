@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..schemas.chat import ChatContext
-from ..schemas.query_plan import PLAN_CONFIDENCE_THRESHOLD
+from ..schemas.query_plan import PLAN_CONFIDENCE_THRESHOLD, QueryPlan
 from ..security.guard import SecurityException, SecurityGuard
 from ..services.data_sanitizer import sanitize_for_llm
 from ..services.dotnet_api_client import DotnetApiClient
@@ -24,6 +24,7 @@ from ..services.llm_service import LlmService, LlmServiceError
 from ..services.logging_service import get_logger
 from ..services.schema_retriever import SchemaRetriever, SchemaRetrieverError
 from ..tools.base_tool import BaseTool
+from ..tools.dynamic_query_tool import DynamicQueryTool, QueryStatus
 from .plan_generator import PlanGenerationError, QueryPlanGenerator
 from .state import AgentState
 
@@ -87,6 +88,10 @@ class Deps:
     user_loai_required: int = 6
     schema_retriever: SchemaRetriever | None = None
     plan_generator: QueryPlanGenerator | None = None
+    #: Phase 5F. None khi `AI_READONLY_CONNECTION_STRING` chưa cấu hình
+    #: hoặc pyodbc chưa cài → graph degrade (route plan_generator →
+    #: answer_composer Phase 5E preview thay vì exec thật).
+    dynamic_query_tool: DynamicQueryTool | None = None
 
 
 # ============================================================================
@@ -389,6 +394,90 @@ async def plan_generator(state: AgentState, deps: Deps) -> AgentState:
         "plan_confidence": plan.confidence,
         "plan_error": None,
     }
+
+
+# ============================================================================
+# Node 5d — dynamic_query_executor (Phase 5F, branch UNKNOWN intent + plan ok)
+# ============================================================================
+
+async def dynamic_query_executor(state: AgentState, deps: Deps) -> AgentState:
+    """Section 14.6 — exec dynamic SQL từ QueryPlan.
+
+    Chỉ chạy khi route_after_plan_generator → "dynamic_query_executor"
+    (plan_confidence ≥ threshold).
+
+    Degrade gracefully:
+    - `deps.dynamic_query_tool is None` (pyodbc chưa cài / connection string
+      empty): skip exec, để composer fallback Phase 5E plan preview.
+    - QueryPlan parse fail: chỉ xảy ra nếu state.query_plan corrupt
+      (Phase 5E đã validate) → log error + skip.
+    - DynamicQueryTool errors (sql_invalid / safety_blocked / timeout /
+      execution_failed) đã được tool catch + log + return result với
+      `status` đúng. Composer kiểm tra status để render.
+    """
+    if deps.dynamic_query_tool is None:
+        _logger.info("dynamic_query_executor.disabled_no_pyodbc_or_connection")
+        return {"query_result": None}
+
+    plan_dict = state.get("query_plan")
+    if not isinstance(plan_dict, dict):
+        return {"query_result": None}
+
+    candidates = state.get("candidate_entities") or []
+    entity = _find_chosen_entity(plan_dict.get("entity"), candidates)
+    if entity is None:
+        _logger.warning(
+            "dynamic_query_executor.entity_not_in_candidates",
+            entity_code=plan_dict.get("entity"),
+        )
+        return {"query_result": None}
+
+    try:
+        plan = QueryPlan.model_validate(plan_dict)
+    except Exception as ex:   # noqa: BLE001 — Pydantic ValidationError
+        _logger.error("dynamic_query_executor.plan_reparse_failed", error=str(ex))
+        return {"query_result": None}
+
+    user_id = int(state.get("user_id") or 0)
+    user_loai = int(state.get("user_loai") or 0)
+    conversation_id = state.get("conversation_id")
+    original_question = (
+        state.get("resolved_question") or state.get("raw_question", "")
+    )
+
+    result = await deps.dynamic_query_tool.execute(
+        plan,
+        entity,
+        user_loai=user_loai,
+        user_id=user_id,
+        original_question=original_question,
+        conversation_id=conversation_id,
+        message_id=None,
+    )
+
+    if not result.is_success and result.status != QueryStatus.NO_DATA:
+        _logger.warning(
+            "dynamic_query_executor.failed",
+            status=result.status,
+            error=result.error_message[:200] if result.error_message else None,
+            log_id=result.log_id,
+        )
+
+    return {"query_result": result.to_state_dict()}
+
+
+def _find_chosen_entity(
+    entity_code: str | None,
+    candidates: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    """Tìm entity dict trong candidates theo entity_code. Phase 5E lock
+    entity vào top-3 candidates nên kì vọng tìm được."""
+    if not entity_code:
+        return None
+    for c in candidates:
+        if c.get("entity_code") == entity_code:
+            return c
+    return None
 
 
 # ============================================================================

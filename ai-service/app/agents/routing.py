@@ -35,14 +35,34 @@ def route_after_schema_retriever(state: AgentState) -> str:
 
 
 def route_after_plan_generator(state: AgentState) -> str:
-    """Phase 5E — sau `plan_generator` node.
+    """Phase 5F — sau `plan_generator` node.
 
-    Hiện tại luôn về `answer_composer`: composer tự quyết format dựa trên
-    `query_plan` + `plan_confidence` (≥ PLAN_CONFIDENCE_THRESHOLD → render
-    plan markdown preview; thấp hơn / None → fallback Phase 5D candidate
-    response).
+    Returns:
+        - `"dynamic_query_executor"` khi plan ok + confidence ≥
+          PLAN_CONFIDENCE_THRESHOLD → exec SQL thật (Phase 5F).
+        - `"answer_composer"` khi plan invalid / confidence thấp / generation
+          fail → composer fallback Phase 5E preview hoặc Phase 5D candidate
+          response.
 
-    Phase 5F sẽ branch: plan ok + confidence cao → `sql_builder` →
-    `safety_gate` → `dynamic_query_tool` → `answer_composer`.
+    KHÔNG check `deps.dynamic_query_tool` ở đây — node `dynamic_query_executor`
+    tự degrade khi tool None (trả `query_result=None` để composer fallback).
+    """
+    from ..schemas.query_plan import PLAN_CONFIDENCE_THRESHOLD
+
+    plan = state.get("query_plan")
+    confidence = state.get("plan_confidence")
+    if not isinstance(plan, dict) or plan is None:
+        return "answer_composer"
+    if not isinstance(confidence, (int, float)) or confidence < PLAN_CONFIDENCE_THRESHOLD:
+        return "answer_composer"
+    return "dynamic_query_executor"
+
+
+def route_after_dynamic_query_executor(state: AgentState) -> str:
+    """Phase 5F — sau `dynamic_query_executor` node.
+
+    Luôn về `answer_composer` — composer kiểm tra `state.query_result.status`
+    để render: success/no_data → render rows, sql_invalid/safety_blocked/
+    timeout/execution_failed → fallback message + Phase 5E preview.
     """
     return "answer_composer"
