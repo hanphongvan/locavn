@@ -5,6 +5,7 @@ import 'admin_auth_repository.dart';
 import 'app_session_bootstrap.dart';
 import 'auth_service.dart';
 import 'auth_session_controller.dart';
+import 'google/google_sign_in_service.dart';
 import 'local_persistent_session_store.dart';
 import 'portal_session_scope.dart';
 
@@ -18,10 +19,15 @@ final adminAuthRepositoryProvider = Provider<AdminAuthRepository>((ref) {
   return AdminAuthRepository(ref.watch(adminAuthDioProvider));
 });
 
+final googleSignInServiceProvider = Provider<GoogleSignInService>((ref) {
+  return GoogleSignInService();
+});
+
 final authServiceProvider = Provider<AuthService>((ref) {
   return AuthService(
     ref.watch(adminAuthRepositoryProvider),
     ref.watch(localPersistentSessionStoreProvider),
+    ref.watch(googleSignInServiceProvider),
   );
 });
 

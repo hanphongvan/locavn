@@ -39,6 +39,17 @@ class AuthSessionController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Trả `true` nếu login Google thành công, `false` nếu user huỷ chooser. Throws khi lỗi.
+  Future<bool> loginWithGoogle() async {
+    final result = await _authService.loginWithGoogle();
+    if (result == null) {
+      return false;
+    }
+    _session = result.session;
+    notifyListeners();
+    return true;
+  }
+
   /// Clears secure storage via [AuthService.logout], drops in-memory [AuthSession], then
   /// [notifyListeners] so [GoRouter] (`refreshListenable`) runs [redirect] → `/map` (guest Citizen).
   ///

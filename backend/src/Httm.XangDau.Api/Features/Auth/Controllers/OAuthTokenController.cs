@@ -1,4 +1,6 @@
 using System.Text.Json;
+using Httm.XangDau.Api.Features.Auth.Google;
+using Httm.XangDau.Api.Features.Auth.Google.Contracts;
 using Httm.XangDau.Api.Shared.Security.OAuth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -14,7 +16,8 @@ namespace Httm.XangDau.Api.Features.Auth.Controllers;
 public sealed class OAuthTokenController(
     ApplicationOAuthProvider oauth,
     OAuthJwtTokenIssuer jwtIssuer,
-    IOptions<OAuthServerOptions> oauthOptions) : ControllerBase
+    IOptions<OAuthServerOptions> oauthOptions,
+    GoogleLoginService googleLogin) : ControllerBase
 {
     private static readonly JsonSerializerOptions OAuthJson = new()
     {
@@ -36,6 +39,22 @@ public sealed class OAuthTokenController(
     public Task<IActionResult> StoreAdminToken([FromForm] OAuthTokenRequestForm form, CancellationToken cancellationToken) =>
         IssueTokenAsync(requireStoreAdmin: true, form, cancellationToken);
 
+    /// <summary>
+    /// Đăng nhập bằng Google ID token (citizen — Loai=5). Auto-create user nếu email Google chưa có
+    /// trong AspNetUsers. Response cùng shape với <c>POST /api/oauth/token</c>.
+    /// </summary>
+    [HttpPost("google")]
+    [Consumes("application/json")]
+    [Produces("application/json")]
+    public async Task<IActionResult> Google([FromBody] GoogleLoginRequest request, CancellationToken cancellationToken)
+    {
+        if (request is null || string.IsNullOrWhiteSpace(request.IdToken))
+            return InvalidGrant("Thiếu idToken.");
+
+        var result = await googleLogin.SignInAsync(request.IdToken, cancellationToken).ConfigureAwait(false);
+        return BuildTokenResponse(result);
+    }
+
     private bool IsStoreAdminClient(string? clientId) =>
         !string.IsNullOrWhiteSpace(clientId)
         && string.Equals(clientId.Trim(), oauthOptions.Value.StoreAdminClientId, StringComparison.Ordinal);
@@ -56,6 +75,11 @@ public sealed class OAuthTokenController(
             .GrantResourceOwnerCredentialsAsync(form.username ?? "", form.password ?? "", requireStoreAdmin, cancellationToken)
             .ConfigureAwait(false);
 
+        return BuildTokenResponse(result);
+    }
+
+    private IActionResult BuildTokenResponse(OAuthGrantResult result)
+    {
         if (result is OAuthGrantInvalid invalid)
             return InvalidGrant(invalid.ErrorDescription);
 

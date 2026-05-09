@@ -46,6 +46,7 @@ dependencies:
   equatable: ^2.0.5
   app_links: ^6.4.0
   local_auth: ^2.3.0
+  google_sign_in: ^6.2.2
   package_info_plus: ^9.0.1
   fl_chart: ^0.69.2
   flutter_markdown: ^0.7.4+1

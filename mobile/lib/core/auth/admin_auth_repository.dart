@@ -48,6 +48,32 @@ class AdminAuthRepository {
     return map;
   }
 
+  /// `POST /api/oauth/google` (application/json) với Google ID token. Backend verify + cấp JWT
+  /// cùng shape với password grant (`access_token`, `userName`, `loai`, …).
+  Future<Map<String, dynamic>> fetchOAuthGoogleGrantJson({
+    required String idToken,
+  }) async {
+    final response = await _dio.post<Object>(
+      '/api/oauth/google',
+      data: <String, dynamic>{'idToken': idToken},
+    );
+    final data = response.data;
+    if (data is! Map) {
+      throw const AdminAuthException('Phản hồi đăng nhập Google không hợp lệ.');
+    }
+    final map = data.cast<String, dynamic>();
+    final err = map['error'] as String?;
+    if (err != null) {
+      final desc = map['error_description'] as String? ?? err;
+      throw AdminAuthException(desc);
+    }
+    final token = map['access_token'];
+    if (token is! String || token.trim().isEmpty) {
+      throw const AdminAuthException('Phản hồi Google không chứa access_token hợp lệ.');
+    }
+    return map;
+  }
+
   /// `POST /api/oauth/token` (x-www-form-urlencoded).
   Future<String> fetchAccessToken({
     required String username,
