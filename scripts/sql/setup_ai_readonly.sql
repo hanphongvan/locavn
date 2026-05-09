@@ -78,6 +78,51 @@ GRANT SELECT ON dbo.DM_DonViTinh   TO ai_readonly;
 PRINT N'  [+] GRANT SELECT trên 6 lookup table hoàn tất.';
 GO
 
+-- 4b) Phase 5F+ refactor — GRANT SELECT trên metadata Ai* để backend đọc -----
+-- Dùng cho 3 read-only method:
+--  - GetSchemaCatalogAsync (Phase 5D AI Gateway lifespan)
+--  - ListCandidateIntentsAsync, GetCandidateIntentAsync (Phase 5G admin GET)
+-- LIST 9 bảng: 6 metadata + 3 ops/log read-only.
+-- KHÔNG grant: AiDataVersion (cache invalidation), AiReindexQueue (worker write),
+-- AiAdminAuditLogs (audit nhạy cảm), AiRateLimit (counter internal).
+DECLARE @aiReadTables TABLE (TableName SYSNAME);
+INSERT INTO @aiReadTables (TableName) VALUES
+    -- Phase 5D + 5E catalog/semantic mapping
+    (N'AiSchemaCatalog'),
+    (N'AiSemanticMapping'),
+    (N'AiBaoCaoConstants'),
+    (N'AiIndicatorGroup'),
+    (N'AiFuelCodeMapping'),
+    (N'AiUnitConversion'),
+    -- Phase 5G admin READ
+    (N'AiCandidateIntents'),
+    (N'AiDynamicQueryLogs'),
+    (N'AiIntentConfigs');
+
+DECLARE @t2 SYSNAME, @sql2 NVARCHAR(MAX);
+DECLARE cur2 CURSOR LOCAL FAST_FORWARD FOR
+    SELECT TableName FROM @aiReadTables;
+OPEN cur2;
+FETCH NEXT FROM cur2 INTO @t2;
+WHILE @@FETCH_STATUS = 0
+BEGIN
+    IF OBJECT_ID(N'dbo.' + @t2, N'U') IS NOT NULL
+    BEGIN
+        SET @sql2 = N'GRANT SELECT ON dbo.' + QUOTENAME(@t2) + N' TO ai_readonly;';
+        EXEC sp_executesql @sql2;
+        PRINT N'    [+] GRANT SELECT dbo.' + @t2;
+    END
+    ELSE
+    BEGIN
+        PRINT N'    [.] dbo.' + @t2 + N' không tồn tại — bỏ qua (chưa apply Phase 5A?).';
+    END
+    FETCH NEXT FROM cur2 INTO @t2;
+END
+CLOSE cur2;
+DEALLOCATE cur2;
+PRINT N'  [+] GRANT SELECT trên 9 bảng metadata Ai* hoàn tất.';
+GO
+
 -- 5) DENY mọi thao tác ghi và DDL ở scope database ----------------------------
 DENY INSERT     TO ai_readonly;
 DENY UPDATE     TO ai_readonly;

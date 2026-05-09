@@ -74,6 +74,31 @@ public sealed record CandidateIntentMutationResponse(
     DateTime? ApprovedAt,
     string Message);
 
+// === Phase 5F (refactored) — Dynamic query proxy ===
+
+/// <summary>
+/// AI Gateway POST SQL parameterized + params đã build từ SqlBuilder + check
+/// qua SafetyGate. .NET execute với connection string <c>AiReadonly</c>
+/// (DENY DDL/DML ở DB engine level — defense-in-depth lớp cuối).
+///
+/// Tách riêng <see cref="AiInternalRowsResponse{T}"/> generic vì rows là
+/// <c>list[dict]</c> dynamic shape (column tuỳ query plan), không có schema
+/// cố định.
+/// </summary>
+public sealed record DynamicQueryRequest(
+    string Sql,
+    Dictionary<string, object?> Parameters,
+    int? TimeoutSeconds);
+
+/// <summary>
+/// Response: rows + telemetry. Mỗi row là dict cột → giá trị.
+/// AI Gateway parse rows → markdown table cho composer.
+/// </summary>
+public sealed record DynamicQueryResponse(
+    IReadOnlyList<Dictionary<string, object?>> Rows,
+    int RowCount,
+    int DurationMs);
+
 // === Phase 5G — Reindex queue (Python worker poll) ===
 
 /// <summary>1 entry pending trong AiReindexQueue mà worker phải xử lý.</summary>

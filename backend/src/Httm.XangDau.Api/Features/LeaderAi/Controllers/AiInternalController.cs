@@ -185,6 +185,73 @@ public sealed class AiInternalController(IAiInternalDataAccess dataAccess) : Con
 }
 
 // ----------------------------------------------------------------------------
+// Phase 5F (refactored) — Dynamic query proxy (AI Gateway → .NET → ai_readonly)
+// ----------------------------------------------------------------------------
+
+/// <summary>
+/// Phase 5F refactored 2026-05-09 — AI Gateway build SQL + check SafetyGate
+/// ở Python, gọi endpoint này để .NET execute với connection <c>ai_readonly</c>.
+///
+/// Architectural decision: chỉ .NET API connect DB (rule global của project).
+/// AI Gateway KHÔNG có pyodbc, KHÔNG có connection string. Defense-in-depth
+/// lớp DB-level (<c>ai_readonly</c> DENY DDL/DML) vẫn nguyên — đặt ở .NET
+/// thay vì Python.
+/// </summary>
+[ApiController]
+[Route("internal/ai")]
+[InternalKeyOnly]
+[Tags("AiInternal")]
+public sealed class AiDynamicQueryProxyController(
+    IAdminAiDataAccess adminDataAccess,
+    ILogger<AiDynamicQueryProxyController> logger) : ControllerBase
+{
+    /// <summary>
+    /// Execute dynamic SQL. 503 nếu <c>AiReadonly</c> connection chưa cấu hình
+    /// → AI Gateway fallback Phase 5E plan preview. 200 với errorMessage khi
+    /// SQL error (timeout / permission denied) → caller log đúng enum status.
+    /// </summary>
+    [HttpPost("exec-dynamic-query")]
+    [ProducesResponseType(typeof(DynamicQueryResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public async Task<ActionResult<DynamicQueryResponse>> ExecDynamicQuery(
+        [FromBody] DynamicQueryRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(request.Sql))
+            return BadRequest(new { message = "sql là bắt buộc." });
+
+        var timeout = request.TimeoutSeconds ?? 10;
+        if (timeout is < 1 or > 60)
+            return BadRequest(new { message = "timeoutSeconds phải trong khoảng 1..60." });
+
+        var result = await adminDataAccess.ExecuteDynamicQuerySafelyAsync(
+            request.Sql, request.Parameters ?? new Dictionary<string, object?>(),
+            timeout, cancellationToken).ConfigureAwait(false);
+
+        if (result.ConnectionMissing)
+        {
+            return StatusCode(
+                StatusCodes.Status503ServiceUnavailable,
+                new { message = result.ErrorMessage ?? "AiReadonly connection string chưa cấu hình." });
+        }
+
+        if (result.ErrorMessage is not null)
+        {
+            logger.LogWarning(
+                "ExecDynamicQuery returned with errorMessage: {ErrorMessage}",
+                result.ErrorMessage);
+        }
+
+        return Ok(new DynamicQueryResponse(
+            Rows: result.Rows,
+            RowCount: result.Rows.Count,
+            DurationMs: result.DurationMs));
+    }
+}
+
+// ----------------------------------------------------------------------------
 // Phase 5G — Reindex queue endpoints (Python worker poll qua X-Internal-Key)
 // ----------------------------------------------------------------------------
 

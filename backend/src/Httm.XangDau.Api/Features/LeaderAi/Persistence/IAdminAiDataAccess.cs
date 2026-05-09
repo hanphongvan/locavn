@@ -53,7 +53,34 @@ public interface IAdminAiDataAccess
     /// <summary>Mark complete (status=done | failed). Set ProcessedAt + ErrorMessage.</summary>
     Task MarkReindexCompleteAsync(
         int id, string status, string? errorMessage, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Phase 5F (refactored) — execute dynamic SQL với connection
+    /// <c>ai_readonly</c>. SQL + params đã build từ SqlBuilder + check
+    /// SafetyGate ở AI Gateway. .NET dùng user <c>ai_readonly</c> để DENY
+    /// DDL/DML ở DB engine level (defense-in-depth lớp cuối cùng).
+    ///
+    /// <paramref name="parameters"/> keys khớp <c>@p0</c>, <c>@p1</c>,
+    /// <c>@p1_lo</c>, etc. (xem <c>SqlBuilder._build_where_clause</c>).
+    /// .NET tự convert sang Dapper <c>DynamicParameters</c>.
+    /// </summary>
+    Task<DynamicQueryExecutionResult> ExecuteDynamicQuerySafelyAsync(
+        string sql,
+        IReadOnlyDictionary<string, object?> parameters,
+        int timeoutSeconds,
+        CancellationToken cancellationToken);
 }
+
+/// <summary>
+/// Phase 5F (refactored) — kết quả exec dynamic query. Phân biệt
+/// <see cref="ConnectionMissing"/> (config thiếu) vs success/error để
+/// controller trả status code phù hợp (503 vs 200/500).
+/// </summary>
+public sealed record DynamicQueryExecutionResult(
+    bool ConnectionMissing,
+    IReadOnlyList<Dictionary<string, object?>> Rows,
+    int DurationMs,
+    string? ErrorMessage);
 
 /// <summary>Promote result — phân biệt success vs các lỗi nghiệp vụ khác nhau.</summary>
 public enum PromotePreconditionFailure

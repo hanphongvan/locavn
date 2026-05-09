@@ -128,6 +128,54 @@ CLOSE c3;
 DEALLOCATE c3;
 
 ------------------------------------------------------------------------------
+-- C2) Phase 5F+ refactor — SELECT metadata Ai* phải PASS (đã GRANT)
+------------------------------------------------------------------------------
+PRINT N'';
+PRINT N'C2) SELECT bảng metadata Ai* (kỳ vọng: PASS — Phase 5F+ refactor đã GRANT)';
+
+DECLARE @aiReadOk TABLE (TableName SYSNAME);
+INSERT INTO @aiReadOk (TableName) VALUES
+    (N'AiSchemaCatalog'),
+    (N'AiSemanticMapping'),
+    (N'AiBaoCaoConstants'),
+    (N'AiIndicatorGroup'),
+    (N'AiFuelCodeMapping'),
+    (N'AiUnitConversion'),
+    (N'AiCandidateIntents'),
+    (N'AiDynamicQueryLogs'),
+    (N'AiIntentConfigs');
+
+DECLARE @t4 SYSNAME, @sql4 NVARCHAR(MAX);
+DECLARE c4 CURSOR LOCAL FAST_FORWARD FOR
+    SELECT TableName FROM @aiReadOk;
+OPEN c4;
+FETCH NEXT FROM c4 INTO @t4;
+WHILE @@FETCH_STATUS = 0
+BEGIN
+    IF OBJECT_ID(N'dbo.' + @t4, N'U') IS NULL
+    BEGIN
+        PRINT N'    [.] dbo.' + @t4 + N' không tồn tại — bỏ qua (chưa apply Phase 5A?).';
+        FETCH NEXT FROM c4 INTO @t4;
+        CONTINUE;
+    END
+
+    BEGIN TRY
+        SET @sql4 = N'SELECT TOP 1 1 AS Probe FROM dbo.' + QUOTENAME(@t4) + N';';
+        EXEC sp_executesql @sql4;
+        PRINT N'  [PASS] SELECT dbo.' + @t4;
+        SET @passCnt = @passCnt + 1;
+    END TRY
+    BEGIN CATCH
+        PRINT N'  [FAIL] SELECT dbo.' + @t4 + N' bị block (errno='
+              + CAST(ERROR_NUMBER() AS NVARCHAR(10)) + N') — kỳ vọng PASS!';
+        SET @failCnt = @failCnt + 1;
+    END CATCH;
+    FETCH NEXT FROM c4 INTO @t4;
+END
+CLOSE c4;
+DEALLOCATE c4;
+
+------------------------------------------------------------------------------
 -- D) Thao tác ghi & DDL — phải bị DENY
 ------------------------------------------------------------------------------
 PRINT N'';

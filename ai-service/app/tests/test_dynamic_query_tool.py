@@ -1,6 +1,10 @@
 """Phase 5F — pytest cho `DynamicQueryTool` orchestration.
 
-Mock SqlBuilder + SafetyGate + ReadonlyDb + DotnetApiClient để verify:
+Refactored 2026-05-09: `DynamicQueryTool` KHÔNG còn `ReadonlyDb` Python.
+Tool gửi SQL qua HTTP đến .NET (`DotnetApiClient.exec_dynamic_query`) — .NET
+execute với connection `ai_readonly`. Mock chỉ cần `DotnetApiClient`.
+
+Mock SqlBuilder (real) + SafetyGate (real) + DotnetApiClient (mock) để verify:
 - Status flow: success / no_data / safety_blocked / sql_invalid / timeout /
   execution_failed.
 - Best-effort logging: log fail không fail tool.
@@ -15,10 +19,14 @@ from unittest.mock import AsyncMock
 import pytest
 
 from app.schemas.query_plan import QueryPlan
-from app.security.safety_gate import SafetyGate, SafetyGateError
-from app.services.dotnet_api_client import DotnetApiClient
-from app.services.readonly_db import ReadonlyDb, ReadonlyDbError, ReadonlyDbTimeout
-from app.services.sql_builder import SqlBuilder, SqlBuildError
+from app.security.safety_gate import SafetyGate
+from app.services.dotnet_api_client import (
+    DotnetApiClient,
+    DynamicQueryConnectionMissing,
+    DynamicQueryError,
+    DynamicQueryResponse,
+)
+from app.services.sql_builder import SqlBuilder
 from app.tools.dynamic_query_tool import (
     DynamicQueryResult,
     DynamicQueryTool,
@@ -66,18 +74,25 @@ def _make_tool(
     db_rows: list[dict] | None = None,
     db_exception: Exception | None = None,
 ):
-    db = AsyncMock(spec=ReadonlyDb)
-    if db_exception is not None:
-        db.execute_query.side_effect = db_exception
-    else:
-        db.execute_query.return_value = db_rows if db_rows is not None else []
+    """Mock DotnetApiClient.exec_dynamic_query để giả lập 4 path:
+    - Success: trả `DynamicQueryResponse(rows, ...)`.
+    - Empty: rows=[].
+    - Connection missing (.NET 503): `DynamicQueryConnectionMissing`.
+    - Timeout / Generic error: `DynamicQueryError`.
+    """
     dotnet = AsyncMock(spec=DotnetApiClient)
+    if db_exception is not None:
+        dotnet.exec_dynamic_query.side_effect = db_exception
+    else:
+        rows = db_rows if db_rows is not None else []
+        dotnet.exec_dynamic_query.return_value = DynamicQueryResponse(
+            rows=rows, row_count=len(rows), duration_ms=42,
+        )
     return DynamicQueryTool(
         sql_builder=SqlBuilder(),
         safety_gate=SafetyGate(),
-        readonly_db=db,
         dotnet=dotnet,
-    ), db, dotnet
+    ), dotnet, dotnet   # legacy 3-tuple shape — db slot reuse dotnet
 
 
 # ---------------------------------------------------------------------------
@@ -116,7 +131,7 @@ async def test_safety_blocked_wrong_user_loai():
     res = await tool.execute(_plan(), _entity(), user_loai=1, user_id=1, original_question="Q")
     assert res.status == QueryStatus.SAFETY_BLOCKED
     assert "Loai" in (res.error_message or "")
-    db.execute_query.assert_not_called()
+    dotnet.exec_dynamic_query.assert_not_called()
     dotnet.log_dynamic_query.assert_awaited_once()
 
 
@@ -126,32 +141,50 @@ async def test_safety_blocked_high_sensitivity():
     sensitive_entity["sensitivity_level"] = 3
     res = await tool.execute(_plan(), sensitive_entity, user_loai=6, user_id=1, original_question="Q")
     assert res.status == QueryStatus.SAFETY_BLOCKED
-    db.execute_query.assert_not_called()
+    db.exec_dynamic_query.assert_not_called()
 
 
 async def test_timeout_status():
-    tool, _, dotnet = _make_tool(db_exception=ReadonlyDbTimeout("lock timeout"))
+    """Phase 5F refactored — .NET trả timeout via DynamicQueryError với
+    keyword 'timeout' trong message → tool log status='timeout'."""
+    tool, _, dotnet = _make_tool(db_exception=DynamicQueryError(
+        "Query timeout: Lock request timeout exceeded after 5000ms"
+    ))
     res = await tool.execute(_plan(), _entity(), user_loai=6, user_id=1, original_question="Q")
     assert res.status == QueryStatus.TIMEOUT
-    assert res.error_message is not None and "lock timeout" in res.error_message
+    assert "timeout" in (res.error_message or "").lower()
     dotnet.log_dynamic_query.assert_awaited_once()
 
 
 async def test_execution_failed_status():
-    tool, _, dotnet = _make_tool(db_exception=ReadonlyDbError("connection refused"))
+    """Phase 5F refactored — non-timeout error → status='execution_failed'."""
+    tool, _, dotnet = _make_tool(db_exception=DynamicQueryError("Permission denied"))
     res = await tool.execute(_plan(), _entity(), user_loai=6, user_id=1, original_question="Q")
     assert res.status == QueryStatus.EXECUTION_FAILED
-    assert "connection refused" in (res.error_message or "")
+    assert "Permission denied" in (res.error_message or "")
+
+
+async def test_connection_missing_status():
+    """Phase 5F refactored — .NET trả 503 vì AiReadonly chưa cấu hình →
+    status='execution_failed' với message rõ ràng → composer fallback Phase
+    5E plan preview."""
+    tool, _, dotnet = _make_tool(db_exception=DynamicQueryConnectionMissing(
+        "ConnectionStrings:AiReadonly chưa cấu hình."
+    ))
+    res = await tool.execute(_plan(), _entity(), user_loai=6, user_id=1, original_question="Q")
+    assert res.status == QueryStatus.EXECUTION_FAILED
+    assert "AiReadonly" in (res.error_message or "")
+    dotnet.log_dynamic_query.assert_awaited_once()
 
 
 async def test_sql_invalid_when_entity_metadata_corrupt():
     """Entity thiếu base_view → SqlBuilder raise → log status='sql_invalid'."""
-    tool, db, _ = _make_tool(db_rows=[])
+    tool, dotnet, _ = _make_tool(db_rows=[])
     bad_entity = _entity()
     bad_entity["base_view"] = ""   # invalid
     res = await tool.execute(_plan(), bad_entity, user_loai=6, user_id=1, original_question="Q")
     assert res.status == QueryStatus.SQL_INVALID
-    db.execute_query.assert_not_called()
+    dotnet.exec_dynamic_query.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

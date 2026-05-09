@@ -10,6 +10,7 @@ Header `X-Internal-Key` lấy từ env `AI_GATEWAY_INTERNAL_KEY` — phải kh�
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 from typing import Any
 
 import httpx
@@ -22,6 +23,30 @@ _logger = get_logger(__name__)
 
 class DotnetApiError(Exception):
     """Raised khi .NET API trả lỗi hoặc unreachable sau retry."""
+
+
+# === Phase 5F (refactored) — Dynamic query proxy exceptions ===
+
+class DynamicQueryError(Exception):
+    """Phase 5F refactored — exec dynamic query fail (network / 4xx / 5xx).
+    Caller (DynamicQueryTool) log status='execution_failed'."""
+
+
+class DynamicQueryConnectionMissing(DynamicQueryError):
+    """Phase 5F refactored — .NET trả 503 vì `ConnectionStrings:AiReadonly`
+    chưa cấu hình. AI Gateway fallback Phase 5E plan preview."""
+
+
+class DynamicQueryTimeout(DynamicQueryError):
+    """Phase 5F refactored — query timeout. Caller log status='timeout'."""
+
+
+@dataclass(frozen=True, slots=True)
+class DynamicQueryResponse:
+    """Response từ `POST /internal/ai/exec-dynamic-query`."""
+    rows: list[dict[str, Any]]
+    row_count: int
+    duration_ms: int
 
 
 class DotnetApiClient:
@@ -360,6 +385,86 @@ class DotnetApiClient:
                 "dotnet_api.upsert_candidate_intent_failed",
                 fingerprint=question_fingerprint, error=str(ex),
             )
+
+    # ------------------------------------------------------------------
+    # Phase 5F (refactored 2026-05-09) — Dynamic query proxy
+    # ------------------------------------------------------------------
+
+    async def exec_dynamic_query(
+        self,
+        *,
+        sql: str,
+        params: dict[str, Any],
+        timeout_seconds: int = 10,
+    ) -> DynamicQueryResponse:
+        """POST `/internal/ai/exec-dynamic-query` — .NET execute dynamic SQL
+        với connection `ai_readonly` (DENY DDL/DML ở DB engine level).
+
+        Architectural rule: chỉ .NET API connect DB. AI Gateway KHÔNG có
+        pyodbc/ODBC driver. SafetyGate + SqlBuilder vẫn chạy ở Python trước
+        khi gửi sang .NET.
+
+        Returns: `DynamicQueryResponse(rows, row_count, duration_ms)` khi OK.
+
+        Raises:
+            DynamicQueryConnectionMissing: 503 — `ConnectionStrings:AiReadonly`
+                chưa cấu hình ở .NET.
+            DynamicQueryError: network error / 4xx / 5xx khác.
+        """
+        if not self._internal_key:
+            raise DynamicQueryError(
+                "AI_GATEWAY_INTERNAL_KEY chưa set — không thể gọi exec-dynamic-query."
+            )
+
+        # HTTP timeout = SQL timeout + buffer 5s cho mạng + .NET serialize.
+        http_timeout = timeout_seconds + 5
+
+        url = f"{self._base_url}/internal/ai/exec-dynamic-query"
+        headers = {self.INTERNAL_KEY_HEADER: self._internal_key}
+        payload = {
+            "sql": sql,
+            "parameters": params,
+            "timeoutSeconds": timeout_seconds,
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=http_timeout) as client:
+                response = await client.post(url, json=payload, headers=headers)
+        except (httpx.HTTPError, httpx.TimeoutException) as ex:
+            raise DynamicQueryError(
+                f"exec-dynamic-query network error: {ex}"
+            ) from ex
+
+        if response.status_code == 503:
+            try:
+                body = response.json()
+                msg = body.get("message") or "AiReadonly connection chưa cấu hình."
+            except ValueError:
+                msg = "AiReadonly connection chưa cấu hình."
+            raise DynamicQueryConnectionMissing(msg)
+
+        if response.status_code >= 400:
+            raise DynamicQueryError(
+                f".NET API exec-dynamic-query trả {response.status_code}: "
+                f"{response.text[:200]}"
+            )
+
+        try:
+            body = response.json()
+        except ValueError as ex:
+            raise DynamicQueryError(f"Response không phải JSON: {ex}") from ex
+
+        rows = body.get("rows") or []
+        if not isinstance(rows, list):
+            raise DynamicQueryError(
+                f"Response `rows` không phải list: {type(rows).__name__}"
+            )
+
+        return DynamicQueryResponse(
+            rows=list(rows),
+            row_count=int(body.get("rowCount") or len(rows)),
+            duration_ms=int(body.get("durationMs") or 0),
+        )
 
     # ------------------------------------------------------------------
     # Phase 5G — Reindex queue (worker poll)

@@ -55,6 +55,31 @@ public sealed class AiInternalDataAccess(
         configuration.GetConnectionString(InfrastructureDependencyInjection.DefaultConnectionName)
         ?? throw new InvalidOperationException("DefaultConnection missing.");
 
+    /// <summary>
+    /// Phase 5F+ refactor — connection riêng cho user <c>ai_readonly</c>,
+    /// dùng cho method READ-only Phase 5D (<see cref="GetSchemaCatalogAsync"/>).
+    /// Empty/null → fallback DefaultConnection + log warning ở
+    /// <see cref="PickReadonlyConnectionString"/>.
+    /// </summary>
+    private readonly string? _aiReadonlyConnectionString =
+        configuration.GetConnectionString(InfrastructureDependencyInjection.AiReadonlyConnectionName);
+
+    /// <summary>
+    /// Chọn connection string cho method READ-only AI: ưu tiên
+    /// <c>AiReadonly</c> (defense-in-depth lớp DB-level — DENY DDL/DML).
+    /// Fallback <c>DefaultConnection</c> + warning nếu chưa cấu hình → app
+    /// vẫn chạy nhưng mất defense layer 1.
+    /// </summary>
+    private string PickReadonlyConnectionString()
+    {
+        if (!string.IsNullOrWhiteSpace(_aiReadonlyConnectionString))
+            return _aiReadonlyConnectionString;
+        logger.LogWarning(
+            "AiReadonly connection chưa cấu hình — fallback DefaultConnection cho method READ. " +
+            "Production: set ConnectionStrings:AiReadonly để bật defense-in-depth lớp DB.");
+        return _connectionString;
+    }
+
     public async Task<IReadOnlyList<AiFuelInventoryRow>> GetFuelInventorySummaryAsync(
         AiFuelInventoryRequest request,
         CancellationToken cancellationToken)
@@ -218,7 +243,8 @@ public sealed class AiInternalDataAccess(
             ORDER BY EntityCode;
             """;
 
-        await using var conn = new SqlConnection(_connectionString);
+        // Phase 5F+ refactor — dùng AiReadonly connection (defense-in-depth lớp DB).
+        await using var conn = new SqlConnection(PickReadonlyConnectionString());
         await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
 
         var command = new CommandDefinition(sql, cancellationToken: cancellationToken);
