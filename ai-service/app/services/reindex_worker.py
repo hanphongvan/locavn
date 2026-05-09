@@ -82,7 +82,16 @@ async def reindex_worker_loop(
 
             _logger.info("reindex_worker.batch_received", count=len(items))
             for item in items:
-                await _process_one(item, schema_retriever, dotnet)
+                # Defensive wrap: 1 entry crash bất ngờ KHÔNG kill worker —
+                # log + continue với entry tiếp theo. _process_one đã catch
+                # nội bộ rồi, đây là lớp guard cuối.
+                try:
+                    await _process_one(item, schema_retriever, dotnet)
+                except Exception as ex:   # noqa: BLE001 — defensive
+                    _logger.error(
+                        "reindex_worker.process_unexpected_error",
+                        item=item, error=str(ex)[:300],
+                    )
 
             await asyncio.sleep(poll_seconds)
     except asyncio.CancelledError:
