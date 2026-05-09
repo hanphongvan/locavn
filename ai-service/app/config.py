@@ -80,6 +80,13 @@ class Settings(BaseSettings):
     ai_readonly_lock_timeout_ms: int = Field(default=5000)
     ai_readonly_query_governor_cost_limit: int = Field(default=30)
 
+    # === Phase 5G — Reindex worker (poll AiReindexQueue) ===
+    #: Default false để dev/test không tự start worker khi không cần.
+    #: Production set REINDEX_WORKER_ENABLED=true.
+    reindex_worker_enabled: bool = Field(default=False)
+    reindex_worker_poll_seconds: int = Field(default=30)
+    reindex_worker_batch_limit: int = Field(default=10)
+
     @property
     def models_yaml_path(self) -> Path:
         """Đường dẫn tuyệt đối tới `app/config/models.yaml`."""
