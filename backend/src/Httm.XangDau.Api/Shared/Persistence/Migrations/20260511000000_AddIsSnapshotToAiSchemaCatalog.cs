@@ -24,7 +24,10 @@ public sealed class AddIsSnapshotToAiSchemaCatalog : Migration
     /// <inheritdoc />
     protected override void Up(MigrationBuilder migrationBuilder)
     {
-        migrationBuilder.Sql(AiPhase5HSnapshotFlagSql.Up);
+        // 2 batch riêng — xem AiPhase5HSnapshotFlagSql để biết tại sao không
+        // gộp được (deferred name resolution cho cột mới).
+        migrationBuilder.Sql(AiPhase5HSnapshotFlagSql.UpAddColumn);
+        migrationBuilder.Sql(AiPhase5HSnapshotFlagSql.UpSeedFundBalance);
     }
 
     /// <inheritdoc />

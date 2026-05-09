@@ -26,11 +26,13 @@ namespace Httm.XangDau.Api.Shared.Persistence.Migrations;
 internal static class AiPhase5HSnapshotFlagSql
 {
     /// <summary>
-    /// Thêm cột <c>IsSnapshot BIT NOT NULL DEFAULT 0</c> vào AiSchemaCatalog,
-    /// set <c>1</c> cho <c>head_office_fund_balance</c>. Idempotent.
-    /// Trigger <c>TR_AiSchemaCatalog_AfterUpsert</c> sẽ enqueue reindex.
+    /// Phần 1 — chỉ ALTER TABLE. PHẢI ở batch riêng vì SQL Server compile
+    /// toàn batch trước khi exec; nếu UPDATE cùng batch tham chiếu cột
+    /// <c>IsSnapshot</c> vừa add → "Invalid column name" tại compile time
+    /// (deferred name resolution chỉ áp dụng cho TABLE chưa tồn tại, KHÔNG
+    /// cho COLUMN chưa tồn tại trên table đã có). Idempotent qua COL_LENGTH.
     /// </summary>
-    internal const string Up =
+    internal const string UpAddColumn =
         """
         IF COL_LENGTH(N'dbo.AiSchemaCatalog', N'IsSnapshot') IS NULL
         BEGIN
@@ -38,7 +40,16 @@ internal static class AiPhase5HSnapshotFlagSql
                 ADD IsSnapshot BIT NOT NULL
                     CONSTRAINT DF_AiSchemaCatalog_IsSnapshot DEFAULT (0);
         END;
+        """;
 
+    /// <summary>
+    /// Phần 2 — set <c>IsSnapshot=1</c> cho <c>head_office_fund_balance</c>.
+    /// Chạy ở batch riêng (sau ALTER đã commit) để SQL Server biết cột tồn tại.
+    /// Idempotent qua điều kiện <c>IsSnapshot &lt;&gt; 1</c>. Trigger
+    /// <c>TR_AiSchemaCatalog_AfterUpsert</c> sẽ enqueue reindex.
+    /// </summary>
+    internal const string UpSeedFundBalance =
+        """
         UPDATE dbo.AiSchemaCatalog
         SET IsSnapshot = 1, Modified = SYSUTCDATETIME()
         WHERE EntityCode = N'head_office_fund_balance'
