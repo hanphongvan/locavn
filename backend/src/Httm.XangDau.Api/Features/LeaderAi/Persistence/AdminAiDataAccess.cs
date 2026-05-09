@@ -386,13 +386,28 @@ public sealed class AdminAiDataAccess(
             await using var conn = new SqlConnection(_aiReadonlyConnectionString);
             await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-            // SafetyGate đã check ở AI Gateway, em re-apply LOCK_TIMEOUT +
-            // QUERY_GOVERNOR_COST_LIMIT ở session để defense-in-depth
-            // (Section 11.5 doc).
+            // Session-level SET options:
+            // - LOCK_TIMEOUT 5000ms: defense-in-depth Section 11.5 — fail fast
+            //   nếu DB bận thay vì block worker thread.
+            // - ARITHABORT ON + các SET kèm: ép SET options khớp SSMS default.
+            //   Microsoft.Data.SqlClient default ARITHABORT OFF, trong khi
+            //   SSMS dùng ON. View có CTE + GROUP BY + window function cache
+            //   query plan theo SET options — mismatch → SQL Server có thể
+            //   trả empty rowset thay vì raise error (bug kinh điển khi
+            //   migrate query SSMS → ADO.NET). Bug confirmed Phase 5F.
+            // - LOẠI BỎ QUERY_GOVERNOR_COST_LIMIT (cần sysadmin permission,
+            //   `ai_readonly` không có → silent fail). Cost protection thay
+            //   bằng commandTimeout + LOCK_TIMEOUT.
             await using (var sessionCmd = conn.CreateCommand())
             {
                 sessionCmd.CommandText =
-                    "SET LOCK_TIMEOUT 5000; SET QUERY_GOVERNOR_COST_LIMIT 30;";
+                    "SET LOCK_TIMEOUT 5000;" +
+                    "SET ARITHABORT ON;" +
+                    "SET ANSI_NULLS ON;" +
+                    "SET ANSI_WARNINGS ON;" +
+                    "SET ANSI_PADDING ON;" +
+                    "SET QUOTED_IDENTIFIER ON;" +
+                    "SET CONCAT_NULL_YIELDS_NULL ON;";
                 await sessionCmd.ExecuteNonQueryAsync(cancellationToken)
                     .ConfigureAwait(false);
             }
