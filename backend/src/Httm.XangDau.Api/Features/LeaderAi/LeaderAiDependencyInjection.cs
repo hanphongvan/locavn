@@ -32,6 +32,7 @@ public static class LeaderAiDependencyInjection
         services.AddScoped<ILeaderAiService, LeaderAiService>();
         // Phase 5G — admin candidate-intent management + reindex queue
         services.AddScoped<IAdminAiDataAccess, AdminAiDataAccess>();
+        services.AddScoped<IAdminAuditService, AdminAuditService>();
 
         // Typed HttpClient cho AI Gateway. Timeout 50s = pipeline 45s + 5s buffer mạng.
         // BaseAddress lấy từ AiGateway:BaseUrl. Test override qua HttpMessageHandler hoặc IAiGatewayClient mock.

@@ -1,6 +1,8 @@
+using System.Text.Json;
 using Httm.XangDau.Api.Features.LeaderAi.Contracts;
 using Httm.XangDau.Api.Features.LeaderAi.Persistence;
 using Httm.XangDau.Api.Features.LeaderAi.Security;
+using Httm.XangDau.Api.Features.LeaderAi.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Httm.XangDau.Api.Features.LeaderAi.Controllers;
@@ -16,8 +18,11 @@ namespace Httm.XangDau.Api.Features.LeaderAi.Controllers;
 [Route("api/admin/ai")]
 [AdminAiAuthorize]
 [Tags("AdminAi")]
-public sealed class AdminAiController(IAdminAiDataAccess dataAccess) : ControllerBase
+public sealed class AdminAiController(
+    IAdminAiDataAccess dataAccess,
+    IAdminAuditService audit) : ControllerBase
 {
+    private const string CandidateIntentsTable = "AiCandidateIntents";
     // ------------------------------------------------------------------
     // 1. List candidate intents
     // ------------------------------------------------------------------
@@ -81,9 +86,17 @@ public sealed class AdminAiController(IAdminAiDataAccess dataAccess) : Controlle
         var result = await dataAccess.ApproveCandidateAsync(
             id, adminUserId, request.Notes, cancellationToken).ConfigureAwait(false);
 
-        return result is null
-            ? Conflict(new { message = $"Candidate #{id} không tồn tại hoặc không ở trạng thái 'pending'." })
-            : Ok(result);
+        if (result is null)
+            return Conflict(new { message = $"Candidate #{id} không tồn tại hoặc không ở trạng thái 'pending'." });
+
+        await audit.LogAsync(
+            adminUserId, AdminAuditActions.ApproveIntent,
+            tableName: CandidateIntentsTable,
+            recordId: id.ToString(),
+            afterJson: JsonSerializer.Serialize(result),
+            notes: request.Notes,
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+        return Ok(result);
     }
 
     // ------------------------------------------------------------------
@@ -107,9 +120,17 @@ public sealed class AdminAiController(IAdminAiDataAccess dataAccess) : Controlle
         var result = await dataAccess.RejectCandidateAsync(
             id, adminUserId, request.Notes, cancellationToken).ConfigureAwait(false);
 
-        return result is null
-            ? Conflict(new { message = $"Candidate #{id} không tồn tại hoặc không thể reject." })
-            : Ok(result);
+        if (result is null)
+            return Conflict(new { message = $"Candidate #{id} không tồn tại hoặc không thể reject." });
+
+        await audit.LogAsync(
+            adminUserId, AdminAuditActions.RejectIntent,
+            tableName: CandidateIntentsTable,
+            recordId: id.ToString(),
+            afterJson: JsonSerializer.Serialize(result),
+            notes: request.Notes,
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+        return Ok(result);
     }
 
     // ------------------------------------------------------------------
@@ -137,16 +158,30 @@ public sealed class AdminAiController(IAdminAiDataAccess dataAccess) : Controlle
             id, adminUserId, request.IntentCode, request.DisplayName, request.Notes,
             cancellationToken).ConfigureAwait(false);
 
-        return result.Failure switch
+        switch (result.Failure)
         {
-            PromotePreconditionFailure.CandidateNotFound =>
-                NotFound(new { message = $"Candidate #{id} không tồn tại." }),
-            PromotePreconditionFailure.CandidateNotApproved =>
-                Conflict(new { message = $"Candidate #{id} chưa ở trạng thái 'approved' — phải approve trước khi promote." }),
-            PromotePreconditionFailure.IntentCodeDuplicate =>
-                Conflict(new { message = $"IntentCode '{request.IntentCode}' đã tồn tại trong AiIntentConfigs." }),
-            _ => Ok(result.Response!),
-        };
+            case PromotePreconditionFailure.CandidateNotFound:
+                return NotFound(new { message = $"Candidate #{id} không tồn tại." });
+            case PromotePreconditionFailure.CandidateNotApproved:
+                return Conflict(new { message = $"Candidate #{id} chưa ở trạng thái 'approved' — phải approve trước khi promote." });
+            case PromotePreconditionFailure.IntentCodeDuplicate:
+                return Conflict(new { message = $"IntentCode '{request.IntentCode}' đã tồn tại trong AiIntentConfigs." });
+        }
+
+        await audit.LogAsync(
+            adminUserId, AdminAuditActions.PromoteIntent,
+            tableName: CandidateIntentsTable,
+            recordId: id.ToString(),
+            afterJson: JsonSerializer.Serialize(new
+            {
+                candidate = result.Response,
+                intentConfigId = result.IntentConfigId,
+                intentCode = request.IntentCode,
+                displayName = request.DisplayName,
+            }),
+            notes: request.Notes,
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+        return Ok(result.Response!);
     }
 
     // ------------------------------------------------------------------
