@@ -84,25 +84,38 @@ def test_route_after_plan_generator_no_plan_fallback_composer():
     }) == "answer_composer"
 
 
-def test_route_after_plan_generator_low_confidence_fallback_composer():
-    """Confidence < PLAN_CONFIDENCE_THRESHOLD (0.7) → composer render plan
-    preview thay vì exec SQL (tránh exec plan kém chất lượng)."""
+def test_route_after_plan_generator_below_min_threshold_fallback_composer():
+    """Phase 5G Section 12A.2: confidence < PLAN_EXEC_MIN_CONFIDENCE (0.5)
+    → composer fallback Phase 5D candidate list (KHÔNG exec plan tệ)."""
     assert route_after_plan_generator({
         "query_plan": {"entity": "head_office_inventory"},
-        "plan_confidence": 0.5,
+        "plan_confidence": 0.3,
     }) == "answer_composer"
     assert route_after_plan_generator({
         "query_plan": {"entity": "x"},
-        "plan_confidence": 0.69,   # ngay dưới threshold
+        "plan_confidence": 0.49,   # ngay dưới threshold
     }) == "answer_composer"
 
 
-def test_route_after_plan_generator_high_confidence_goes_executor():
-    """Phase 5F: plan ok + confidence ≥ 0.7 → exec SQL thật."""
+def test_route_after_plan_generator_above_min_goes_executor():
+    """Phase 5G Section 12A.2: plan ok + confidence ≥ 0.5 → exec SQL thật.
+    Composer sau đó render warning text khác nhau theo band 0.5-0.69 / 0.7-0.84
+    / ≥ 0.85."""
+    # Band 0.50-0.69 — warning mạnh, vẫn exec.
     assert route_after_plan_generator({
         "query_plan": {"entity": "head_office_inventory"},
-        "plan_confidence": 0.7,   # đúng threshold
+        "plan_confidence": 0.5,    # đúng MIN threshold
     }) == "dynamic_query_executor"
+    assert route_after_plan_generator({
+        "query_plan": {"entity": "x"},
+        "plan_confidence": 0.69,   # band trung bình thấp
+    }) == "dynamic_query_executor"
+    # Band 0.70-0.84 — warning nhẹ.
+    assert route_after_plan_generator({
+        "query_plan": {"entity": "x"},
+        "plan_confidence": 0.75,
+    }) == "dynamic_query_executor"
+    # Band ≥ 0.85 — không warning.
     assert route_after_plan_generator({
         "query_plan": {"entity": "x"},
         "plan_confidence": 0.95,

@@ -816,6 +816,7 @@ async def answer_composer(state: AgentState, deps: Deps) -> AgentState:
                 return _format_dynamic_query_response(
                     query_plan=query_plan, candidates=candidates,
                     query_result=query_result,
+                    plan_confidence=plan_confidence,
                 )
             if status == "no_data":
                 return _format_no_data_response(
@@ -1056,15 +1057,23 @@ def _format_dynamic_query_response(
     query_plan: dict[str, Any] | None,
     candidates: list[dict[str, Any]],
     query_result: dict[str, Any],
+    plan_confidence: float | None = None,
 ) -> dict[str, Any]:
-    """Phase 5F — render kết quả `success` thành markdown table + plan
-    context. KHÔNG gọi LLM (deterministic format).
+    """Phase 5G — render kết quả `success` theo Section 12A.2 confidence band.
 
-    State output:
-    - `answer_text`: markdown summary
-    - `answer_type`: "mixed" (có table)
-    - `table`: list dict (rows) → client UI render thành table riêng
+    4 band:
+    - ≥ 0.85: render bình thường, KHÔNG warning.
+    - 0.70-0.84: render + warning nhẹ ("có thể chưa hoàn toàn khớp").
+    - 0.50-0.69: render + warning mạnh + đề xuất rephrase.
+    - < 0.50: KHÔNG vào path này (routing đã fallback Phase 5D).
+
+    KHÔNG gọi LLM (deterministic format).
     """
+    from ..schemas.query_plan import (
+        PLAN_CONFIDENCE_HIGH,
+        PLAN_CONFIDENCE_MEDIUM,
+    )
+
     rows = query_result.get("rows") or []
     rows_count = int(query_result.get("rows_returned") or len(rows))
     duration_ms = int(query_result.get("duration_ms") or 0)
@@ -1080,6 +1089,25 @@ def _format_dynamic_query_response(
             break
 
     lines: list[str] = []
+
+    # Section 12A.2 — confidence band warning prefix.
+    confidence = float(plan_confidence) if isinstance(plan_confidence, (int, float)) else 1.0
+    if confidence < PLAN_CONFIDENCE_MEDIUM:
+        # Band 0.50-0.69: warning mạnh.
+        lines.append(
+            "⚠️ Em **không chắc chắn** câu hỏi này có thể trả lời chính xác. "
+            "Kết quả dưới đây mang tính tham khảo — anh/chị có thể đặt câu hỏi "
+            "rõ hơn để em phân tích đúng ý."
+        )
+        lines.append("")
+    elif confidence < PLAN_CONFIDENCE_HIGH:
+        # Band 0.70-0.84: warning nhẹ.
+        lines.append(
+            "ℹ️ Em không hoàn toàn chắc chắn về câu hỏi này — kết quả dưới "
+            "đây có thể chưa hoàn toàn khớp ý anh/chị."
+        )
+        lines.append("")
+
     lines.append(
         f"Em đã tổng hợp **{rows_count} dòng** dữ liệu từ "
         f"**{display_name}** trong {duration_ms}ms."
