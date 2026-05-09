@@ -292,7 +292,8 @@ public sealed class AiDynamicQueryProxyController(
         return Ok(new DynamicQueryResponse(
             Rows: result.Rows,
             RowCount: result.Rows.Count,
-            DurationMs: result.DurationMs));
+            DurationMs: result.DurationMs,
+            ErrorMessage: result.ErrorMessage));
     }
 }
 

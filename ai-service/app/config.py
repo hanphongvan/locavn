@@ -73,8 +73,13 @@ class Settings(BaseSettings):
     # AI Gateway KHÔNG connect DB. Connection string `AiReadonly` đặt ở .NET
     # appsettings (architectural rule: chỉ backend connect DB). Setting duy
     # nhất còn lại — timeout SQL exec qua .NET HTTP proxy. .NET tự set
-    # LOCK_TIMEOUT 5000ms + QUERY_GOVERNOR_COST_LIMIT 30 ở session level.
-    ai_dynamic_query_timeout_seconds: int = Field(default=10)
+    # LOCK_TIMEOUT 5000ms ở session level.
+    #
+    # Phase 5H — tăng default 10s → 30s. View `vw_AiHeadOfficeFundBalance`
+    # có CTE + JOIN, predicate `WHERE Nam=X AND Thang=Y` không push down →
+    # filter + GROUP BY có thể chạy 13-15s lần đầu (verified với prod data
+    # 25 đơn vị × 5 kỳ). Sau khi plan cache warm, query xuống dưới 2s.
+    ai_dynamic_query_timeout_seconds: int = Field(default=30)
 
     # === Phase 5G — Reindex worker (poll AiReindexQueue) ===
     #: Default false để dev/test không tự start worker khi không cần.

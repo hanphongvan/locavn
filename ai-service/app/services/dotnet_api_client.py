@@ -43,10 +43,15 @@ class DynamicQueryTimeout(DynamicQueryError):
 
 @dataclass(frozen=True, slots=True)
 class DynamicQueryResponse:
-    """Response từ `POST /internal/ai/exec-dynamic-query`."""
+    """Response từ `POST /internal/ai/exec-dynamic-query`.
+
+    Phase 5H — `error_message` non-None khi backend timeout / SQL error
+    (rows rỗng); caller phân biệt "0 rows do filter" vs "0 rows do timeout".
+    """
     rows: list[dict[str, Any]]
     row_count: int
     duration_ms: int
+    error_message: str | None = None
 
 
 class DotnetApiClient:
@@ -506,10 +511,22 @@ class DotnetApiClient:
                 f"Response `rows` không phải list: {type(rows).__name__}"
             )
 
+        # Phase 5H — backend trả ErrorMessage khi timeout/SQL error nhưng KHÔNG
+        # set HTTP status code khác 200 (best-effort design). Raise đúng exception
+        # để DynamicQueryTool log status timeout/execution_failed thay vì
+        # silent no_data.
+        error_message = body.get("errorMessage")
+        if error_message:
+            text = str(error_message).lower()
+            if "timeout" in text:
+                raise DynamicQueryTimeout(error_message)
+            raise DynamicQueryError(error_message)
+
         return DynamicQueryResponse(
             rows=list(rows),
             row_count=int(body.get("rowCount") or len(rows)),
             duration_ms=int(body.get("durationMs") or 0),
+            error_message=None,
         )
 
     # ------------------------------------------------------------------
