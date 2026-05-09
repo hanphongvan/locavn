@@ -168,3 +168,6 @@ backend/response.json
 # === PR drafts ===
 PR_DESCRIPTION.md
 PR_DESCRIPTION_*.md
+
+# === Local-only setup scripts (chứa password/env-specific) ===
+scripts/sql/setup_ai_readonly.sql
