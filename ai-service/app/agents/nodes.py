@@ -1075,24 +1075,24 @@ def _format_dynamic_query_response(
         )
         lines.append("")
 
-    lines.append(
-        f"Em đã tổng hợp **{rows_count} dòng** dữ liệu từ "
-        f"**{display_name}** trong {duration_ms}ms."
-    )
+    # Phase 5H — bỏ dòng meta "Em đã tổng hợp X dòng trong Yms" (info kỹ
+    # thuật, không cần cho lãnh đạo). Telemetry vẫn còn ở `duration_ms` /
+    # `rows_returned` trong query_result + log AiDynamicQueryLogs.
+    _ = (rows_count, duration_ms, display_name)
 
-    # Phase 5H — info dòng nếu Nam/Thang được auto-inject (entity snapshot,
-    # LLM quên filter). Để lãnh đạo biết con số tổng đang là kỳ nào.
+    # Info dòng nếu Nam/Thang được auto-inject (entity snapshot, LLM quên
+    # filter). Để lãnh đạo biết con số tổng đang là kỳ nào.
     injected = query_result.get("latest_period_injected") if query_result else None
     if isinstance(injected, dict) and injected.get("nam") and injected.get("thang"):
-        lines.append("")
         lines.append(
             f"ℹ️ _Đã lọc theo kỳ gần nhất: tháng {int(injected['thang'])}/"
             f"{int(injected['nam'])}._"
         )
+        lines.append("")
 
     if explanation:
-        lines.append("")
         lines.append(f"_{explanation}_")
+        lines.append("")
 
     # Phase 5H — render khác nhau theo số dòng:
     # - 1 row → inline bullet "Tên cột: Giá trị" (không bảng, không UI table).
@@ -1103,14 +1103,16 @@ def _format_dynamic_query_response(
     if rows_count == 1 and preview_rows:
         # Single-row: format gọn, không tạo bảng (rule do user yêu cầu cho
         # UX overview "1 dòng tổng" — bảng 1 hàng vô nghĩa, tốn không gian UI).
-        lines.append("")
         single = preview_rows[0]
         for col, val in single.items():
-            lines.append(f"- **{col}**: {_stringify_cell(val, col)}")
+            label = _humanize_column(col)
+            lines.append(f"- **{label}**: {_stringify_cell(val, col)}")
     elif preview_rows:
-        lines.append("")
         columns = list(preview_rows[0].keys())
-        lines.append("| " + " | ".join(columns) + " |")
+        # Header bảng đã Việt hoá; cell value vẫn dùng key gốc để giữ
+        # numeric deny list (Năm/Tháng/Id không format thousands separator).
+        header_labels = [_humanize_column(c) for c in columns]
+        lines.append("| " + " | ".join(header_labels) + " |")
         lines.append("|" + "|".join(["---"] * len(columns)) + "|")
         for row in preview_rows:
             cell_values = [_stringify_cell(row.get(c), c) for c in columns]
@@ -1158,6 +1160,61 @@ _NUMERIC_DENY_NAMES: frozenset[str] = frozenset({
     "thoidiem", "thoidiemdinhgia", "thang_quy", "thangquy",
 })
 _NUMERIC_DENY_SUFFIXES: tuple[str, ...] = ("id", "code", "loai", "ma")
+
+# Phase 5H — alias kỹ thuật → label tiếng Việt thân thiện cho lãnh đạo.
+# Plan Generator sinh aggregate alias dạng PascalCase (KHÔNG có dấu vì
+# SqlBuilder validate identifier `^[A-Za-z_][A-Za-z0-9_]{0,127}$`); SQL
+# Server JSON serializer hạ camelCase → key trong row là `tongTonQuy`.
+# Match case-insensitive. Fallback: trả nguyên label gốc (sẽ giữ alias kỹ
+# thuật) — chấp nhận xấu cho alias mới chưa map.
+_COLUMN_LABEL_VI: dict[str, str] = {
+    # Aggregate aliases phổ biến
+    "tongton":          "Tổng tồn",
+    "tongtonquy":       "Tổng tồn quỹ",
+    "tongtoncuoiky":    "Tổng tồn cuối kỳ",
+    "tongtondauky":     "Tổng tồn đầu kỳ",
+    "tongnhap":         "Tổng nhập",
+    "tongnhaptrongky":  "Tổng nhập trong kỳ",
+    "tongxuat":         "Tổng xuất",
+    "tongxuattrongky":  "Tổng xuất trong kỳ",
+    "tongsoluong":      "Tổng số lượng",
+    "trungbinhgia":     "Giá trung bình",
+    "soluong":          "Số lượng",
+    "sodonvi":          "Số đơn vị",
+    "demdonvi":         "Số đơn vị",
+    # Cột nguồn từ view
+    "donviten":         "Đơn vị",
+    "donvima":          "Mã đơn vị",
+    "stationname":      "Cửa hàng",
+    "vungmien":         "Vùng miền",
+    "tinhid":           "Tỉnh ID",
+    "tinhten":          "Tỉnh",
+    "nam":              "Năm",
+    "thang":            "Tháng",
+    "quy":              "Quý",
+    "tonquybinhon":     "Tồn quỹ bình ổn",
+    "toncuoiky":        "Tồn cuối kỳ",
+    "tondauky":         "Tồn đầu kỳ",
+    "nhaptrongky":      "Nhập trong kỳ",
+    "xuattrongky":      "Xuất trong kỳ",
+    "giaban":           "Giá bán",
+    "giabantt":         "Giá bán thị trường",
+    "thoidiemdinhgia":  "Thời điểm định giá",
+    "productcode":      "Mã sản phẩm",
+    "fueltype":         "Loại nhiên liệu",
+    "nhomnhienlieu":    "Nhóm nhiên liệu",
+}
+
+
+def _humanize_column(name: str | None) -> str:
+    """Map column name (alias kỹ thuật) → label tiếng Việt cho UI lãnh đạo.
+
+    Fallback: trả nguyên `name` để khỏi mất data. Map ngày càng phong phú
+    qua thực tế dùng (Phase 5G analytics có thể chỉ ra alias nào hay xuất
+    hiện nhưng chưa được Việt hoá)."""
+    if not name:
+        return ""
+    return _COLUMN_LABEL_VI.get(name.strip().lower(), name)
 
 
 def _stringify_cell(value: Any, column_name: str | None = None) -> str:
