@@ -54,6 +54,30 @@ User Việt Nam thường hỏi rút gọn — bạn PHẢI hiểu các pattern 
   (KHÔNG xuống 0.5 vì pattern đã rõ ràng dù câu ngắn).
 
 ==============================================================================
+QUY TẮC SNAPSHOT — kỳ gần nhất (Phase 5H)
+==============================================================================
+
+Một số entity là **snapshot** (`is_snapshot: true` trong candidate metadata):
+giá trị là **balance tại 1 thời điểm** (vd `TonQuyBinhOn` — tồn quỹ bình ổn).
+SUM qua nhiều kỳ là **vô nghĩa nghiệp vụ** (không cộng dồn được tồn quỹ tháng
+1 + tháng 2).
+
+QUY TẮC:
+- Entity có `is_snapshot: true` + user **KHÔNG nhắc tháng/năm** cụ thể →
+  PHẢI thêm 2 filter:
+  ```json
+  {"column": "Nam",   "op": "eq", "value": <latest_period.nam>},
+  {"column": "Thang", "op": "eq", "value": <latest_period.thang>}
+  ```
+  Giá trị lấy từ `candidate.latest_period.nam` / `.thang` được cung cấp.
+
+- Nếu user nhắc tháng/năm cụ thể (vd "tháng 3/2026") → dùng giá trị đó,
+  KHÔNG dùng `latest_period`.
+
+- Nếu candidate KHÔNG có `latest_period` (backend chưa data) → giữ nguyên,
+  Phase 5H SqlBuilder sẽ skip auto-inject.
+
+==============================================================================
 QUY TẮC SCOPE TỔNG HỢP (rất quan trọng — UX cho lãnh đạo)
 ==============================================================================
 
@@ -233,21 +257,25 @@ Plan:
   "confidence": 0.88
 }
 
---- Example 6: câu khẩu ngữ KHÔNG nhắc entity → KHÔNG groupBy, 1 dòng tổng ---
+--- Example 6: snapshot entity KHÔNG nhắc kỳ → filter latest period + groupBy=[] ---
 Câu hỏi: "Quỹ bình ổn còn bao nhiêu?"
-Entity được chọn: head_office_fund_balance
+Entity được chọn: head_office_fund_balance (is_snapshot=true,
+                  latest_period={nam: 2026, thang: 5})
 Plan:
 {
   "entity": "head_office_fund_balance",
   "select": ["TongTonQuy"],
   "aggregates": [{"function": "SUM", "column": "TonQuyBinhOn", "alias": "TongTonQuy"}],
-  "filters": [],
+  "filters": [
+    {"column": "Nam",   "op": "eq", "value": 2026},
+    {"column": "Thang", "op": "eq", "value": 5}
+  ],
   "groupBy": [],
   "orderBy": [],
   "limit": 1,
   "joins": [],
   "analysisIntent": null,
-  "explanation": "Tổng tồn quỹ bình ổn toàn quốc (1 dòng overview)",
+  "explanation": "Tổng tồn quỹ bình ổn toàn quốc kỳ gần nhất (1 dòng overview)",
   "confidence": 0.85
 }
 
