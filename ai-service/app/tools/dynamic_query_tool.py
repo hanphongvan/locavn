@@ -1,15 +1,11 @@
-"""Phase 5F — DynamicQueryTool: orchestrate SqlBuilder → SafetyGate → ReadonlyDb.
+"""Phase 5F — DynamicQueryTool: orchestrate SqlBuilder → SafetyGate → .NET proxy.
 
-Section 14.6 step 4. Khác BaseTool subclass (Phase 1B fixed-intent tools)
-ở chỗ:
-- Input: `QueryPlan` + `entity dict` + `user_loai` (không phải dict params).
-- Output: `DynamicQueryResult` (rows + status + log_id).
-- Log đầy đủ vào `AiDynamicQueryLogs` (qua DotnetApiClient).
-- UPSERT `AiCandidateIntents` khi success (Phase 5G self-improving).
+Section 14.6 step 4 + refactor 2026-05-09 (architectural rule: chỉ .NET API
+connect DB). AI Gateway build SQL + check SafetyGate ở Python, gửi sang .NET
+qua `POST /internal/ai/exec-dynamic-query` để execute với connection
+`ai_readonly` (DENY DDL/DML ở DB engine level — defense-in-depth lớp cuối).
 
 Caller: node `dynamic_query_executor` trong LangGraph (Sub-step 5F.7).
-KHÔNG dùng dict[str, BaseTool] registry như Phase 1B vì DynamicQueryTool
-không có fixed intent code.
 """
 from __future__ import annotations
 
@@ -23,9 +19,12 @@ from typing import Any
 
 from ..schemas.query_plan import QueryPlan
 from ..security.safety_gate import SafetyGate, SafetyGateError
-from ..services.dotnet_api_client import DotnetApiClient
+from ..services.dotnet_api_client import (
+    DotnetApiClient,
+    DynamicQueryConnectionMissing,
+    DynamicQueryError,
+)
 from ..services.logging_service import get_logger
-from ..services.readonly_db import ReadonlyDb, ReadonlyDbError, ReadonlyDbTimeout
 from ..services.sql_builder import SqlBuilder, SqlBuildError
 
 _logger = get_logger(__name__)
@@ -98,13 +97,13 @@ class DynamicQueryTool:
         *,
         sql_builder: SqlBuilder,
         safety_gate: SafetyGate,
-        readonly_db: ReadonlyDb,
         dotnet: DotnetApiClient,
+        query_timeout_seconds: int = 10,
     ) -> None:
         self._builder = sql_builder
         self._gate = safety_gate
-        self._db = readonly_db
         self._dotnet = dotnet
+        self._query_timeout = max(1, query_timeout_seconds)
 
     async def execute(
         self,
@@ -192,10 +191,18 @@ class DynamicQueryTool:
                 log_id=log_id,
             )
 
-        # === Step 3 — Execute via ReadonlyDb ===
+        # === Step 3 — Execute via .NET proxy (`POST /internal/ai/exec-dynamic-query`) ===
+        # Refactored 2026-05-09: AI Gateway KHÔNG connect DB trực tiếp.
+        # .NET execute với connection `ai_readonly` (DENY DDL/DML ở DB level).
         try:
-            rows = await self._db.execute_query(sql, params)
-        except ReadonlyDbTimeout as ex:
+            response = await self._dotnet.exec_dynamic_query(
+                sql=sql, params=params,
+                timeout_seconds=self._query_timeout,
+            )
+            rows = response.rows
+        except DynamicQueryConnectionMissing as ex:
+            # 503 — .NET chưa cấu hình AiReadonly connection. Pipeline degrade
+            # graceful, composer fallback Phase 5E plan preview.
             duration_ms = int((time.perf_counter() - started) * 1000)
             await self._log(
                 log_id=log_id,
@@ -210,22 +217,31 @@ class DynamicQueryTool:
                 params=params,
                 rows_returned=None,
                 duration_ms=duration_ms,
-                status=QueryStatus.TIMEOUT,
-                error_message=str(ex),
+                status=QueryStatus.EXECUTION_FAILED,
+                error_message=f"AiReadonly connection chưa cấu hình: {ex}",
                 safety_checks=safety_checks,
                 confidence=plan.confidence,
             )
             return DynamicQueryResult(
-                status=QueryStatus.TIMEOUT,
+                status=QueryStatus.EXECUTION_FAILED,
                 duration_ms=duration_ms,
                 sql=sql,
                 sql_params=params,
-                error_message=str(ex),
+                error_message=f"AiReadonly connection chưa cấu hình: {ex}",
                 log_id=log_id,
                 safety_checks=safety_checks,
             )
-        except ReadonlyDbError as ex:
+        except DynamicQueryError as ex:
+            # Network error / 4xx / 5xx khác. Phase 5G admin có thể xem
+            # log AiDynamicQueryLogs để troubleshoot. Phân biệt timeout vs
+            # general failure qua message keyword: .NET trả errorMessage
+            # chứa "timeout" khi SQL timeout.
             duration_ms = int((time.perf_counter() - started) * 1000)
+            text = str(ex).lower()
+            status_code = (
+                QueryStatus.TIMEOUT if "timeout" in text
+                else QueryStatus.EXECUTION_FAILED
+            )
             await self._log(
                 log_id=log_id,
                 conversation_id=conversation_id,
@@ -239,13 +255,13 @@ class DynamicQueryTool:
                 params=params,
                 rows_returned=None,
                 duration_ms=duration_ms,
-                status=QueryStatus.EXECUTION_FAILED,
+                status=status_code,
                 error_message=str(ex),
                 safety_checks=safety_checks,
                 confidence=plan.confidence,
             )
             return DynamicQueryResult(
-                status=QueryStatus.EXECUTION_FAILED,
+                status=status_code,
                 duration_ms=duration_ms,
                 sql=sql,
                 sql_params=params,

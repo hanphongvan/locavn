@@ -17,11 +17,10 @@ xhtml2pdf==0.2.16           # pure-Python markdown→HTML→PDF, không cần GT
 qdrant-client==1.12.1       # Vector DB; embeddings từ Ollama bge-m3 nên không cần torch.
 pypdf==5.1.0                # đọc PDF cho index_documents.py
 
-# Phase 5F — Dynamic SQL execution (ai_readonly user, Section 7.8).
-# Optional: nếu không cài, ReadonlyDb fail soft → DynamicQueryTool degrade
-# (graph route về answer_composer Phase 5E plan preview thay vì exec).
-# Cần cài đi kèm: Microsoft ODBC Driver for SQL Server (msodbcsql18).
-pyodbc==5.2.0
+# Phase 5F refactored 2026-05-09 — KHÔNG cần pyodbc nữa.
+# Architectural rule: chỉ .NET API connect DB. AI Gateway gửi SQL qua HTTP
+# (POST /internal/ai/exec-dynamic-query) → .NET execute với connection
+# `ai_readonly`. Defense-in-depth lớp DB-level đặt ở .NET appsettings.
 
 # LLM stack
 openai==1.59.6
