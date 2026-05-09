@@ -1094,10 +1094,20 @@ def _format_dynamic_query_response(
         lines.append("")
         lines.append(f"_{explanation}_")
 
-    # Inline preview top N rows trong markdown — client UI có thể render
-    # table riêng từ state.table (không bắt buộc đọc qua answer_text).
+    # Phase 5H — render khác nhau theo số dòng:
+    # - 1 row → inline bullet "Tên cột: Giá trị" (không bảng, không UI table).
+    # - ≥ 2 rows → markdown table như cũ + table field cho UI render bảng riêng.
     preview_rows = rows[:_RESPONSE_TABLE_PREVIEW_ROWS]
-    if preview_rows:
+    table_for_ui: list[dict[str, Any]] | None = None
+
+    if rows_count == 1 and preview_rows:
+        # Single-row: format gọn, không tạo bảng (rule do user yêu cầu cho
+        # UX overview "1 dòng tổng" — bảng 1 hàng vô nghĩa, tốn không gian UI).
+        lines.append("")
+        single = preview_rows[0]
+        for col, val in single.items():
+            lines.append(f"- **{col}**: {_stringify_cell(val, col)}")
+    elif preview_rows:
         lines.append("")
         columns = list(preview_rows[0].keys())
         lines.append("| " + " | ".join(columns) + " |")
@@ -1111,13 +1121,15 @@ def _format_dynamic_query_response(
                 f"_Hiển thị {len(preview_rows)}/{rows_count} dòng. Anh/chị "
                 "có thể xuất file để xem đầy đủ._"
             )
+        table_for_ui = preview_rows
 
     return {
         "answer_text": "\n".join(lines),
-        "answer_type": "mixed" if preview_rows else "text",
+        # 1 row → "text" (không cần UI render table); ≥ 2 rows → "mixed".
+        "answer_type": "mixed" if table_for_ui else "text",
         "suggested_questions": [],
         "report_markdown": None,
-        "table": preview_rows,
+        "table": table_for_ui,
     }
 
 
