@@ -45,12 +45,9 @@ models:
   plan_generator:
     provider: openai
     name: "gpt-4o"
-  suggested_questions:
-    provider: openai
-    name: "gpt-4o-mini"
 
 # Phase 4 — LOCAL_ONLY: tất cả task chuyển Ollama. qwen3:14b cho main task,
-# qwen3:8b cho task nhanh (intent / suggested) nếu đã pull. Nếu Ollama chưa
+# qwen3:8b cho task nhanh (intent) nếu đã pull. Nếu Ollama chưa
 # có :8b, có thể đổi cả về :14b — yaml-only, không sửa code.
 models_local:
   intent_classification:
@@ -71,9 +68,6 @@ models_local:
   plan_generator:
     provider: local_ollama
     name: "qwen3:14b"
-  suggested_questions:
-    provider: local_ollama
-    name: "qwen3:8b"
 
 # Phase 2+ HYBRID_SAFE — Section 10.1: data-sensitive task local, sinh báo cáo
 # vẫn dùng cloud cho chất lượng cao. Tuỳ chính sách tổ chức.
@@ -98,9 +92,6 @@ models_hybrid:
   plan_generator:
     provider: openai
     name: "gpt-4o"
-  suggested_questions:
-    provider: local_ollama
-    name: "qwen3:8b"
 
 fallback:
   enabled: true

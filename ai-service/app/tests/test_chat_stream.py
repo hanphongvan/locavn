@@ -26,7 +26,6 @@ def _build_overrides() -> Deps:
     fake_llm = FakeLlmService(responses_json={
         "intent_classification": {"intent": "FUEL_INVENTORY_SUMMARY", "confidence": 0.92},
         "answer_composer": {"answer_text": "Tồn kho xăng dầu hôm nay ổn định.", "summary": {}, "highlights": []},
-        "suggested_questions": {"suggestions": ["Q1", "Q2", "Q3"]},
     })
     kwargs = {"mock_data_path": settings.mock_data_path, "use_mock": True}
     return Deps(

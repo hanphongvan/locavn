@@ -40,7 +40,6 @@ def test_local_only_router_maps_all_tasks_to_ollama(monkeypatch):
         "planner",
         "answer_composer",
         "report_generator",
-        "suggested_questions",
     ):
         choice = router.choose(task)
         assert choice.provider == "local_ollama", \

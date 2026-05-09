@@ -779,13 +779,6 @@ _ANSWER_SYSTEM = (
     'Trả về JSON: {"answer_text": "..."}. Không bịa số liệu.'
 )
 
-_SUGGEST_SYSTEM = (
-    "Sinh đúng 3 câu hỏi gợi ý ngắn (≤ 60 ký tự) liên quan đến chủ đề vừa hỏi, "
-    "bằng tiếng Việt, không lặp lại câu hỏi gốc.\n"
-    'Trả về JSON {"suggestions": ["...", "...", "..."]}.'
-)
-
-
 async def answer_composer(state: AgentState, deps: Deps) -> AgentState:
     """Section 2.1 #10 — sinh `answer_text` + 3 câu gợi ý.
 
@@ -881,27 +874,12 @@ async def answer_composer(state: AgentState, deps: Deps) -> AgentState:
     if isinstance(warning_prefix, str) and warning_prefix.strip():
         answer_text = f"{warning_prefix}\n\n{answer_text}"
 
-    suggestions: list[str] = []
-    try:
-        suggested = await deps.llm.chat_json(
-            messages=[
-                {"role": "system", "content": _SUGGEST_SYSTEM},
-                {"role": "user", "content": f"Câu hỏi: {state.get('resolved_question')}\nIntent: {intent}"},
-            ],
-            task="suggested_questions",
-            timeout=5.0,
-            max_tokens=200,
-        )
-        suggestions = list(suggested.get("suggestions") or [])[:3]
-    except LlmServiceError:
-        suggestions = _default_suggestions(intent)
-
     answer_type = _answer_type_for(state, report_markdown)
 
     return {
         "answer_text": answer_text,
         "answer_type": answer_type,
-        "suggested_questions": suggestions,
+        "suggested_questions": [],
         "report_markdown": report_markdown,
     }
 
@@ -1012,21 +990,10 @@ def _format_plan_response(
             "Anh/chị có thể thu hẹp khoảng thời gian / điều kiện và hỏi lại."
         )
 
-    suggestions: list[str] = []
-    for cand in candidates[:3]:
-        samples = cand.get("sample_questions") or []
-        if samples:
-            suggestions.append(samples[0])
-    # Bù nếu < 3 sample
-    while len(suggestions) < 3:
-        suggestions.append("Cho tôi biết chi tiết hơn về dữ liệu này.")
-        if len(suggestions) >= 3:
-            break
-
     return {
         "answer_text": "\n".join(lines),
         "answer_type": "text",
-        "suggested_questions": suggestions[:3],
+        "suggested_questions": [],
         "report_markdown": None,
     }
 
@@ -1145,20 +1112,10 @@ def _format_dynamic_query_response(
                 "có thể xuất file để xem đầy đủ._"
             )
 
-    suggestions: list[str] = []
-    for cand in candidates[:3]:
-        samples = cand.get("sample_questions") or []
-        if samples:
-            suggestions.append(samples[0])
-    while len(suggestions) < 3:
-        suggestions.append("So sánh với kỳ trước để xem biến động.")
-        if len(suggestions) >= 3:
-            break
-
     return {
         "answer_text": "\n".join(lines),
         "answer_type": "mixed" if preview_rows else "text",
-        "suggested_questions": suggestions[:3],
+        "suggested_questions": [],
         "report_markdown": None,
         "table": preview_rows,
     }
@@ -1275,20 +1232,10 @@ def _format_candidate_entities_response(candidates: list[dict[str, Any]]) -> dic
     lines.append("")
     lines.append("Anh/chị có thể hỏi chi tiết hơn về một trong các chủ đề trên.")
 
-    suggestions: list[str] = []
-    for cand in candidates[:3]:
-        samples = cand.get("sample_questions") or []
-        if samples:
-            suggestions.append(samples[0])
-        else:
-            display = cand.get("display_name") or cand.get("entity_code") or ""
-            if display:
-                suggestions.append(f"Cho tôi biết về {display}")
-
     return {
         "answer_text": "\n".join(lines),
         "answer_type": "text",
-        "suggested_questions": suggestions,
+        "suggested_questions": [],
         "report_markdown": None,
     }
 
@@ -1311,27 +1258,3 @@ def _template_answer(state: AgentState) -> str:
     return "Đã tiếp nhận câu hỏi. Hệ thống đang trong giai đoạn cấu hình LLM."
 
 
-def _default_suggestions(intent: str) -> list[str]:
-    if intent.startswith("FUEL_INVENTORY"):
-        return [
-            "Doanh nghiệp nào có tồn kho thấp nhất?",
-            "So sánh tồn kho với kỳ trước.",
-            "Hiển thị tồn kho theo vùng.",
-        ]
-    if intent == "FUEL_PRICE_TREND":
-        return [
-            "Giá DO biến động ra sao?",
-            "So sánh RON95 với RON92.",
-            "Dự báo giá kỳ tới.",
-        ]
-    if intent in ("STATION_DENSITY_ANALYSIS", "STATION_MAP_LAYER"):
-        return [
-            "Tỉnh nào mật độ cao nhất?",
-            "Hiển thị cây xăng tồn kho thấp.",
-            "So sánh mật độ giữa các vùng.",
-        ]
-    return [
-        "Tồn kho xăng dầu hôm nay thế nào?",
-        "Doanh nghiệp nào đầu mối lớn nhất?",
-        "Tạo báo cáo nhanh cho lãnh đạo.",
-    ]
