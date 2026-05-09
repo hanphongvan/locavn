@@ -164,6 +164,30 @@ TEST_CASES = [
         "head_office_price",
         True,   # LLM có thể chọn inventory nếu hiểu sai → cho phép vary
     ),
+    # === Phase 5F regression — câu khẩu ngữ (RC #D thread) ===
+    # Câu user thực tế thường ngắn + khẩu ngữ. Threshold 0.45 cũ block toàn
+    # bộ; threshold mới 0.30 phải pass + LLM hiểu được intent.
+    (
+        "case6_colloquial_fund_balance",
+        "Quỹ bình ổn còn bao nhiêu tiền?",
+        [HEAD_OFFICE_FUND_BALANCE, HEAD_OFFICE_INVENTORY, HEAD_OFFICE_PRICE],
+        "head_office_fund_balance",
+        False,
+    ),
+    (
+        "case7_colloquial_inventory",
+        "Tồn xăng ra sao rồi?",
+        CANDIDATES_INVENTORY_SET,
+        "head_office_inventory",
+        True,   # khẩu ngữ rất ngắn — LLM có thể chọn entity gần nghĩa
+    ),
+    (
+        "case8_colloquial_fund_short",
+        "Số dư quỹ hiện tại bao nhiêu?",
+        [HEAD_OFFICE_FUND_BALANCE, HEAD_OFFICE_INVENTORY, HEAD_OFFICE_PRICE],
+        "head_office_fund_balance",
+        False,
+    ),
 ]
 
 

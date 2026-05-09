@@ -38,7 +38,7 @@ SCHEMA_NAMESPACE_UUID = uuid.UUID("a8c3e6d2-5f1b-4a9c-8e2d-7b3f5c1a9d4e")
 
 DEFAULT_TOP_K_RAW = 15        # số chunk lấy từ Qdrant trước khi group
 DEFAULT_TOP_K_UNIQUE = 3      # số entity unique trả về
-DEFAULT_SCORE_THRESHOLD = 0.45
+DEFAULT_SCORE_THRESHOLD = 0.30   # lowered from 0.45 — colloquial queries score 0.30-0.36 with bge-m3
 
 
 class SchemaRetrieverError(Exception):
@@ -266,6 +266,26 @@ class SchemaRetriever:
         except QdrantError as ex:
             _logger.warning("schema_retriever.search_failed", error=str(ex))
             return []
+
+        # Phase 5F+ diagnostic — nếu threshold lọc hết, làm 1 search nữa
+        # KHÔNG threshold (limit=1) để log score top thật. Giúp Phase 5G
+        # admin tune threshold hoặc bổ sung sample question khớp pattern.
+        if not raw_hits:
+            try:
+                probe = await self._qdrant.search(
+                    query_vector, limit=1, score_threshold=0.0,
+                )
+            except QdrantError:
+                probe = []
+            if probe:
+                top = probe[0]
+                _logger.info(
+                    "schema_retriever.below_threshold",
+                    question=question[:200],
+                    top_score=round(top.score, 3),
+                    top_entity=(top.metadata or {}).get("entity_code"),
+                    threshold=self._score_threshold,
+                )
 
         return self._group_by_entity(raw_hits, limit_unique)
 
