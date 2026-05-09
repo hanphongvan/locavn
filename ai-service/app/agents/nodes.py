@@ -1112,6 +1112,17 @@ def _format_dynamic_query_response(
         f"Em đã tổng hợp **{rows_count} dòng** dữ liệu từ "
         f"**{display_name}** trong {duration_ms}ms."
     )
+
+    # Phase 5H — info dòng nếu Nam/Thang được auto-inject (entity snapshot,
+    # LLM quên filter). Để lãnh đạo biết con số tổng đang là kỳ nào.
+    injected = query_result.get("latest_period_injected") if query_result else None
+    if isinstance(injected, dict) and injected.get("nam") and injected.get("thang"):
+        lines.append("")
+        lines.append(
+            f"ℹ️ _Đã lọc theo kỳ gần nhất: tháng {int(injected['thang'])}/"
+            f"{int(injected['nam'])}._"
+        )
+
     if explanation:
         lines.append("")
         lines.append(f"_{explanation}_")
@@ -1125,7 +1136,7 @@ def _format_dynamic_query_response(
         lines.append("| " + " | ".join(columns) + " |")
         lines.append("|" + "|".join(["---"] * len(columns)) + "|")
         for row in preview_rows:
-            cell_values = [_stringify_cell(row.get(c)) for c in columns]
+            cell_values = [_stringify_cell(row.get(c), c) for c in columns]
             lines.append("| " + " | ".join(cell_values) + " |")
         if rows_count > len(preview_rows):
             lines.append("")
@@ -1170,15 +1181,58 @@ def _format_no_data_response(
     return base
 
 
-def _stringify_cell(value: Any) -> str:
+# Phase 5H — column name không format thousands separator vì giá trị là
+# năm/tháng/identifier, group 3 số sẽ làm sai ngữ nghĩa (vd 2026 → 2.026).
+# Match exact (case-insensitive) hoặc suffix Id/Code/Loai cho identifier.
+_NUMERIC_DENY_NAMES: frozenset[str] = frozenset({
+    "nam", "thang", "quy", "tuan", "ngay", "ky", "kybaocao", "kieukybaocao",
+    "thoidiem", "thoidiemdinhgia", "thang_quy", "thangquy",
+})
+_NUMERIC_DENY_SUFFIXES: tuple[str, ...] = ("id", "code", "loai", "ma")
+
+
+def _stringify_cell(value: Any, column_name: str | None = None) -> str:
     """Convert 1 cell value sang string an toàn cho markdown table.
-    None → '—', bool → Có/Không, datetime → ISO, escape `|`."""
+
+    None → '—'; bool → Có/Không; số (int/float/Decimal) → format thousands
+    separator dấu '.' (Việt Nam) + làm tròn 0 số thập phân, TRỪ KHI
+    `column_name` thuộc deny list (năm/tháng/id) thì giữ raw.
+    Datetime/string → str() + escape `|`.
+    """
     if value is None:
         return "—"
     if isinstance(value, bool):
         return "Có" if value else "Không"
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        if not _is_grouping_column(column_name):
+            try:
+                rounded = int(round(float(value)))
+                return f"{rounded:,}".replace(",", ".")
+            except (ValueError, OverflowError):
+                pass
+    # Decimal (decimal.Decimal) — duck typing để tránh import
+    if hasattr(value, "is_finite") and hasattr(value, "quantize"):
+        if not _is_grouping_column(column_name):
+            try:
+                rounded = int(round(float(value)))
+                return f"{rounded:,}".replace(",", ".")
+            except (ValueError, OverflowError, TypeError):
+                pass
     s = str(value)
     return s.replace("|", "\\|").replace("\n", " ")
+
+
+def _is_grouping_column(column_name: str | None) -> bool:
+    """True = cột năm/tháng/id → KHÔNG format thousands separator."""
+    if not column_name:
+        return False
+    name = column_name.strip().lower()
+    if name in _NUMERIC_DENY_NAMES:
+        return True
+    for suffix in _NUMERIC_DENY_SUFFIXES:
+        if name.endswith(suffix):
+            return True
+    return False
 
 
 def _format_filter_line(f: dict[str, Any]) -> str:
