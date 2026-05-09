@@ -93,11 +93,17 @@ public sealed record DynamicQueryRequest(
 /// <summary>
 /// Response: rows + telemetry. Mỗi row là dict cột → giá trị.
 /// AI Gateway parse rows → markdown table cho composer.
+/// <para>
+/// Phase 5H — <c>ErrorMessage</c> non-null khi query timeout / SQL error
+/// (rows rỗng); AI Gateway phân biệt được "0 rows do filter không match"
+/// vs "0 rows do query bị timeout/lỗi" qua field này.
+/// </para>
 /// </summary>
 public sealed record DynamicQueryResponse(
     IReadOnlyList<Dictionary<string, object?>> Rows,
     int RowCount,
-    int DurationMs);
+    int DurationMs,
+    string? ErrorMessage);
 
 // === Phase 5G — Reindex queue (Python worker poll) ===
 
