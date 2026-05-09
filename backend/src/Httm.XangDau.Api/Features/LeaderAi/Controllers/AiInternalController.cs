@@ -183,3 +183,65 @@ public sealed class AiInternalController(IAiInternalDataAccess dataAccess) : Con
         return Accepted();
     }
 }
+
+// ----------------------------------------------------------------------------
+// Phase 5G — Reindex queue endpoints (Python worker poll qua X-Internal-Key)
+// ----------------------------------------------------------------------------
+
+/// <summary>
+/// Phase 5G — Python worker (AI Gateway) poll qua endpoint này để xử lý
+/// <c>AiReindexQueue</c>. Tách controller riêng vì dùng <see cref="IAdminAiDataAccess"/>
+/// (admin scope) thay vì <see cref="IAiInternalDataAccess"/>.
+/// Auth scheme vẫn là <c>X-Internal-Key</c> (giống các endpoint internal khác).
+///
+/// Section 13A.3 của <c>docs/loca-ai-phase5.md</c>.
+/// </summary>
+[ApiController]
+[Route("internal/ai/reindex-queue")]
+[InternalKeyOnly]
+[Tags("AiInternal")]
+public sealed class AiReindexQueueInternalController(
+    IAdminAiDataAccess adminDataAccess) : ControllerBase
+{
+    /// <summary>
+    /// Worker fetch top N pending entries — atomically mark Status='processing'
+    /// (UPDATE...OUTPUT pattern) để tránh race khi nhiều worker poll song song.
+    /// </summary>
+    [HttpPost("dequeue")]
+    [ProducesResponseType(typeof(ReindexQueueListResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<ReindexQueueListResponse>> Dequeue(
+        [FromQuery] int limit = 10,
+        CancellationToken cancellationToken = default)
+    {
+        if (limit is < 1 or > 50)
+            return BadRequest(new { message = "limit phải trong khoảng 1..50." });
+
+        var rows = await adminDataAccess.FetchAndLockReindexQueueAsync(limit, cancellationToken)
+            .ConfigureAwait(false);
+        return Ok(new ReindexQueueListResponse(rows, rows.Count));
+    }
+
+    /// <summary>
+    /// Worker mark complete (status=done | failed). Failed phải kèm errorMessage
+    /// để admin Phase 5H dashboard troubleshoot.
+    /// </summary>
+    [HttpPost("{id:int}/complete")]
+    [ProducesResponseType(StatusCodes.Status202Accepted)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> Complete(
+        [FromRoute] int id,
+        [FromBody] ReindexQueueCompleteRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request.Status is not ("done" or "failed"))
+            return BadRequest(new { message = "status phải là 'done' hoặc 'failed'." });
+        if (request.Status == "failed" && string.IsNullOrWhiteSpace(request.ErrorMessage))
+            return BadRequest(new { message = "status='failed' phải kèm errorMessage." });
+
+        await adminDataAccess.MarkReindexCompleteAsync(
+            id, request.Status, request.ErrorMessage, cancellationToken).ConfigureAwait(false);
+        return Accepted();
+    }
+}
