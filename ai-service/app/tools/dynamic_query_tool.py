@@ -335,24 +335,29 @@ class DynamicQueryTool:
     def _maybe_inject_latest_period(
         plan: QueryPlan, entity: dict[str, Any],
     ) -> dict[str, int] | None:
-        """Nếu entity snapshot + plan thiếu filter Nam/Thang + entity có
-        `latest_period` → mutate `plan.filters` thêm 2 filter eq.
+        """Nếu entity có `latest_period` (= backend xác nhận snapshot có data)
+        + plan thiếu filter Nam/Thang → mutate `plan.filters` thêm 2 filter eq.
+
+        TRUST `latest_period` thay vì `is_snapshot`: Schema Retriever đã hỏi
+        backend cho mọi candidate, chỉ entity có IsSnapshot=1 + view có data
+        mới được attach latest_period. Nếu chỉ check `is_snapshot` flag từ
+        Qdrant payload sẽ bị bypass khi reindex worker chưa pickup queue.
 
         Trả `{"nam": ..., "thang": ...}` khi đã inject; None khi:
-        - Entity không phải snapshot.
-        - Plan đã có filter Nam hoặc Thang (LLM đã làm đúng theo prompt).
-        - Backend chưa cấu hình `latest_period` (view rỗng / lỗi network).
+        - Entity không phải snapshot (latest_period=None).
+        - Plan đã có cả Nam và Thang (LLM theo prompt đúng).
+        - Backend chưa có data (view rỗng / lỗi network → latest_period=None).
 
-        KHÔNG kiểm tra cột Nam/Thang có trong `allowed_filters` —
-        SqlBuilder sẽ raise downstream nếu cột không hợp lệ; ở đây chỉ
-        defense-in-depth bổ sung filter cho entity snapshot có 2 cột này
-        (đảm bảo theo Phase 5C seed).
+        Plan có 1 trong 2 (chỉ Nam hoặc chỉ Thang) → vẫn inject phần thiếu
+        để đảm bảo entity snapshot không SUM toàn năm hoặc toàn tháng.
         """
-        if not entity.get("is_snapshot"):
-            return None
-
         latest = entity.get("latest_period")
         if not isinstance(latest, dict):
+            _logger.debug(
+                "dynamic_query_tool.no_latest_period",
+                entity_code=entity.get("entity_code"),
+                has_is_snapshot_flag=bool(entity.get("is_snapshot")),
+            )
             return None
         nam = latest.get("nam")
         thang = latest.get("thang")
@@ -360,15 +365,23 @@ class DynamicQueryTool:
             return None
 
         existing_cols = {(f.column or "").lower() for f in plan.filters}
-        if "nam" in existing_cols or "thang" in existing_cols:
+        injected_nam = False
+        injected_thang = False
+        if "nam" not in existing_cols:
+            plan.filters.append(FilterCondition(column="Nam", op="eq", value=int(nam)))
+            injected_nam = True
+        if "thang" not in existing_cols:
+            plan.filters.append(FilterCondition(column="Thang", op="eq", value=int(thang)))
+            injected_thang = True
+
+        if not (injected_nam or injected_thang):
             return None
 
-        plan.filters.append(FilterCondition(column="Nam", op="eq", value=int(nam)))
-        plan.filters.append(FilterCondition(column="Thang", op="eq", value=int(thang)))
         _logger.info(
             "dynamic_query_tool.latest_period_injected",
             entity_code=entity.get("entity_code"),
             nam=int(nam), thang=int(thang),
+            injected_nam=injected_nam, injected_thang=injected_thang,
         )
         return {"nam": int(nam), "thang": int(thang)}
 
