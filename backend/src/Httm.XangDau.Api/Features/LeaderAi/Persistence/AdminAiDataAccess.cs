@@ -1,4 +1,5 @@
 using System.Data;
+using System.Text.Json;
 using Dapper;
 using Httm.XangDau.Api.Features.LeaderAi.Contracts;
 using Httm.XangDau.Api.Shared.DependencyInjection;
@@ -373,10 +374,16 @@ public sealed class AdminAiDataAccess(
         // Convert dict<string, object?> → Dapper DynamicParameters. Dapper
         // tự handle null + type inference. AI Gateway gửi key dạng "p0",
         // "p1_lo", etc. (không có @ prefix); Dapper tự thêm @ khi bind.
+        //
+        // Phase 5H bugfix — body JSON deserialize bằng System.Text.Json với
+        // Dictionary<string, object?> → mỗi value bị wrap thành JsonElement.
+        // Dapper KHÔNG hỗ trợ JsonElement (NotSupportedException). Phải
+        // unwrap về CLR primitive (string/int/double/decimal/bool/null/list)
+        // trước khi pass xuống Dapper.
         var dapperParams = new DynamicParameters();
         foreach (var (name, value) in parameters)
         {
-            dapperParams.Add(name, value);
+            dapperParams.Add(name, UnwrapJsonElement(value));
         }
 
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
@@ -484,6 +491,48 @@ public sealed class AdminAiDataAccess(
     private sealed record CandidateMutationRow(
         int Id, string Status, string? PromotedToIntentCode,
         int? ApprovedBy, DateTime? ApprovedAt);
+
+    /// <summary>
+    /// Phase 5H bugfix — convert <see cref="JsonElement"/> (System.Text.Json
+    /// wrapper khi deserialize <c>Dictionary&lt;string, object?&gt;</c>) sang
+    /// CLR primitive Dapper hiểu được.
+    ///
+    /// <para>
+    /// Number được "downcast" theo độ rộng nhỏ nhất giữ được: <c>int → long
+    /// → decimal → double</c> để khớp tốt với SQL Server param type inference.
+    /// </para>
+    ///
+    /// <para>Không phải JsonElement → trả nguyên (đã là primitive).</para>
+    ///
+    /// <para>Object/Undefined → throw NotSupportedException (AI Gateway chỉ
+    /// gửi scalar/list, không gửi nested object).</para>
+    /// </summary>
+    private static object? UnwrapJsonElement(object? value)
+    {
+        if (value is not JsonElement el) return value;
+
+        return el.ValueKind switch
+        {
+            JsonValueKind.Null => null,
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            JsonValueKind.String => el.GetString(),
+            JsonValueKind.Number => UnwrapNumber(el),
+            JsonValueKind.Array => el.EnumerateArray()
+                .Select(item => UnwrapJsonElement(item))
+                .ToList(),
+            _ => throw new NotSupportedException(
+                $"JsonElement ValueKind {el.ValueKind} không được hỗ trợ làm SQL parameter."),
+        };
+    }
+
+    private static object UnwrapNumber(JsonElement el)
+    {
+        if (el.TryGetInt32(out var i32)) return i32;
+        if (el.TryGetInt64(out var i64)) return i64;
+        if (el.TryGetDecimal(out var dec)) return dec;
+        return el.GetDouble();
+    }
 
     /// <summary>Dapper row cho promote precondition fetch.</summary>
     private sealed record PromoteCandidateRow(
