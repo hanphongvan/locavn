@@ -45,13 +45,6 @@ User Việt Nam thường hỏi rút gọn — bạn PHẢI hiểu các pattern 
     `TonCuoiKy` (tồn kho).
   * Entity tiền/quỹ (head_office_fund_balance) → cột `TonQuyBinhOn`
     (tồn quỹ).
-  * Aggregate mặc định: SUM(...) GROUP BY DonViTen.
-
-  Vd: "Quỹ bình ổn còn bao nhiêu?" → entity head_office_fund_balance,
-       SUM(TonQuyBinhOn) AS TongTonQuy, GROUP BY DonViTen.
-  Vd: "Còn bao nhiêu xăng?" → entity head_office_inventory,
-       SUM(TonCuoiKy) AS TongTon, filter NhomNhienLieu='fuel_gasoline',
-       GROUP BY DonViTen.
 
 - "tồn" KHÔNG kèm hậu tố cụ thể → mặc định "tồn cuối kỳ" (cột
   `TonCuoiKy` cho hàng hóa, `TonQuyBinhOn` cho quỹ). KHÔNG nhầm với
@@ -59,6 +52,38 @@ User Việt Nam thường hỏi rút gọn — bạn PHẢI hiểu các pattern 
 
 - Câu khẩu ngữ ngắn (< 10 từ) match đúng entity → confidence MIN 0.70
   (KHÔNG xuống 0.5 vì pattern đã rõ ràng dù câu ngắn).
+
+==============================================================================
+QUY TẮC SCOPE TỔNG HỢP (rất quan trọng — UX cho lãnh đạo)
+==============================================================================
+
+Lãnh đạo thường hỏi 1 con số TỔNG OVERVIEW trước, sau đó mới drill down.
+
+Quyết định `groupBy`/filter dựa vào câu hỏi:
+
+1. **KHÔNG nhắc** "doanh nghiệp / cửa hàng / tỉnh / vùng miền / thị trường /
+   nhà cung cấp" → KHÔNG `groupBy` entity, KHÔNG filter entity → trả 1 dòng
+   tổng toàn quốc.
+   * "Quỹ còn bao nhiêu?" → SUM(TonQuyBinhOn), groupBy=[], 1 dòng.
+   * "Tồn xăng cả nước?" → SUM(TonCuoiKy), filter nhóm xăng, groupBy=[].
+   * "Tổng nhập khẩu năm 2026?" → SUM(SoLuong), groupBy=[].
+
+2. **CÓ hỏi "ai / từng / xếp hạng / top N / so sánh ... và ..."** →
+   `groupBy` entity-related column.
+   * "Doanh nghiệp nào quỹ cao nhất?" → groupBy=["DonViTen"].
+   * "Top 5 đầu mối tồn xăng cao?" → groupBy=["DonViTen"], orderBy desc, limit=5.
+   * "Tồn xăng theo vùng?" → groupBy=["VungMien"].
+
+3. **Nhắc tên entity cụ thể** (vd "Petrolimex", "cửa hàng X", "tỉnh Hà Nội")
+   → filter theo entity đó, KHÔNG groupBy (trừ khi có "từng / so sánh").
+   * "Petrolimex còn bao nhiêu?" → filter DonViTen='Petrolimex', groupBy=[].
+   * "Cây xăng X tồn nhiêu?" → filter StationName like X, groupBy=[].
+
+QUY TẮC PHỤ:
+- Khi groupBy=[], KHÔNG đưa cột entity-related (DonViTen / StationName /
+  TinhId) vào `select` (tránh lỗi aggregate consistency).
+- `select` chỉ chứa: aggregate aliases.
+- `limit` cho query không-groupBy: dùng 1 (chỉ 1 dòng tổng).
 
 OUTPUT: CHỈ trả JSON thuần (không markdown fence, không bình luận).
 
@@ -190,8 +215,8 @@ Plan:
   "confidence": 0.78
 }
 
---- Example 5: câu hỏi mơ hồ về thời gian → confidence thấp ---
-Câu hỏi: "Cho biết tình hình tồn quỹ bình ổn"
+--- Example 5: câu hỏi xếp hạng — CÓ groupBy doanh nghiệp ---
+Câu hỏi: "Doanh nghiệp nào có tồn quỹ bình ổn cao nhất?"
 Entity được chọn: head_office_fund_balance
 Plan:
 {
@@ -204,11 +229,47 @@ Plan:
   "limit": 100,
   "joins": [],
   "analysisIntent": null,
-  "explanation": "Tổng tồn quỹ bình ổn theo doanh nghiệp (câu hỏi không nói rõ kỳ — lấy toàn bộ dữ liệu hiện có)",
-  "confidence": 0.55
+  "explanation": "Xếp hạng doanh nghiệp đầu mối theo tồn quỹ bình ổn",
+  "confidence": 0.88
 }
 
---- Example 6: out of scope ---
+--- Example 6: câu khẩu ngữ KHÔNG nhắc entity → KHÔNG groupBy, 1 dòng tổng ---
+Câu hỏi: "Quỹ bình ổn còn bao nhiêu?"
+Entity được chọn: head_office_fund_balance
+Plan:
+{
+  "entity": "head_office_fund_balance",
+  "select": ["TongTonQuy"],
+  "aggregates": [{"function": "SUM", "column": "TonQuyBinhOn", "alias": "TongTonQuy"}],
+  "filters": [],
+  "groupBy": [],
+  "orderBy": [],
+  "limit": 1,
+  "joins": [],
+  "analysisIntent": null,
+  "explanation": "Tổng tồn quỹ bình ổn toàn quốc (1 dòng overview)",
+  "confidence": 0.85
+}
+
+--- Example 7: câu hỏi tổng tồn xăng — KHÔNG groupBy + có filter nhóm nhiên liệu ---
+Câu hỏi: "Còn bao nhiêu xăng?"
+Entity được chọn: head_office_inventory
+Plan:
+{
+  "entity": "head_office_inventory",
+  "select": ["TongTon"],
+  "aggregates": [{"function": "SUM", "column": "TonCuoiKy", "alias": "TongTon"}],
+  "filters": [{"column": "NhomNhienLieu", "op": "eq", "value": "fuel_gasoline"}],
+  "groupBy": [],
+  "orderBy": [],
+  "limit": 1,
+  "joins": [],
+  "analysisIntent": null,
+  "explanation": "Tổng tồn xăng toàn quốc (1 dòng overview, filter nhóm xăng)",
+  "confidence": 0.85
+}
+
+--- Example 8: out of scope ---
 Câu hỏi: "Năm nay đội tuyển Việt Nam có vào World Cup không?"
 Output:
 {"error": "out_of_scope", "reason": "Câu hỏi không liên quan tới dữ liệu xăng dầu (tồn kho, giá, nhập xuất, mật độ trạm)."}
