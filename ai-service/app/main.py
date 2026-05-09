@@ -17,6 +17,8 @@ from typing import Annotated, AsyncIterator
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Response, status
 from fastapi.responses import JSONResponse, StreamingResponse
 
+import contextlib
+
 from .agents.fallback import (
     DEFAULT_FAIL_ANSWER,
     build_fallback_response,
@@ -27,6 +29,7 @@ from .agents.nodes import Deps
 from .agents.plan_generator import QueryPlanGenerator
 from .security.safety_gate import SafetyGate
 from .services.readonly_db import ReadonlyDb, ReadonlyDbError
+from .services.reindex_worker import reindex_worker_loop
 from .services.sql_builder import SqlBuilder
 from .tools.dynamic_query_tool import DynamicQueryTool
 from .agents.state import AgentState
@@ -319,6 +322,74 @@ def get_deps(
 # App + middleware.
 # ---------------------------------------------------------------------------
 
+@contextlib.asynccontextmanager
+async def _app_lifespan(app: FastAPI):
+    """Phase 5G — start/stop background tasks. Khởi động reindex worker
+    nếu `REINDEX_WORKER_ENABLED=true` + Qdrant cấu hình.
+
+    Worker degrade graceful: nếu Schema Retriever không wire (Qdrant URL
+    rỗng) → KHÔNG start worker, log warning. Production deploy phải cấu
+    hình đầy đủ Qdrant + .NET API + Ollama bge-m3.
+    """
+    settings = get_settings()
+    worker_task: asyncio.Task[None] | None = None
+
+    if settings.reindex_worker_enabled:
+        # Lazy build SchemaRetriever + DotnetApiClient outside DI (lifespan
+        # chạy trước first request — không có scoped DI).
+        retriever = _build_schema_retriever_for_worker(settings)
+        if retriever is None:
+            _logger.warning("reindex_worker.skipped_no_qdrant_or_retriever")
+        else:
+            dotnet = DotnetApiClient(settings)
+            worker_task = asyncio.create_task(
+                reindex_worker_loop(
+                    schema_retriever=retriever,
+                    dotnet=dotnet,
+                    poll_seconds=settings.reindex_worker_poll_seconds,
+                    batch_limit=settings.reindex_worker_batch_limit,
+                ),
+                name="reindex_worker",
+            )
+            _logger.info(
+                "reindex_worker.task_started",
+                poll_seconds=settings.reindex_worker_poll_seconds,
+            )
+    else:
+        _logger.info("reindex_worker.disabled_by_settings")
+
+    try:
+        yield
+    finally:
+        if worker_task is not None and not worker_task.done():
+            worker_task.cancel()
+            try:
+                await worker_task
+            except asyncio.CancelledError:
+                pass
+            _logger.info("reindex_worker.task_cancelled")
+
+
+def _build_schema_retriever_for_worker(settings: Settings) -> SchemaRetriever | None:
+    """Phase 5G — build SchemaRetriever standalone (không qua DI scope) cho
+    lifespan worker. Trả None khi Qdrant URL rỗng → caller skip worker."""
+    if not settings.qdrant_url:
+        return None
+    from .services.embedding_service import EmbeddingService
+    from .services.qdrant_service import QdrantService
+    from .services.schema_retriever import SCHEMA_COLLECTION_NAME, SCHEMA_VECTOR_SIZE
+
+    return SchemaRetriever(
+        embedding=EmbeddingService(base_url=settings.ollama_base_url),
+        qdrant=QdrantService(
+            url=settings.qdrant_url,
+            collection=SCHEMA_COLLECTION_NAME,
+            vector_size=SCHEMA_VECTOR_SIZE,
+        ),
+        dotnet=DotnetApiClient(settings),
+    )
+
+
 def create_app() -> FastAPI:
     settings = get_settings()
     configure_logging(level=settings.log_level, json_format=settings.log_format == "json")
@@ -327,6 +398,7 @@ def create_app() -> FastAPI:
         title="Loca AI — Leader Assistant Gateway",
         version="1.0.0-phase1b",
         docs_url="/docs",
+        lifespan=_app_lifespan,
     )
 
     @app.get("/health", tags=["meta"])

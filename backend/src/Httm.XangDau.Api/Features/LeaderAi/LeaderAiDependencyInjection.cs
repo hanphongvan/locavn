@@ -18,6 +18,8 @@ public static class LeaderAiDependencyInjection
     {
         services.Configure<AiGatewayOptions>(configuration.GetSection(AiGatewayOptions.SectionName));
         services.Configure<AiRateLimitOptions>(configuration.GetSection(AiRateLimitOptions.SectionName));
+        // Phase 5G — config admin endpoints + analytics job.
+        services.Configure<AdminAiOptions>(configuration.GetSection(AdminAiOptions.SectionName));
 
         // TryAdd để test (WebApplicationFactory) có thể thay TimeProvider bằng FakeTimeProvider.
         services.TryAddSingleton(TimeProvider.System);
@@ -28,6 +30,12 @@ public static class LeaderAiDependencyInjection
         services.AddScoped<ILeaderAiDataAccess, LeaderAiDataAccess>();
         services.AddScoped<IAiInternalDataAccess, AiInternalDataAccess>();
         services.AddScoped<ILeaderAiService, LeaderAiService>();
+        // Phase 5G — admin candidate-intent management + reindex queue
+        services.AddScoped<IAdminAiDataAccess, AdminAiDataAccess>();
+        services.AddScoped<IAdminAuditService, AdminAuditService>();
+        services.AddScoped<IDynamicQueryAnalyticsService, DynamicQueryAnalyticsService>();
+        // Hosted service chạy daily analytics — codebase first BackgroundService.
+        services.AddHostedService<DynamicQueryAnalyticsJob>();
 
         // Typed HttpClient cho AI Gateway. Timeout 50s = pipeline 45s + 5s buffer mạng.
         // BaseAddress lấy từ AiGateway:BaseUrl. Test override qua HttpMessageHandler hoặc IAiGatewayClient mock.

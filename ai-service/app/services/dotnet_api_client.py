@@ -362,6 +362,78 @@ class DotnetApiClient:
             )
 
     # ------------------------------------------------------------------
+    # Phase 5G — Reindex queue (worker poll)
+    # ------------------------------------------------------------------
+
+    async def fetch_reindex_queue(self, *, limit: int = 10) -> list[dict[str, Any]]:
+        """Phase 5G — POST `/internal/ai/reindex-queue/dequeue` để worker
+        atomically claim top N pending entries (.NET tự mark Status='processing').
+
+        Returns: list dict camelCase `{id, entityCode, requestedAt, status}`.
+        Empty khi queue rỗng → worker sleep tới poll tiếp theo.
+        """
+        if not self._internal_key:
+            raise DotnetApiError(
+                "AI_GATEWAY_INTERNAL_KEY chưa set — không thể poll reindex queue."
+            )
+
+        url = f"{self._base_url}/internal/ai/reindex-queue/dequeue"
+        headers = {self.INTERNAL_KEY_HEADER: self._internal_key}
+
+        try:
+            async with httpx.AsyncClient(timeout=self.SP_TIMEOUT) as client:
+                response = await client.post(url, headers=headers, params={"limit": limit})
+            response.raise_for_status()
+            body = response.json()
+            rows = body.get("rows") or []
+            if not isinstance(rows, list):
+                raise DotnetApiError(
+                    f"reindex-queue/dequeue trả `rows` không phải list: "
+                    f"{type(rows).__name__}"
+                )
+            return list(rows)
+        except httpx.HTTPStatusError as ex:
+            raise DotnetApiError(
+                f".NET API /internal/ai/reindex-queue/dequeue trả "
+                f"{ex.response.status_code}: {ex.response.text[:200]}"
+            ) from ex
+        except (httpx.HTTPError, httpx.TimeoutException) as ex:
+            raise DotnetApiError(f"reindex-queue/dequeue network error: {ex}") from ex
+
+    async def mark_reindex_complete(
+        self, *,
+        queue_id: int,
+        status: str,
+        error_message: str | None = None,
+    ) -> None:
+        """Phase 5G — POST `/internal/ai/reindex-queue/{id}/complete`.
+
+        `status`: `'done'` hoặc `'failed'`. `'failed'` PHẢI kèm
+        `error_message` (.NET validation 400 nếu thiếu).
+
+        Best-effort: log warning nếu fail. Worker tiếp tục với entry tiếp
+        theo, không block.
+        """
+        if not self._internal_key:
+            return
+        if status not in ("done", "failed"):
+            raise ValueError(f"status phải 'done' hoặc 'failed', got {status!r}")
+
+        url = f"{self._base_url}/internal/ai/reindex-queue/{queue_id}/complete"
+        payload = {"status": status, "errorMessage": error_message}
+        try:
+            async with httpx.AsyncClient(timeout=self.LOG_TIMEOUT) as client:
+                await client.post(
+                    url, json=payload,
+                    headers={self.INTERNAL_KEY_HEADER: self._internal_key},
+                )
+        except (httpx.HTTPError, httpx.TimeoutException) as ex:
+            _logger.warning(
+                "dotnet_api.reindex_complete_failed",
+                queue_id=queue_id, status=status, error=str(ex),
+            )
+
+    # ------------------------------------------------------------------
     # Internals
     # ------------------------------------------------------------------
 

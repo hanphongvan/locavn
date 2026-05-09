@@ -289,6 +289,73 @@ class SchemaRetriever:
 
         return self._group_by_entity(raw_hits, limit_unique)
 
+    async def index_entity_by_code(self, entity_code: str) -> dict[str, Any]:
+        """Phase 5G — re-index 1 entity theo `entity_code` (dùng cho reindex worker).
+
+        Workflow:
+        1. Fetch toàn bộ schema catalog từ `.NET` (chỉ entity `IsEnabled=1`).
+        2. Tìm entity match `entity_code`:
+           - Found → re-embed + upsert chunks vào Qdrant (overwrite via uuid5).
+           - NOT found → entity đã disable hoặc xoá → DELETE points cho entity_code đó.
+
+        Returns: dict `{"action", "chunks_upserted" | "points_deleted",
+            "entity_code"}`. Caller (reindex worker) ghi log + post complete
+            qua `/internal/ai/reindex-queue/{id}/complete`.
+
+        Raises:
+            SchemaRetrieverError: `.NET` API down hoặc Qdrant fail (caller post
+            status='failed' với error message).
+        """
+        if not entity_code or not entity_code.strip():
+            raise SchemaRetrieverError("entity_code rỗng")
+
+        try:
+            raw_entities = await self._dotnet.fetch_schema_catalog()
+        except DotnetApiError as ex:
+            raise SchemaRetrieverError(f"Fetch schema catalog fail: {ex}") from ex
+
+        entities = [_normalize_entity(r) for r in raw_entities]
+        target = next(
+            (e for e in entities if e["entity_code"] == entity_code), None,
+        )
+
+        if target is None:
+            # Entity disabled hoặc xoá → cleanup points trong Qdrant.
+            try:
+                await self._qdrant.delete_by_filter(
+                    payload_key="entity_code", payload_value=entity_code,
+                )
+            except QdrantError as ex:
+                raise SchemaRetrieverError(
+                    f"Delete points cho disabled entity {entity_code!r}: {ex}",
+                ) from ex
+            _logger.info(
+                "schema_retriever.entity_deleted_after_reindex",
+                entity_code=entity_code,
+            )
+            return {
+                "action": "deleted",
+                "entity_code": entity_code,
+                "points_deleted": "all",
+            }
+
+        # Found → re-embed + upsert.
+        try:
+            upserted = await self._index_one_entity(target)
+        except (EmbeddingError, QdrantError) as ex:
+            raise SchemaRetrieverError(
+                f"Re-index entity {entity_code!r}: {ex}",
+            ) from ex
+        _logger.info(
+            "schema_retriever.entity_reindexed",
+            entity_code=entity_code, chunks=upserted,
+        )
+        return {
+            "action": "upserted",
+            "entity_code": entity_code,
+            "chunks_upserted": upserted,
+        }
+
     # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------
