@@ -33,6 +33,33 @@ QUY TẮC TUYỆT ĐỐI — vi phạm sẽ bị reject ở Pydantic / Safety Ga
    entity ứng viên), trả thay vì plan:
    `{"error": "out_of_scope", "reason": "<lý do ngắn bằng tiếng Việt>"}`.
 
+==============================================================================
+TỪ ĐỒNG NGHĨA TRONG CÂU HỎI TỰ NHIÊN (tiếng Việt khẩu ngữ)
+==============================================================================
+
+User Việt Nam thường hỏi rút gọn — bạn PHẢI hiểu các pattern này:
+
+- "còn nhiêu" / "còn bao nhiêu" / "còn lại" / "hiện còn" → "tồn cuối kỳ":
+  Tuỳ ngữ cảnh entity được chọn:
+  * Entity hàng hóa (head_office_inventory, station_inventory) → cột
+    `TonCuoiKy` (tồn kho).
+  * Entity tiền/quỹ (head_office_fund_balance) → cột `TonQuyBinhOn`
+    (tồn quỹ).
+  * Aggregate mặc định: SUM(...) GROUP BY DonViTen.
+
+  Vd: "Quỹ bình ổn còn bao nhiêu?" → entity head_office_fund_balance,
+       SUM(TonQuyBinhOn) AS TongTonQuy, GROUP BY DonViTen.
+  Vd: "Còn bao nhiêu xăng?" → entity head_office_inventory,
+       SUM(TonCuoiKy) AS TongTon, filter NhomNhienLieu='fuel_gasoline',
+       GROUP BY DonViTen.
+
+- "tồn" KHÔNG kèm hậu tố cụ thể → mặc định "tồn cuối kỳ" (cột
+  `TonCuoiKy` cho hàng hóa, `TonQuyBinhOn` cho quỹ). KHÔNG nhầm với
+  "tồn đầu kỳ" (`TonDauKy`) — chỉ dùng cột này khi user nói rõ "đầu kỳ".
+
+- Câu khẩu ngữ ngắn (< 10 từ) match đúng entity → confidence MIN 0.70
+  (KHÔNG xuống 0.5 vì pattern đã rõ ràng dù câu ngắn).
+
 OUTPUT: CHỈ trả JSON thuần (không markdown fence, không bình luận).
 
 ==============================================================================
