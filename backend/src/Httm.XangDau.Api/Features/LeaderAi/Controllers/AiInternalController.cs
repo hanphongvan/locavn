@@ -2,6 +2,7 @@ using Httm.XangDau.Api.Features.LeaderAi.Contracts;
 using Httm.XangDau.Api.Features.LeaderAi.Persistence;
 using Httm.XangDau.Api.Features.LeaderAi.Security;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace Httm.XangDau.Api.Features.LeaderAi.Controllers;
 
@@ -14,8 +15,13 @@ namespace Httm.XangDau.Api.Features.LeaderAi.Controllers;
 [Route("internal/ai")]
 [InternalKeyOnly]
 [Tags("AiInternal")]
-public sealed class AiInternalController(IAiInternalDataAccess dataAccess) : ControllerBase
+public sealed class AiInternalController(
+    IAiInternalDataAccess dataAccess,
+    IMemoryCache cache) : ControllerBase
 {
+    /// <summary>Phase 5H — TTL cho cache <c>latest-period</c>. View thực tế
+    /// update theo SP daily import, 5 phút là tradeoff giữa freshness và load.</summary>
+    private static readonly TimeSpan LatestPeriodCacheTtl = TimeSpan.FromMinutes(5);
     [HttpPost("fuel-inventory")]
     [ProducesResponseType(typeof(AiInternalRowsResponse<AiFuelInventoryRow>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -137,6 +143,45 @@ public sealed class AiInternalController(IAiInternalDataAccess dataAccess) : Con
         var rows = await dataAccess.GetSchemaCatalogAsync(cancellationToken)
             .ConfigureAwait(false);
         return Ok(new AiInternalRowsResponse<SchemaCatalogEntryDto>(rows, rows.Count));
+    }
+
+    /// <summary>
+    /// Phase 5H — đọc kỳ (Nam, Thang) gần nhất của 1 entity snapshot
+    /// (vd <c>head_office_fund_balance</c>). AI Gateway dùng để auto-inject
+    /// filter khi user không nhắc tháng. Cache 5 phút để giảm round-trip.
+    /// Trả <c>{nam: null, thang: null}</c> nếu entity không phải snapshot
+    /// hoặc view chưa có data → Gateway fallback prompt-only.
+    /// </summary>
+    [HttpGet("latest-period")]
+    [ProducesResponseType(typeof(LatestPeriodDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<LatestPeriodDto>> LatestPeriod(
+        [FromQuery] string entity,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(entity))
+        {
+            return BadRequest(new { message = "Query param 'entity' là bắt buộc." });
+        }
+
+        var cacheKey = $"ai:latest-period:{entity}";
+        if (cache.TryGetValue<LatestPeriodDto>(cacheKey, out var cached) && cached is not null)
+        {
+            return Ok(cached);
+        }
+
+        var dto = await dataAccess.GetLatestPeriodAsync(entity, cancellationToken)
+            .ConfigureAwait(false);
+
+        // Chỉ cache khi có data thật — null/null nghĩa là view rỗng hoặc entity
+        // không phải snapshot, giữ ngắn hạn để re-check sau khi data import vào.
+        if (dto.Nam is not null && dto.Thang is not null)
+        {
+            cache.Set(cacheKey, dto, LatestPeriodCacheTtl);
+        }
+
+        return Ok(dto);
     }
 
     /// <summary>

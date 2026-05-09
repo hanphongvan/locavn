@@ -237,6 +237,7 @@ public sealed class AiInternalDataAccess(
                 AllowedColumnsJson, AllowedFiltersJson, AllowedAggregatesJson,
                 AllowedJoinsJson, SampleQuestionsJson,
                 DefaultLimit, MaxLimit, SensitivityLevel, RequiredRoleLoai,
+                IsSnapshot,
                 Created, Modified
             FROM dbo.AiSchemaCatalog
             WHERE IsEnabled = 1
@@ -273,6 +274,7 @@ public sealed class AiInternalDataAccess(
         public int MaxLimit { get; set; }
         public int SensitivityLevel { get; set; }
         public int RequiredRoleLoai { get; set; }
+        public bool IsSnapshot { get; set; }
         public DateTime Created { get; set; }
         public DateTime? Modified { get; set; }
     }
@@ -286,6 +288,7 @@ public sealed class AiInternalDataAccess(
             DeserializeJoinSpecList(r.AllowedJoinsJson, r.EntityCode),
             DeserializeStringList(r.SampleQuestionsJson, r.EntityCode, nameof(r.SampleQuestionsJson)),
             r.DefaultLimit, r.MaxLimit, r.SensitivityLevel, r.RequiredRoleLoai,
+            r.IsSnapshot,
             r.Created, r.Modified);
 
     /// <summary>JSON option dùng chung — match cả "view"/"View" trong DB.</summary>
@@ -360,6 +363,58 @@ public sealed class AiInternalDataAccess(
 
         var rows = await conn.QueryAsync<T>(command).ConfigureAwait(false);
         return rows.ToList();
+    }
+
+    /// <inheritdoc />
+    public async Task<LatestPeriodDto> GetLatestPeriodAsync(
+        string entityCode,
+        CancellationToken cancellationToken)
+    {
+        // Phase 5H — đọc kỳ gần nhất (Nam, Thang) cho entity snapshot.
+        // 2 lớp bảo vệ:
+        //   1) Subquery SELECT BaseView FROM AiSchemaCatalog WHERE IsSnapshot=1
+        //      AND EntityCode=@p — nếu entity không phải snapshot → 0 rows.
+        //   2) sp_executesql với @viewName tham số hoá → SQL injection-safe;
+        //      KHÔNG concat string user input.
+        // Format pattern khớp các view phase 5: cột Nam (INT) + Thang (INT).
+        const string sql =
+            """
+            DECLARE @viewName SYSNAME;
+
+            SELECT TOP 1 @viewName = BaseView
+            FROM dbo.AiSchemaCatalog
+            WHERE EntityCode = @EntityCode AND IsSnapshot = 1 AND IsEnabled = 1;
+
+            IF @viewName IS NULL
+            BEGIN
+                SELECT CAST(NULL AS INT) AS Nam, CAST(NULL AS INT) AS Thang;
+                RETURN;
+            END;
+
+            DECLARE @dynSql NVARCHAR(MAX) =
+                N'SELECT TOP 1 Nam, Thang FROM ' + QUOTENAME(@viewName) +
+                N' ORDER BY Nam DESC, Thang DESC;';
+
+            EXEC sys.sp_executesql @dynSql;
+            """;
+
+        await using var conn = new SqlConnection(PickReadonlyConnectionString());
+        await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+        var command = new CommandDefinition(
+            sql,
+            new { EntityCode = entityCode },
+            cancellationToken: cancellationToken);
+
+        var row = await conn.QuerySingleOrDefaultAsync<LatestPeriodSqlRow>(command)
+            .ConfigureAwait(false);
+        return new LatestPeriodDto(entityCode, row?.Nam, row?.Thang);
+    }
+
+    private sealed class LatestPeriodSqlRow
+    {
+        public int? Nam { get; set; }
+        public int? Thang { get; set; }
     }
 
     /// <inheritdoc />

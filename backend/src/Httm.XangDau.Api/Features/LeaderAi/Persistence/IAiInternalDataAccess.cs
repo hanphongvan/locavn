@@ -57,6 +57,17 @@ public interface IAiInternalDataAccess
         CancellationToken cancellationToken);
 
     /// <summary>
+    /// Phase 5H — đọc kỳ (Nam, Thang) gần nhất của 1 entity snapshot.
+    /// Query whitelist: chỉ entity có <c>IsSnapshot=1</c> trong AiSchemaCatalog
+    /// (defense-in-depth ngừa SQL injection qua param entity); BaseView được map
+    /// trực tiếp tên view thay vì interpolate user input.
+    /// Trả <c>(null, null)</c> nếu view chưa có data hoặc entity không phải snapshot.
+    /// </summary>
+    Task<LatestPeriodDto> GetLatestPeriodAsync(
+        string entityCode,
+        CancellationToken cancellationToken);
+
+    /// <summary>
     /// Phase 5F — INSERT 1 row vào <c>AiDynamicQueryLogs</c>. Status enum khớp
     /// <c>CK_AiDynamicQueryLogs_Status</c>: success / plan_invalid / sql_invalid /
     /// safety_blocked / execution_failed / timeout / no_data.
