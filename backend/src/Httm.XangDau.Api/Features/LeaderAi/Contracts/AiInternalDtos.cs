@@ -122,8 +122,19 @@ public sealed record SchemaCatalogEntryDto(
     int MaxLimit,
     int SensitivityLevel,
     int RequiredRoleLoai,
+    bool IsSnapshot,
     DateTime Created,
     DateTime? Modified);
+
+/// <summary>
+/// Phase 5H — phản hồi <c>GET /internal/ai/latest-period?entity=X</c>.
+/// AI Gateway dùng để auto-inject filter Nam/Thang khi LLM quên (defense-in-depth).
+/// Trả null cả 2 field nếu view chưa có data → AI Gateway fallback prompt-only.
+/// </summary>
+public sealed record LatestPeriodDto(
+    string EntityCode,
+    int? Nam,
+    int? Thang);
 
 /// <summary>
 /// JSON shape của 1 entry trong <c>AiSchemaCatalog.AllowedJoinsJson</c>.

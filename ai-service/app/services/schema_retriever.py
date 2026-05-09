@@ -15,7 +15,7 @@ hoặc số sample question giảm).
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from typing import Any
 
@@ -52,6 +52,10 @@ class CandidateEntity:
     `score` là max score trong các chunk thuộc entity này.
     `matched_chunk_type` debug-only — biết entity match qua description hay
     sample question để tune chunk strategy.
+
+    Phase 5H — `is_snapshot` flag từ AiSchemaCatalog: True = entity balance
+    (vd tồn quỹ) → SUM qua kỳ vô nghĩa → Plan Generator filter latest period.
+    `latest_period` populate ở `find_relevant_entities` cho snapshot entity.
     """
 
     entity_code: str
@@ -69,6 +73,8 @@ class CandidateEntity:
     max_limit: int
     score: float
     matched_chunk_type: str
+    is_snapshot: bool = False
+    latest_period: dict[str, int] | None = None    # {"nam": 2026, "thang": 5} hoặc None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize cho `AgentState.candidate_entities` (TypedDict cần dict thuần)."""
@@ -90,6 +96,10 @@ class CandidateEntity:
             "max_limit": self.max_limit,
             "score": self.score,
             "matched_chunk_type": self.matched_chunk_type,
+            "is_snapshot": self.is_snapshot,
+            "latest_period": (
+                None if self.latest_period is None else dict(self.latest_period)
+            ),
         }
 
 
@@ -117,6 +127,9 @@ def _normalize_entity(raw: dict[str, Any]) -> dict[str, Any]:
         "sample_questions": list(raw.get("sampleQuestions") or []),
         "default_limit": int(raw.get("defaultLimit") or 100),
         "max_limit": int(raw.get("maxLimit") or 1000),
+        # Phase 5H — flag snapshot vs flow. Default False để entity cũ (chưa migrate
+        # cột IsSnapshot) không bị mặc định ép latest period filter.
+        "is_snapshot": bool(raw.get("isSnapshot") or False),
         "modified_at": raw.get("modified"),  # ISO string hoặc None
     }
 
@@ -287,7 +300,38 @@ class SchemaRetriever:
                     threshold=self._score_threshold,
                 )
 
-        return self._group_by_entity(raw_hits, limit_unique)
+        candidates = self._group_by_entity(raw_hits, limit_unique)
+        return await self._enrich_latest_periods(candidates)
+
+    async def _enrich_latest_periods(
+        self, candidates: list[CandidateEntity],
+    ) -> list[CandidateEntity]:
+        """Phase 5H — gọi `.NET /internal/ai/latest-period` cho mỗi candidate
+        có `is_snapshot=True` → attach `latest_period={nam, thang}`.
+
+        Backend cache 5 phút nên gọi mỗi câu là acceptable; lỗi network →
+        `None` → Plan Generator fallback prompt-only (defense ở SqlBuilder
+        cũng sẽ skip auto-inject).
+        """
+        enriched: list[CandidateEntity] = []
+        for c in candidates:
+            if not c.is_snapshot:
+                enriched.append(c)
+                continue
+            try:
+                nam, thang = await self._dotnet.get_latest_period(c.entity_code)
+            except Exception as ex:   # noqa: BLE001 — graceful degrade
+                _logger.warning(
+                    "schema_retriever.latest_period_unexpected",
+                    entity_code=c.entity_code, error=str(ex),
+                )
+                nam, thang = None, None
+            latest = (
+                {"nam": nam, "thang": thang}
+                if nam is not None and thang is not None else None
+            )
+            enriched.append(replace(c, latest_period=latest))
+        return enriched
 
     async def index_entity_by_code(self, entity_code: str) -> dict[str, Any]:
         """Phase 5G — re-index 1 entity theo `entity_code` (dùng cho reindex worker).
@@ -464,6 +508,7 @@ class SchemaRetriever:
             "sample_questions": entity["sample_questions"],
             "default_limit": entity["default_limit"],
             "max_limit": entity["max_limit"],
+            "is_snapshot": entity.get("is_snapshot", False),
             "modified_at": entity.get("modified_at"),
             "indexed_at": datetime.now(timezone.utc).isoformat(),
         }
@@ -516,6 +561,8 @@ class SchemaRetriever:
                 max_limit=int(payload.get("max_limit") or 1000),
                 score=score,
                 matched_chunk_type=chunk_type,
+                is_snapshot=bool(payload.get("is_snapshot") or False),
+                latest_period=None,   # populate sau ở find_relevant_entities
             )
             for entity_code, (score, payload, chunk_type) in ranked
         ]

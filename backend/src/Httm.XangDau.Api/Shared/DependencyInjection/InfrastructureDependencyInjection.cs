@@ -46,6 +46,10 @@ public static class InfrastructureDependencyInjection
         services.AddHttpContextAccessor();
         services.AddScoped<IAdminPortalRequestContext, AdminPortalRequestContext>();
 
+        // Phase 5H — IMemoryCache cho /internal/ai/latest-period (5 phút TTL,
+        // giảm round-trip xuống view view_AiHeadOffice* khi LLM gọi mỗi câu).
+        services.AddMemoryCache();
+
         services.AddDataAccess();
 
         services.AddScoped<IThongKePeriodResolver, ThongKePeriodResolver>();

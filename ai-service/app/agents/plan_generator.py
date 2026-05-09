@@ -248,8 +248,12 @@ class QueryPlanGenerator:
     @staticmethod
     def _slim_candidate(c: dict[str, Any]) -> dict[str, Any]:
         """Lược bỏ field không cần để giảm token. Giữ lại đủ cho LLM hiểu
-        capability của entity và validate plan."""
-        return {
+        capability của entity và validate plan.
+
+        Phase 5H — chỉ pass `is_snapshot` + `latest_period` khi snapshot=True.
+        Tránh pollute prompt cho entity flow (đa số case).
+        """
+        slim = {
             "entity_code": c.get("entity_code"),
             "display_name": c.get("display_name"),
             "description": c.get("description"),
@@ -261,6 +265,15 @@ class QueryPlanGenerator:
             "default_limit": c.get("default_limit"),
             "max_limit": c.get("max_limit"),
         }
+        if c.get("is_snapshot"):
+            slim["is_snapshot"] = True
+            latest = c.get("latest_period")
+            if latest and latest.get("nam") and latest.get("thang"):
+                slim["latest_period"] = {
+                    "nam": int(latest["nam"]),
+                    "thang": int(latest["thang"]),
+                }
+        return slim
 
 
 __all__ = [

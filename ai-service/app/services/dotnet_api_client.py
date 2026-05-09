@@ -256,6 +256,52 @@ class DotnetApiClient:
             f"(timeout={self.SP_TIMEOUT}s)."
         ) from last_error
 
+    # ------------------------------------------------------------------
+    # Phase 5H — Latest period cho snapshot entity.
+    # ------------------------------------------------------------------
+
+    async def get_latest_period(
+        self, entity_code: str
+    ) -> tuple[int | None, int | None]:
+        """Phase 5H — `GET /internal/ai/latest-period?entity=<code>`.
+
+        Trả `(nam, thang)` của kỳ gần nhất trong view snapshot. Nếu entity
+        không phải snapshot hoặc view chưa có data → `(None, None)`.
+
+        Backend cache 5 phút nên gọi mỗi câu hỏi không gây áp lực DB.
+        Lỗi network / timeout → `(None, None)` + log (KHÔNG raise) để
+        Plan Generator vẫn fallback prompt-only — defense-in-depth ở layer
+        SqlBuilder cũng sẽ skip nếu không có latestPeriod.
+        """
+        if not self._internal_key:
+            _logger.warning(
+                "dotnet_api.latest_period_no_key", entity=entity_code,
+            )
+            return None, None
+
+        url = f"{self._base_url}/internal/ai/latest-period"
+        headers = {self.INTERNAL_KEY_HEADER: self._internal_key}
+        params = {"entity": entity_code}
+
+        try:
+            async with httpx.AsyncClient(timeout=self.SP_TIMEOUT) as client:
+                response = await client.get(url, headers=headers, params=params)
+            response.raise_for_status()
+            body = response.json()
+            nam = body.get("nam")
+            thang = body.get("thang")
+            return (
+                int(nam) if isinstance(nam, int) else None,
+                int(thang) if isinstance(thang, int) else None,
+            )
+        except (httpx.HTTPError, ValueError) as ex:
+            _logger.warning(
+                "dotnet_api.latest_period_failed",
+                entity=entity_code,
+                error=str(ex),
+            )
+            return None, None
+
     async def log_tool_call(
         self,
         *,

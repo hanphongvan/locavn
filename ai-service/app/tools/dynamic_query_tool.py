@@ -17,7 +17,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
-from ..schemas.query_plan import QueryPlan
+from ..schemas.query_plan import FilterCondition, QueryPlan
 from ..security.safety_gate import SafetyGate, SafetyGateError
 from ..services.dotnet_api_client import (
     DotnetApiClient,
@@ -55,6 +55,9 @@ class DynamicQueryResult:
     error_message: str | None = None
     log_id: str | None = None
     safety_checks: dict[str, Any] | None = None
+    # Phase 5H — populate khi tool tự inject Nam/Thang vì entity snapshot mà
+    # LLM quên filter. AnswerComposer dùng để render dòng "Đã lọc theo kỳ X/Y".
+    latest_period_injected: dict[str, int] | None = None
 
     @property
     def is_success(self) -> bool:
@@ -70,6 +73,10 @@ class DynamicQueryResult:
             "sql": self.sql,
             "error_message": self.error_message,
             "log_id": self.log_id,
+            "latest_period_injected": (
+                None if self.latest_period_injected is None
+                else dict(self.latest_period_injected)
+            ),
         }
 
 
@@ -120,6 +127,11 @@ class DynamicQueryTool:
         log_id = str(uuid.uuid4())
         started = time.perf_counter()
         normalized = _normalize_question(original_question)
+
+        # === Step 0 — Phase 5H defense-in-depth: auto-inject latest period
+        # nếu entity là snapshot và LLM quên filter Nam/Thang.
+        latest_period_injected = self._maybe_inject_latest_period(plan, entity)
+
         plan_dump = plan.model_dump(by_alias=True)
         plan_json_for_log = json.dumps(plan_dump, ensure_ascii=False, default=str)
 
@@ -312,7 +324,53 @@ class DynamicQueryTool:
             sql_params=params,
             log_id=log_id,
             safety_checks=safety_checks,
+            latest_period_injected=latest_period_injected,
         )
+
+    # ------------------------------------------------------------------
+    # Phase 5H — auto-inject latest period (defense-in-depth)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _maybe_inject_latest_period(
+        plan: QueryPlan, entity: dict[str, Any],
+    ) -> dict[str, int] | None:
+        """Nếu entity snapshot + plan thiếu filter Nam/Thang + entity có
+        `latest_period` → mutate `plan.filters` thêm 2 filter eq.
+
+        Trả `{"nam": ..., "thang": ...}` khi đã inject; None khi:
+        - Entity không phải snapshot.
+        - Plan đã có filter Nam hoặc Thang (LLM đã làm đúng theo prompt).
+        - Backend chưa cấu hình `latest_period` (view rỗng / lỗi network).
+
+        KHÔNG kiểm tra cột Nam/Thang có trong `allowed_filters` —
+        SqlBuilder sẽ raise downstream nếu cột không hợp lệ; ở đây chỉ
+        defense-in-depth bổ sung filter cho entity snapshot có 2 cột này
+        (đảm bảo theo Phase 5C seed).
+        """
+        if not entity.get("is_snapshot"):
+            return None
+
+        latest = entity.get("latest_period")
+        if not isinstance(latest, dict):
+            return None
+        nam = latest.get("nam")
+        thang = latest.get("thang")
+        if nam is None or thang is None:
+            return None
+
+        existing_cols = {(f.column or "").lower() for f in plan.filters}
+        if "nam" in existing_cols or "thang" in existing_cols:
+            return None
+
+        plan.filters.append(FilterCondition(column="Nam", op="eq", value=int(nam)))
+        plan.filters.append(FilterCondition(column="Thang", op="eq", value=int(thang)))
+        _logger.info(
+            "dynamic_query_tool.latest_period_injected",
+            entity_code=entity.get("entity_code"),
+            nam=int(nam), thang=int(thang),
+        )
+        return {"nam": int(nam), "thang": int(thang)}
 
     # ------------------------------------------------------------------
     # Logging helpers (best-effort — không raise lên caller)

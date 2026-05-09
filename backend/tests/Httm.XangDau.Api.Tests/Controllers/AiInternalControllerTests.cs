@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -76,7 +77,7 @@ public sealed class AiInternalControllerTests
             .Setup(d => d.GetFuelInventorySummaryAsync(It.IsAny<AiFuelInventoryRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(rows);
 
-        var controller = new AiInternalController(dataAccess.Object);
+        var controller = new AiInternalController(dataAccess.Object, NewCache());
         var result = await controller.FuelInventory(
             new AiFuelInventoryRequest(null, null, null, null, null),
             CancellationToken.None);
@@ -104,7 +105,7 @@ public sealed class AiInternalControllerTests
             })
             .Returns(Task.CompletedTask);
 
-        var controller = new AiInternalController(dataAccess.Object);
+        var controller = new AiInternalController(dataAccess.Object, NewCache());
         var convId = Guid.NewGuid();
         var result = await controller.UpsertContextSummary(
             new AiContextSummaryRequest(convId, 42, "Tóm tắt 5 lượt về tồn kho RON95."),
@@ -119,7 +120,7 @@ public sealed class AiInternalControllerTests
     public async Task UpsertContextSummary_rejects_empty_input()
     {
         var dataAccess = new Mock<IAiInternalDataAccess>(MockBehavior.Strict);
-        var controller = new AiInternalController(dataAccess.Object);
+        var controller = new AiInternalController(dataAccess.Object, NewCache());
 
         var result = await controller.UpsertContextSummary(
             new AiContextSummaryRequest(Guid.NewGuid(), 42, "  "),
@@ -139,7 +140,7 @@ public sealed class AiInternalControllerTests
             .Callback<AiToolLogRequest, CancellationToken>((req, _) => captured = req)
             .Returns(Task.CompletedTask);
 
-        var controller = new AiInternalController(dataAccess.Object);
+        var controller = new AiInternalController(dataAccess.Object, NewCache());
         var request = new AiToolLogRequest(42, "LLMTokenUsage",
             "{\"task\":\"intent_classification\"}",
             "{\"total_tokens\":150}",
@@ -152,6 +153,9 @@ public sealed class AiInternalControllerTests
         captured!.UserId.Should().Be(42);
         captured.ToolName.Should().Be("LLMTokenUsage");
     }
+
+    /// <summary>Phase 5H — fresh in-memory cache cho mỗi test, tránh state leak.</summary>
+    private static IMemoryCache NewCache() => new MemoryCache(new MemoryCacheOptions());
 
     private static AuthorizationFilterContext BuildContext(
         string configuredKey,
