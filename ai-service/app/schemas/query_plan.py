@@ -23,10 +23,33 @@ from typing import Any, Literal, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
-# Ngưỡng confidence để route plan → answer_composer rendering preview.
-# Plan có confidence < ngưỡng này → fallback về candidate_entities response
-# (Phase 5G self-improving sẽ dùng data thật để tune).
-PLAN_CONFIDENCE_THRESHOLD: float = 0.7
+# === Plan confidence bands (Section 12A.2 doc) ===
+#
+# Phase 5F initial: 1 ngưỡng cứng 0.7 → routing nhị phân exec / không.
+# Phase 5G refinement: 4 band UX tốt hơn — exec từ 0.5+ với warning text
+# theo confidence band. Stochastic LLM trả 0.65-0.85 cho cùng câu hỏi
+# khẩu ngữ ngắn → ngưỡng cứng 0.7 phá UX (1/3 lần fail).
+#
+# Band:
+#   ≥ 0.85 — auto-execute, không warning.
+#   0.70-0.84 — auto-execute, warning nhẹ.
+#   0.50-0.69 — auto-execute, warning mạnh + đề xuất rephrase.
+#   < 0.50 — KHÔNG execute, hỏi user clarify (composer Phase 5D candidate list).
+
+PLAN_EXEC_MIN_CONFIDENCE: float = 0.50
+"""Ngưỡng tối thiểu để routing đi `dynamic_query_executor`. Dưới → composer
+fallback Phase 5D candidate list."""
+
+PLAN_CONFIDENCE_HIGH: float = 0.85
+"""≥ ngưỡng này: render KHÔNG warning (LLM tự tin câu hỏi rõ ràng)."""
+
+PLAN_CONFIDENCE_MEDIUM: float = 0.70
+"""≥ ngưỡng này nhưng < HIGH: render warning nhẹ ('có thể chưa hoàn toàn khớp')."""
+
+# Backwards-compat alias — code cũ nhập từ đây vẫn work.
+# Phase 5F routing/composer đã dùng — em giữ alias = MEDIUM (0.7) để KHÔNG
+# break test cũ. Phase 5F fix sẽ chuyển sang dùng MIN cho routing.
+PLAN_CONFIDENCE_THRESHOLD: float = PLAN_CONFIDENCE_MEDIUM
 
 
 # ---------------------------------------------------------------------------

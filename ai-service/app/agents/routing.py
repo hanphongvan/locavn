@@ -35,25 +35,27 @@ def route_after_schema_retriever(state: AgentState) -> str:
 
 
 def route_after_plan_generator(state: AgentState) -> str:
-    """Phase 5F — sau `plan_generator` node.
+    """Phase 5G — sau `plan_generator` node, theo Section 12A.2 doc.
+
+    4 confidence band — chỉ < MIN (0.50) mới skip executor. Composer sẽ
+    render warning text khác nhau theo band ≥ MIN.
 
     Returns:
         - `"dynamic_query_executor"` khi plan ok + confidence ≥
-          PLAN_CONFIDENCE_THRESHOLD → exec SQL thật (Phase 5F).
-        - `"answer_composer"` khi plan invalid / confidence thấp / generation
-          fail → composer fallback Phase 5E preview hoặc Phase 5D candidate
-          response.
+          PLAN_EXEC_MIN_CONFIDENCE (0.50) → exec SQL thật.
+        - `"answer_composer"` khi plan invalid / confidence < MIN / generation
+          fail → composer fallback Phase 5D candidate response.
 
     KHÔNG check `deps.dynamic_query_tool` ở đây — node `dynamic_query_executor`
     tự degrade khi tool None (trả `query_result=None` để composer fallback).
     """
-    from ..schemas.query_plan import PLAN_CONFIDENCE_THRESHOLD
+    from ..schemas.query_plan import PLAN_EXEC_MIN_CONFIDENCE
 
     plan = state.get("query_plan")
     confidence = state.get("plan_confidence")
     if not isinstance(plan, dict) or plan is None:
         return "answer_composer"
-    if not isinstance(confidence, (int, float)) or confidence < PLAN_CONFIDENCE_THRESHOLD:
+    if not isinstance(confidence, (int, float)) or confidence < PLAN_EXEC_MIN_CONFIDENCE:
         return "answer_composer"
     return "dynamic_query_executor"
 
