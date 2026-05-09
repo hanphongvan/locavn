@@ -18,6 +18,8 @@ public static class LeaderAiDependencyInjection
     {
         services.Configure<AiGatewayOptions>(configuration.GetSection(AiGatewayOptions.SectionName));
         services.Configure<AiRateLimitOptions>(configuration.GetSection(AiRateLimitOptions.SectionName));
+        // Phase 5G — config admin endpoints + analytics job.
+        services.Configure<AdminAiOptions>(configuration.GetSection(AdminAiOptions.SectionName));
 
         // TryAdd để test (WebApplicationFactory) có thể thay TimeProvider bằng FakeTimeProvider.
         services.TryAddSingleton(TimeProvider.System);
