@@ -306,18 +306,20 @@ class SchemaRetriever:
     async def _enrich_latest_periods(
         self, candidates: list[CandidateEntity],
     ) -> list[CandidateEntity]:
-        """Phase 5H — gọi `.NET /internal/ai/latest-period` cho mỗi candidate
-        có `is_snapshot=True` → attach `latest_period={nam, thang}`.
+        """Phase 5H — gọi `.NET /internal/ai/latest-period` cho MỌI candidate
+        → attach `latest_period={nam, thang}` nếu backend trả data.
 
-        Backend cache 5 phút nên gọi mỗi câu là acceptable; lỗi network →
-        `None` → Plan Generator fallback prompt-only (defense ở SqlBuilder
-        cũng sẽ skip auto-inject).
+        TRUST backend làm source of truth thay vì Qdrant payload `is_snapshot`:
+        backend tự whitelist `WHERE IsSnapshot=1 AND IsEnabled=1` trong subquery,
+        entity flow sẽ trả `(null, null)`. Lý do: Qdrant payload có thể stale
+        (reindex worker chưa pickup queue sau khi admin set IsSnapshot=1) →
+        nếu trust payload, Phase 5H sẽ silently không kick in.
+
+        Backend cache 5 phút nên 3 round-trip (top-3 candidate) acceptable.
+        Lỗi network/timeout → None → Plan Generator fallback prompt-only.
         """
         enriched: list[CandidateEntity] = []
         for c in candidates:
-            if not c.is_snapshot:
-                enriched.append(c)
-                continue
             try:
                 nam, thang = await self._dotnet.get_latest_period(c.entity_code)
             except Exception as ex:   # noqa: BLE001 — graceful degrade
@@ -326,11 +328,22 @@ class SchemaRetriever:
                     entity_code=c.entity_code, error=str(ex),
                 )
                 nam, thang = None, None
-            latest = (
-                {"nam": nam, "thang": thang}
-                if nam is not None and thang is not None else None
-            )
-            enriched.append(replace(c, latest_period=latest))
+
+            if nam is not None and thang is not None:
+                # Backend xác nhận entity là snapshot + có data → set cả 2 flag
+                # đồng bộ (đề phòng Qdrant payload stale chưa có is_snapshot=true).
+                _logger.info(
+                    "schema_retriever.latest_period_attached",
+                    entity_code=c.entity_code, nam=nam, thang=thang,
+                    qdrant_is_snapshot=c.is_snapshot,
+                )
+                enriched.append(replace(
+                    c,
+                    is_snapshot=True,
+                    latest_period={"nam": nam, "thang": thang},
+                ))
+            else:
+                enriched.append(c)
         return enriched
 
     async def index_entity_by_code(self, entity_code: str) -> dict[str, Any]:
