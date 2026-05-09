@@ -25,6 +25,10 @@ from .agents.fallback import (
 from .agents.graph import build_graph
 from .agents.nodes import Deps
 from .agents.plan_generator import QueryPlanGenerator
+from .security.safety_gate import SafetyGate
+from .services.readonly_db import ReadonlyDb, ReadonlyDbError
+from .services.sql_builder import SqlBuilder
+from .tools.dynamic_query_tool import DynamicQueryTool
 from .agents.state import AgentState
 from .config import Settings, get_settings
 from .schemas.chat import ChatRequest, ChatResponse, RateLimitInfo, ReportRequest, ReportResponse
@@ -77,6 +81,14 @@ _schema_retriever_singleton = None
 #: theo `id(LlmService)` vì LlmService có thể swap khi admin đổi LLM_MODE
 #: runtime — sub-instance khác nhau cho từng mode.
 _plan_generator_cache: dict[int, QueryPlanGenerator] = {}
+
+#: Phase 5F — singleton ReadonlyDb (connection pool semaphore). None khi
+#: pyodbc chưa cài hoặc connection string empty → DynamicQueryTool degrade.
+_readonly_db_singleton: ReadonlyDb | None = None
+_readonly_db_init_attempted: bool = False
+
+#: Phase 5F — singleton DynamicQueryTool. None khi ReadonlyDb không wire được.
+_dynamic_query_tool_singleton: DynamicQueryTool | None = None
 
 
 def get_security_guard() -> SecurityGuard:
@@ -223,6 +235,60 @@ def get_plan_generator(
     return generator
 
 
+def get_readonly_db(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> ReadonlyDb | None:
+    """Phase 5F — lazy ReadonlyDb singleton. Cố gắng init 1 lần; sau đó
+    cache kết quả (None nếu fail) để tránh log warning lặp mỗi request."""
+    global _readonly_db_singleton, _readonly_db_init_attempted
+    if _readonly_db_init_attempted:
+        return _readonly_db_singleton
+    _readonly_db_init_attempted = True
+
+    if not settings.ai_readonly_connection_string.strip():
+        _logger.info("readonly_db.disabled_empty_connection_string")
+        return None
+
+    try:
+        _readonly_db_singleton = ReadonlyDb(
+            connection_string=settings.ai_readonly_connection_string,
+            pool_size=settings.ai_readonly_pool_size,
+            query_timeout_seconds=settings.ai_readonly_query_timeout,
+            lock_timeout_ms=settings.ai_readonly_lock_timeout_ms,
+            query_governor_cost_limit=settings.ai_readonly_query_governor_cost_limit,
+        )
+        _logger.info(
+            "readonly_db.initialized",
+            pool_size=settings.ai_readonly_pool_size,
+            timeout=settings.ai_readonly_query_timeout,
+        )
+    except ReadonlyDbError as ex:
+        _logger.warning("readonly_db.init_failed", error=str(ex))
+        _readonly_db_singleton = None
+
+    return _readonly_db_singleton
+
+
+def get_dynamic_query_tool(
+    db: Annotated[ReadonlyDb | None, Depends(get_readonly_db)],
+    dotnet: Annotated[DotnetApiClient, Depends(get_dotnet_client)],
+) -> DynamicQueryTool | None:
+    """Phase 5F — singleton DynamicQueryTool. None khi `readonly_db` chưa
+    wire được → graph degrade về Phase 5E plan preview."""
+    global _dynamic_query_tool_singleton
+    if _dynamic_query_tool_singleton is not None:
+        return _dynamic_query_tool_singleton
+    if db is None:
+        return None
+    _dynamic_query_tool_singleton = DynamicQueryTool(
+        sql_builder=SqlBuilder(),
+        safety_gate=SafetyGate(),
+        readonly_db=db,
+        dotnet=dotnet,
+    )
+    return _dynamic_query_tool_singleton
+
+
 def get_deps(
     llm: Annotated[LlmService, Depends(get_llm_service)],
     guard: Annotated[SecurityGuard, Depends(get_security_guard)],
@@ -234,6 +300,9 @@ def get_deps(
     plan_generator: Annotated[
         QueryPlanGenerator, Depends(get_plan_generator)
     ] = None,
+    dynamic_query_tool: Annotated[
+        DynamicQueryTool | None, Depends(get_dynamic_query_tool)
+    ] = None,
 ) -> Deps:
     return Deps(
         llm=llm,
@@ -242,6 +311,7 @@ def get_deps(
         tools=tools,
         schema_retriever=schema_retriever,
         plan_generator=plan_generator,
+        dynamic_query_tool=dynamic_query_tool,
     )
 
 

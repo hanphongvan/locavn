@@ -290,10 +290,13 @@ public sealed class AiInternalDataAccess(
     }
 
     /// <summary>
-    /// Deserialize <c>AllowedJoinsJson</c>. Phân biệt rõ:
+    /// Deserialize <c>AllowedJoinsJson</c>. Phase 5F canonical 5-field format
+    /// (sau migration <c>20260509000000_FixAllowedJoinsCanonicalFormat</c>):
+    /// <c>{"targetEntity":...,"onLeftColumn":...,"onRightColumn":...,"joinType":...}</c>.
+    /// Phân biệt rõ:
     /// SQL NULL → <c>null</c> (entity không cấu hình joins);
     /// <c>"[]"</c> → empty list (cấu hình rỗng có chủ đích);
-    /// JSON malformed → log warning + empty list (an toàn cho Phase 5E SqlBuilder).
+    /// JSON malformed → log warning + empty list.
     /// </summary>
     private IReadOnlyList<JoinSpecDto>? DeserializeJoinSpecList(string? json, string entityCode)
     {
@@ -331,5 +334,77 @@ public sealed class AiInternalDataAccess(
 
         var rows = await conn.QueryAsync<T>(command).ConfigureAwait(false);
         return rows.ToList();
+    }
+
+    /// <inheritdoc />
+    public async Task LogDynamicQueryAsync(
+        AiDynamicQueryLogRequest request,
+        CancellationToken cancellationToken)
+    {
+        // Phase 5F — INSERT trực tiếp (không SP) vì AiDynamicQueryLogs schema
+        // simple + endpoint best-effort. Status check constraint bảo vệ enum.
+        const string sql =
+            """
+            INSERT INTO dbo.AiDynamicQueryLogs
+                (Id, ConversationId, MessageId, UserId,
+                 OriginalQuestion, NormalizedQuestion, EntityCode,
+                 PlanJson, GeneratedSql, SqlParameters,
+                 RowsReturned, DurationMs, Status, ErrorMessage,
+                 SafetyChecksJson, ConfidenceScore, Created)
+            VALUES
+                (@LogId, @ConversationId, @MessageId, @UserId,
+                 @OriginalQuestion, @NormalizedQuestion, @EntityCode,
+                 @PlanJson, @GeneratedSql, @SqlParameters,
+                 @RowsReturned, @DurationMs, @Status, @ErrorMessage,
+                 @SafetyChecksJson, @ConfidenceScore, SYSUTCDATETIME());
+            """;
+
+        await using var conn = new SqlConnection(_connectionString);
+        await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+        var command = new CommandDefinition(sql, request, cancellationToken: cancellationToken);
+        await conn.ExecuteAsync(command).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task UpsertCandidateIntentAsync(
+        AiCandidateIntentUpsertRequest request,
+        CancellationToken cancellationToken)
+    {
+        // Phase 5F → 5G — MERGE atomic upsert. EXISTS: increment counters +
+        // refresh LastUsedAt, KHÔNG đổi Status (admin Phase 5G workflow giữ).
+        // NOT EXISTS: INSERT mới Status='pending'.
+        const string sql =
+            """
+            MERGE dbo.AiCandidateIntents WITH (HOLDLOCK) AS target
+            USING (VALUES (@QuestionFingerprint, @SampleQuestion, @NormalizedQuestion,
+                           @EntityCode, @GeneratedPlanJson)) AS src
+                (QuestionFingerprint, SampleQuestion, NormalizedQuestion,
+                 EntityCode, GeneratedPlanJson)
+                ON target.QuestionFingerprint = src.QuestionFingerprint
+            WHEN MATCHED THEN
+                UPDATE SET
+                    UsageCount = target.UsageCount + 1,
+                    SuccessCount = target.SuccessCount + 1,
+                    LastUsedAt = SYSUTCDATETIME(),
+                    -- Cập nhật plan mới nhất + sample mới nhất (giữ lịch sử
+                    -- evolution của câu hỏi) để Phase 5G admin review plan
+                    -- mới nhất chứ không phải plan đầu tiên cách đây 6 tháng.
+                    GeneratedPlanJson = src.GeneratedPlanJson,
+                    SampleQuestion = src.SampleQuestion,
+                    NormalizedQuestion = src.NormalizedQuestion,
+                    EntityCode = src.EntityCode
+            WHEN NOT MATCHED THEN
+                INSERT (QuestionFingerprint, SampleQuestion, NormalizedQuestion,
+                        EntityCode, GeneratedPlanJson)
+                VALUES (src.QuestionFingerprint, src.SampleQuestion, src.NormalizedQuestion,
+                        src.EntityCode, src.GeneratedPlanJson);
+            """;
+
+        await using var conn = new SqlConnection(_connectionString);
+        await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+        var command = new CommandDefinition(sql, request, cancellationToken: cancellationToken);
+        await conn.ExecuteAsync(command).ConfigureAwait(false);
     }
 }

@@ -270,9 +270,9 @@ class QueryPlan(BaseModel):
                     f"allowed_columns hoặc aggregate aliases"
                 )
 
-        # 6. joins: target_entity phải xuất hiện trong allowed_joins (loose
-        # check — Phase 5F SqlBuilder enforce strict). allowedJoins=None
-        # nghĩa là entity không cho join → mọi join đều invalid.
+        # 6. joins: target_entity + onLeftColumn + onRightColumn phải khớp
+        # 1 entry trong allowed_joins (canonical 5-field — Phase 5F strict).
+        # allowedJoins=None nghĩa là entity không cho join.
         if self.joins:
             allowed_joins_raw = entity.get("allowed_joins")
             if allowed_joins_raw is None:
@@ -280,12 +280,13 @@ class QueryPlan(BaseModel):
                     f"Entity {self.entity!r} không cho phép JOIN "
                     f"(allowed_joins=null)"
                 )
-            allowed_join_targets = _collect_allowed_join_targets(allowed_joins_raw)
+            allowed_specs = _parse_allowed_joins(allowed_joins_raw)
             for j in self.joins:
-                if j.target_entity not in allowed_join_targets:
+                if not _join_matches_allowed(j, allowed_specs):
                     raise ValueError(
-                        f"JOIN target {j.target_entity!r} không nằm trong "
-                        f"allowed_joins của entity {self.entity!r}"
+                        f"JOIN {j.target_entity!r} ON "
+                        f"{j.on_left_column}={j.on_right_column} không nằm "
+                        f"trong allowed_joins của entity {self.entity!r}"
                     )
 
 
@@ -299,25 +300,62 @@ def _strip_alias_prefix(col: str) -> str:
     return col
 
 
-def _collect_allowed_join_targets(allowed_joins: Any) -> set[str]:
-    """Lấy set tên target có thể join — match cả format Section 8 seed
-    (`{view, key}`) lẫn Section 9.5 (`{targetEntity, ...}`).
+def _parse_allowed_joins(allowed_joins: Any) -> list[dict[str, str]]:
+    """Parse `allowed_joins` từ entity metadata — canonical format 5F:
 
-    Phase 5E loose check: target_entity của plan chỉ cần trùng với 1 trong
-    các giá trị `view` / `targetEntity` / `target_entity` của entry trong
-    `allowed_joins`. Phase 5F sẽ pattern-match key để strict.
+        {targetEntity, onLeftColumn, onRightColumn, joinType?}
+
+    Resolved TECH-DEBT-5E-001: Phase 5C seed cũ format `{view, key}` đã được
+    re-seed Phase 5F (migration 20260509000000_FixAllowedJoinsCanonicalFormat)
+    về canonical 5-field. Parser này CHỈ accept canonical — entity nào còn
+    format cũ sẽ raise.
+
+    Returns: list dict chuẩn hoá với keys `target_entity`, `on_left_column`,
+    `on_right_column`, `join_type` (default 'inner').
     """
-    targets: set[str] = set()
     if not isinstance(allowed_joins, list):
-        return targets
+        return []
+    specs: list[dict[str, str]] = []
     for item in allowed_joins:
         if not isinstance(item, dict):
             continue
-        for key in ("targetEntity", "target_entity", "view"):
-            value = item.get(key)
-            if isinstance(value, str) and value.strip():
-                targets.add(value.strip())
-    return targets
+        target = item.get("targetEntity") or item.get("target_entity")
+        left = item.get("onLeftColumn") or item.get("on_left_column")
+        right = item.get("onRightColumn") or item.get("on_right_column")
+        join_type = item.get("joinType") or item.get("join_type") or "inner"
+        if not (
+            isinstance(target, str) and target.strip()
+            and isinstance(left, str) and left.strip()
+            and isinstance(right, str) and right.strip()
+        ):
+            # Format không hợp lệ — bỏ qua entry, không raise (defensive: cho
+            # phép entity migrate dần). Nếu plan tham chiếu → matches trả False.
+            continue
+        specs.append({
+            "target_entity": target.strip(),
+            "on_left_column": left.strip(),
+            "on_right_column": right.strip(),
+            "join_type": join_type.strip().lower(),
+        })
+    return specs
+
+
+def _join_matches_allowed(
+    join: "JoinClause",
+    allowed_specs: list[dict[str, str]],
+) -> bool:
+    """JOIN của plan match 1 entry allowed nếu trùng cả target + on key columns.
+    `joinType` của plan có thể chặt hơn allowed (vd allowed=left, plan=inner)
+    → reject. Allowed=inner, plan=left → reject. Phải KHỚP CHÍNH XÁC."""
+    for spec in allowed_specs:
+        if (
+            spec["target_entity"] == join.target_entity
+            and spec["on_left_column"] == join.on_left_column
+            and spec["on_right_column"] == join.on_right_column
+            and spec["join_type"] == join.join_type
+        ):
+            return True
+    return False
 
 
 # ---------------------------------------------------------------------------

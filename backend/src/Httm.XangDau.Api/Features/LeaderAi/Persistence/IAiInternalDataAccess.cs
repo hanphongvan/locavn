@@ -55,4 +55,22 @@ public interface IAiInternalDataAccess
     /// </summary>
     Task<IReadOnlyList<SchemaCatalogEntryDto>> GetSchemaCatalogAsync(
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Phase 5F — INSERT 1 row vào <c>AiDynamicQueryLogs</c>. Status enum khớp
+    /// <c>CK_AiDynamicQueryLogs_Status</c>: success / plan_invalid / sql_invalid /
+    /// safety_blocked / execution_failed / timeout / no_data.
+    /// </summary>
+    Task LogDynamicQueryAsync(
+        AiDynamicQueryLogRequest request,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Phase 5F → 5G self-improving — UPSERT vào <c>AiCandidateIntents</c> theo
+    /// <c>QuestionFingerprint</c>. EXISTS: UsageCount + 1, SuccessCount + 1,
+    /// LastUsedAt = SYSUTCDATETIME(). NOT EXISTS: INSERT mới với Status='pending'.
+    /// </summary>
+    Task UpsertCandidateIntentAsync(
+        AiCandidateIntentUpsertRequest request,
+        CancellationToken cancellationToken);
 }
