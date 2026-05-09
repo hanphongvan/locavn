@@ -19,6 +19,33 @@ public sealed class AdminAiDataAccess(
         configuration.GetConnectionString(InfrastructureDependencyInjection.DefaultConnectionName)
         ?? throw new InvalidOperationException("DefaultConnection missing.");
 
+    /// <summary>
+    /// Phase 5F (refactored) — connection string riêng cho user
+    /// <c>ai_readonly</c>. Empty/null → <see cref="ExecuteDynamicQuerySafelyAsync"/>
+    /// trả <see cref="DynamicQueryExecutionResult.ConnectionMissing"/>=true →
+    /// caller (controller) trả 503 → AI Gateway fallback Phase 5E preview.
+    /// KHÔNG throw ở constructor — admin/intent endpoints (dùng DefaultConnection)
+    /// phải tiếp tục hoạt động dù AiReadonly chưa cấu hình.
+    /// </summary>
+    private readonly string? _aiReadonlyConnectionString =
+        configuration.GetConnectionString(InfrastructureDependencyInjection.AiReadonlyConnectionName);
+
+    /// <summary>
+    /// Phase 5F+ refactor — chọn connection string cho method READ-only:
+    /// ưu tiên <c>AiReadonly</c> (defense-in-depth lớp DB). Nếu chưa cấu hình
+    /// → fallback <c>DefaultConnection</c> + log warning. Caller READ-only
+    /// vẫn hoạt động, chỉ mất defense layer 1 (không gãy app).
+    /// </summary>
+    private string PickReadonlyConnectionString()
+    {
+        if (!string.IsNullOrWhiteSpace(_aiReadonlyConnectionString))
+            return _aiReadonlyConnectionString;
+        logger.LogWarning(
+            "AiReadonly connection string chưa cấu hình — fallback DefaultConnection cho method READ. " +
+            "Production: set ConnectionStrings:AiReadonly để bật defense-in-depth lớp DB.");
+        return _connectionString;
+    }
+
     /// <summary>Whitelist sortBy column để chặn SQL injection (param trong ORDER BY
     /// không bind được qua Dapper). Admin caller pass key, server lookup column.</summary>
     private static readonly Dictionary<string, string> SortByMap = new(StringComparer.OrdinalIgnoreCase)
@@ -66,7 +93,10 @@ public sealed class AdminAiDataAccess(
             OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY;
             """;
 
-        await using var conn = new SqlConnection(_connectionString);
+        // Phase 5F+ refactor — READ-only method dùng AiReadonly connection
+        // (defense-in-depth lớp DB). Fallback DefaultConnection + warning nếu
+        // chưa cấu hình.
+        await using var conn = new SqlConnection(PickReadonlyConnectionString());
         await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
 
         var command = new CommandDefinition(
@@ -106,7 +136,8 @@ public sealed class AdminAiDataAccess(
             ORDER BY Created DESC;
             """;
 
-        await using var conn = new SqlConnection(_connectionString);
+        // Phase 5F+ refactor — READ-only method dùng AiReadonly connection.
+        await using var conn = new SqlConnection(PickReadonlyConnectionString());
         await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
 
         var command = new CommandDefinition(sql, new { Id = id }, cancellationToken: cancellationToken);
@@ -317,6 +348,101 @@ public sealed class AdminAiDataAccess(
         await conn.ExecuteAsync(new CommandDefinition(
             sql, new { Id = id, Status = status, ErrorMessage = errorMessage },
             cancellationToken: cancellationToken)).ConfigureAwait(false);
+    }
+
+    // ------------------------------------------------------------------
+    // Phase 5F (refactored) — Dynamic query proxy
+    // ------------------------------------------------------------------
+
+    /// <inheritdoc />
+    public async Task<DynamicQueryExecutionResult> ExecuteDynamicQuerySafelyAsync(
+        string sql,
+        IReadOnlyDictionary<string, object?> parameters,
+        int timeoutSeconds,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(_aiReadonlyConnectionString))
+        {
+            logger.LogWarning(
+                "ExecuteDynamicQuerySafely: AiReadonly connection string chưa cấu hình");
+            return new DynamicQueryExecutionResult(
+                ConnectionMissing: true, Rows: [], DurationMs: 0,
+                ErrorMessage: "ConnectionStrings:AiReadonly chưa cấu hình.");
+        }
+
+        // Convert dict<string, object?> → Dapper DynamicParameters. Dapper
+        // tự handle null + type inference. AI Gateway gửi key dạng "p0",
+        // "p1_lo", etc. (không có @ prefix); Dapper tự thêm @ khi bind.
+        var dapperParams = new DynamicParameters();
+        foreach (var (name, value) in parameters)
+        {
+            dapperParams.Add(name, value);
+        }
+
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+        try
+        {
+            await using var conn = new SqlConnection(_aiReadonlyConnectionString);
+            await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+            // SafetyGate đã check ở AI Gateway, em re-apply LOCK_TIMEOUT +
+            // QUERY_GOVERNOR_COST_LIMIT ở session để defense-in-depth
+            // (Section 11.5 doc).
+            await using (var sessionCmd = conn.CreateCommand())
+            {
+                sessionCmd.CommandText =
+                    "SET LOCK_TIMEOUT 5000; SET QUERY_GOVERNOR_COST_LIMIT 30;";
+                await sessionCmd.ExecuteNonQueryAsync(cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            var command = new CommandDefinition(
+                sql, dapperParams,
+                commandTimeout: timeoutSeconds,
+                cancellationToken: cancellationToken);
+
+            // QueryAsync (dynamic) trả IEnumerable<DapperRow>. Convert sang
+            // Dictionary<string, object?> để JSON serialize sang AI Gateway.
+            var dynamicRows = await conn.QueryAsync(command).ConfigureAwait(false);
+            var rows = dynamicRows.Select(r =>
+                ((IDictionary<string, object?>)r).ToDictionary(
+                    kv => kv.Key, kv => kv.Value)
+            ).ToList();
+
+            stopwatch.Stop();
+            logger.LogInformation(
+                "ExecuteDynamicQuery success — rows={RowCount} duration={DurationMs}ms",
+                rows.Count, stopwatch.ElapsedMilliseconds);
+
+            return new DynamicQueryExecutionResult(
+                ConnectionMissing: false, Rows: rows,
+                DurationMs: (int)stopwatch.ElapsedMilliseconds,
+                ErrorMessage: null);
+        }
+        catch (SqlException ex) when (ex.Number == 1222 || ex.Number == -2)
+        {
+            // 1222 = Lock request timeout. -2 = Client/SQL Server timeout.
+            stopwatch.Stop();
+            logger.LogWarning(ex,
+                "ExecuteDynamicQuery timeout — duration={DurationMs}ms",
+                stopwatch.ElapsedMilliseconds);
+            return new DynamicQueryExecutionResult(
+                ConnectionMissing: false, Rows: [],
+                DurationMs: (int)stopwatch.ElapsedMilliseconds,
+                ErrorMessage: $"Query timeout: {ex.Message}");
+        }
+        catch (SqlException ex)
+        {
+            stopwatch.Stop();
+            logger.LogError(ex,
+                "ExecuteDynamicQuery SQL error — number={Number} duration={DurationMs}ms",
+                ex.Number, stopwatch.ElapsedMilliseconds);
+            return new DynamicQueryExecutionResult(
+                ConnectionMissing: false, Rows: [],
+                DurationMs: (int)stopwatch.ElapsedMilliseconds,
+                ErrorMessage: $"SQL error {ex.Number}: {ex.Message}");
+        }
     }
 
     // ------------------------------------------------------------------
