@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/logging/app_console_log.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../shared/widgets/app_error_state.dart';
+import '../../fuel/presentation/fuel_tracking_providers.dart';
 import '../data/models/vehicle_dto.dart';
 import '../data/my_vehicles_api.dart';
 import 'add_edit_vehicle_sheet.dart';
@@ -23,6 +24,10 @@ class MyVehiclesShellPage extends ConsumerWidget {
 
   Future<void> _refresh(WidgetRef ref) async {
     ref.invalidate(myVehiclesListProvider);
+    // Trang "Nhiên liệu" (fuelDashboardProvider) là consumer độc lập trong cùng shell tab —
+    // không tự pickup invalidate qua dependency chain khi cả 2 tab đều alive. Invalidate
+    // tường minh để CRUD vehicle (delete / setDefault / detail edit) propagate sang tab Fuel.
+    ref.invalidate(fuelDashboardProvider);
     await ref.read(myVehiclesListProvider.future);
   }
 
