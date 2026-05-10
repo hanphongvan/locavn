@@ -1,6 +1,7 @@
 using Httm.XangDau.Api.Features.LeaderAi.Persistence;
 using Httm.XangDau.Api.Features.LeaderAi.Security;
 using Httm.XangDau.Api.Features.LeaderAi.Services;
+using Httm.XangDau.Api.Features.LeaderAi.Voice;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 
@@ -20,6 +21,7 @@ public static class LeaderAiDependencyInjection
         services.Configure<AiRateLimitOptions>(configuration.GetSection(AiRateLimitOptions.SectionName));
         // Phase 5G — config admin endpoints + analytics job.
         services.Configure<AdminAiOptions>(configuration.GetSection(AdminAiOptions.SectionName));
+        services.Configure<WhisperOptions>(configuration.GetSection(WhisperOptions.SectionName));
 
         // TryAdd để test (WebApplicationFactory) có thể thay TimeProvider bằng FakeTimeProvider.
         services.TryAddSingleton(TimeProvider.System);
@@ -46,6 +48,16 @@ public static class LeaderAiDependencyInjection
             // BaseAddress luôn cần trailing slash để relative URI ghép đúng.
             client.BaseAddress = new Uri(baseUrl.EndsWith('/') ? baseUrl : baseUrl + "/");
             client.Timeout = TimeSpan.FromSeconds(50);
+        });
+
+        // Typed HttpClient cho faster-whisper-server (speech-to-text).
+        // BaseAddress + timeout từ Whisper:BaseUrl + Whisper:TimeoutSeconds.
+        services.AddHttpClient<IWhisperClient, WhisperClient>((sp, client) =>
+        {
+            var opts = sp.GetRequiredService<IOptions<WhisperOptions>>().Value;
+            var baseUrl = string.IsNullOrWhiteSpace(opts.BaseUrl) ? "http://localhost:7000/" : opts.BaseUrl;
+            client.BaseAddress = new Uri(baseUrl.EndsWith('/') ? baseUrl : baseUrl + "/");
+            client.Timeout = TimeSpan.FromSeconds(Math.Max(5, opts.TimeoutSeconds));
         });
 
         return services;

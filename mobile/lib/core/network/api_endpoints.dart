@@ -120,6 +120,7 @@ abstract final class ApiEndpoints {
   static String leaderAiConversation(String id) => '/api/leader-ai/conversations/$id';
   static const leaderAiReport = '/api/leader-ai/report';
   static const leaderAiHealth = '/api/leader-ai/health';
+  static const leaderAiVoiceTranscribe = '/api/leader-ai/voice/transcribe';
 
   static String leaderMapPrices(String idsCommaSeparated) => '/api/leader/map/prices?ids=$idsCommaSeparated';
 
