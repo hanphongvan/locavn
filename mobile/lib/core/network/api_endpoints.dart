@@ -122,6 +122,10 @@ abstract final class ApiEndpoints {
   static const leaderAiHealth = '/api/leader-ai/health';
   static const leaderAiVoiceTranscribe = '/api/leader-ai/voice/transcribe';
 
+  /// Voice → form đổ nhiên liệu cho citizen (Loai=5). Toggle bằng setting `loca.donhienlieu`.
+  static const fuelVoiceFeatureStatus = '/api/fuel/voice/feature-status';
+  static const fuelVoiceParseTransaction = '/api/fuel/voice/parse-fuel-tx';
+
   static String leaderMapPrices(String idsCommaSeparated) => '/api/leader/map/prices?ids=$idsCommaSeparated';
 
   /// Phân tích Lãnh đạo (GET, `window=d7|d30|m3|m6`, `fuel=xang|dau` khi cần).
