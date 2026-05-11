@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/app_info/package_info_provider.dart';
 import '../../../core/auth/admin_auth_repository.dart';
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/auth/biometric/biometric_login_coordinator.dart';
@@ -30,8 +31,6 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   bool _loading = false;
   bool _obscurePassword = true;
   String? _error;
-
-  static const String _appVersion = '1.0.0';
 
   @override
   void dispose() {
@@ -157,6 +156,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    final packageInfoAsync = ref.watch(packageInfoProvider);
     final textTheme = Theme.of(context).textTheme;
     final scheme = Theme.of(context).colorScheme;
     final bottomInset = MediaQuery.paddingOf(context).bottom;
@@ -429,7 +429,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                'Phiên bản $_appVersion',
+                                packageInfoAsync.when(
+                                  loading: () => 'Phiên bản —',
+                                  error: (Object _, StackTrace _) => 'Phiên bản',
+                                  data: (info) =>
+                                      'Phiên bản ${info.version} (${info.buildNumber})',
+                                ),
                                 textAlign: TextAlign.center,
                                 style: textTheme.bodySmall?.copyWith(
                                   color: LoginScreenTheme.gradientStart,

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:maplibre_gl/maplibre_gl.dart' as ml;
@@ -51,6 +52,11 @@ class GoongMapWidget extends StatefulWidget {
 
 class _GoongMapWidgetState extends State<GoongMapWidget> {
   ml.MapLibreMapController? _controller;
+  /// MapLibre có thể gọi `onStyleLoaded` **trước** `onMapCreated` (xem maplibre_gl
+  /// `MapLibreMap.onPlatformViewCreated`). Chỉ [complete] khi **cả** style đã báo
+  /// **và** channel map đã gắn `_controller`, tránh primed sai / treo / crash.
+  final Completer<void> _cameraOpsPrimed = Completer<void>();
+  bool _mapChannelReady = false;
   bool _styleLoaded = false;
   final Map<AppMapMarkerId, ml.Symbol> _symbols = {};
   final Map<AppMapPolylineId, ml.Line> _lines = {};
@@ -70,21 +76,47 @@ class _GoongMapWidgetState extends State<GoongMapWidget> {
   void _onMapCreated(ml.MapLibreMapController c) {
     _controller = c;
     c.onSymbolTapped.add(_handleSymbolTap);
-    widget.onMapCreated?.call(GoongAppMapController(c, widget.initialCameraPosition));
+    _mapChannelReady = true;
+    widget.onMapCreated?.call(
+      GoongAppMapController(
+        c,
+        widget.initialCameraPosition,
+        primedForCameraOps: _cameraOpsPrimed.future,
+      ),
+    );
+    unawaited(() async {
+      await _armCameraSurfaceIfReady();
+      if (mounted) await _applyAll();
+    }());
+  }
+
+  /// Gọi overlap + complete [\_cameraOpsPrimed] chỉ khi có cả style + controller.
+  Future<void> _armCameraSurfaceIfReady() async {
+    if (_cameraOpsPrimed.isCompleted) return;
+    if (!_styleLoaded || !_mapChannelReady) return;
+    final c = _controller;
+    if (c == null) return;
+
+    try {
+      await c.setSymbolIconAllowOverlap(true);
+      await c.setSymbolIconIgnorePlacement(true);
+    } catch (_) {/* nếu API rename trong version maplibre_gl mới */}
+
+    await SchedulerBinding.instance.endOfFrame;
+    await SchedulerBinding.instance.endOfFrame;
+    await SchedulerBinding.instance.endOfFrame;
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
+      // Máy nhanh + GPS không có dialog quyền: MLNMapView cần thêm thời gian có size hợp lệ.
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+    if (!_cameraOpsPrimed.isCompleted) {
+      _cameraOpsPrimed.complete();
+    }
   }
 
   Future<void> _onStyleLoaded() async {
     _styleLoaded = true;
-    final c = _controller;
-    if (c != null) {
-      // MapLibre mặc định ẩn marker khi đè lên label tile / marker khác
-      // (khác Google: cho overlap). Đặt layer-wide để mọi symbol app vẽ
-      // luôn hiển thị (collision detection do app tự lo, không qua engine).
-      try {
-        await c.setSymbolIconAllowOverlap(true);
-        await c.setSymbolIconIgnorePlacement(true);
-      } catch (_) {/* nếu API rename trong version maplibre_gl mới */}
-    }
+    await _armCameraSurfaceIfReady();
     await _applyAll();
   }
 
@@ -261,6 +293,9 @@ class _GoongMapWidgetState extends State<GoongMapWidget> {
 
   @override
   void dispose() {
+    if (!_cameraOpsPrimed.isCompleted) {
+      _cameraOpsPrimed.complete();
+    }
     final c = _controller;
     if (c != null) {
       c.onSymbolTapped.remove(_handleSymbolTap);
@@ -279,9 +314,10 @@ class _GoongMapWidgetState extends State<GoongMapWidget> {
       onMapClick: widget.onTap == null ? null : _onMapClick,
       onCameraIdle: widget.onCameraIdle,
       myLocationEnabled: widget.myLocationEnabled,
-      myLocationTrackingMode: widget.myLocationEnabled
-          ? ml.MyLocationTrackingMode.tracking
-          : ml.MyLocationTrackingMode.none,
+      // Luôn `none`: `tracking` để MapLibre/CoreLocation tự đẩy camera native — trên iOS
+      // gây `std::domain_error` (stack: CoreLocation → MapLibre), không qua Dart.
+      // Vị trí + khung nhìn đã do Geolocator + [GoongAppMapController.animateCamera].
+      myLocationTrackingMode: ml.MyLocationTrackingMode.none,
       compassEnabled: widget.compassEnabled,
       minMaxZoomPreference: (widget.minZoom != null || widget.maxZoom != null)
           ? ml.MinMaxZoomPreference(widget.minZoom, widget.maxZoom)

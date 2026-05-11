@@ -37,6 +37,19 @@ AppLatLngBounds mapBoundsForPoints(List<AppLatLng> points) {
     if (p.longitude < minLng) minLng = p.longitude;
     if (p.longitude > maxLng) maxLng = p.longitude;
   }
+  // MapLibre native throw std::domain_error khi fit bounds có diện tích = 0
+  // (user trùng tọa độ trạm). Expand epsilon ~10m để bounds luôn có diện tích.
+  const double eps = 0.0001;
+  if (maxLat - minLat < eps) {
+    final mid = (minLat + maxLat) / 2;
+    minLat = mid - eps;
+    maxLat = mid + eps;
+  }
+  if (maxLng - minLng < eps) {
+    final mid = (minLng + maxLng) / 2;
+    minLng = mid - eps;
+    maxLng = mid + eps;
+  }
   return AppLatLngBounds(
     southwest: AppLatLng(minLat, minLng),
     northeast: AppLatLng(maxLat, maxLng),
