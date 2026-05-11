@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>LocaVN</string>
+	<string>Quanh tôi</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -15,7 +15,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>httm_xangdau</string>
+	<string>Quanh tôi</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -32,9 +32,21 @@
 				<string>httmxd</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>google.signin</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.618004758900-1kgsch1faj9qthagtod5e0f2ke3o7sku</string>
+			</array>
+		</dict>
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>GIDClientID</key>
+	<string>618004758900-1kgsch1faj9qthagtod5e0f2ke3o7sku.apps.googleusercontent.com</string>
+	<key>GIDServerClientID</key>
+	<string>618004758900-57tttuq5sq8rep6k28ban6pa0ss3ecje.apps.googleusercontent.com</string>
 	<key>GMSApiKey</key>
 	<string>$(GMS_API_KEY)</string>
 	<key>LSRequiresIPhoneOS</key>
@@ -51,7 +63,7 @@
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Ứng dụng cần vị trí để hiển thị bản đồ cây xăng quanh bạn.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>LocaVN cần microphone để chuyển giọng nói thành câu hỏi cho Loca AI.</string>
+	<string>Quanh tôi cần microphone để bạn nhập dữ liệu nhiên liệu bằng giọng nói.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Ứng dụng cần truy cập thư viện ảnh để đính kèm minh chứng khi báo cáo vi phạm.</string>
 	<key>UIApplicationSceneManifest</key>
