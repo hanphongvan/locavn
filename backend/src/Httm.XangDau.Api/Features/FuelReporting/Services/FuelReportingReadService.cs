@@ -1,3 +1,5 @@
+using System.Data;
+using Dapper;
 using Httm.XangDau.Api.Features.FuelReporting;
 using Httm.XangDau.Api.Features.FuelReporting.Contracts;
 using Httm.XangDau.Api.Features.FuelReporting.Persistence;
@@ -16,6 +18,7 @@ public sealed class FuelReportingReadService(
 {
     private const int SnapshotPriceLineCap = 50;
     private const int SnapshotStockLineCap = 40;
+    private const int LatestPricesSqlCommandTimeoutSeconds = 120;
 
     public async Task<(LatestFuelPricesResponseDto Data, string? Error)> GetLatestPricesAsync(
         int? kieuKyBaoCao,
@@ -30,27 +33,9 @@ public sealed class FuelReportingReadService(
             return (new LatestFuelPricesResponseDto(null, Array.Empty<FuelPriceLineDto>()), null);
 
         var key = ToKey(meta);
-        var items = await (
-            from t in db.QtTkThongKes.AsNoTracking().WhereSamePeriod(key)
-            join l in db.QtTkThongKeChiTiets.AsNoTracking() on t.Id equals l.ThongKeId
-            join d in db.DmDonVis.AsNoTracking() on t.DonViCap1 equals d.Id into dg
-            from d in dg.DefaultIfEmpty()
-            where l.LoaiGia != null || l.ThoiDiemDinhGia != null
-            where l.Xoa == null || l.Xoa == 0
-            orderby t.DonViCap1, l.ThuTu, l.MaSo
-            select new FuelPriceLineDto(
-                t.DonViCap1!.Value,
-                d != null ? d.Ten : null,
-                t.Id,
-                l.Id,
-                l.MaSo,
-                l.TenThongKe,
-                l.LoaiGia,
-                l.ThoiDiemDinhGia,
-                l.So_01,
-                l.So_02,
-                l.So_03)
-        ).ToListAsync(cancellationToken);
+        // ROW_NUMBER per station matches GetPricesByStationAsync (ThoiGianGui desc, Id desc).
+        // EF GroupBy + join often produced a slow plan on large QT_TK_ThongKe; one parameterized batch is cheaper.
+        var items = await QueryLatestFuelPriceLinesSqlAsync(key, cancellationToken).ConfigureAwait(false);
 
         return (new LatestFuelPricesResponseDto(meta, items), null);
     }
@@ -298,6 +283,88 @@ public sealed class FuelReportingReadService(
     private static ThongKePeriodKey ToKey(ReportingPeriodDto m) =>
         new(m.KieuKyBaoCaoId, m.TuNgay, m.DenNgay);
 
+    private async Task<IReadOnlyList<FuelPriceLineDto>> QueryLatestFuelPriceLinesSqlAsync(
+        ThongKePeriodKey key,
+        CancellationToken cancellationToken)
+    {
+        const string sql =
+            """
+            WITH RankedTk AS (
+                SELECT
+                    tk.[Id],
+                    tk.[don_vi_cap1],
+                    ROW_NUMBER() OVER (PARTITION BY tk.[don_vi_cap1] ORDER BY tk.[ThoiGianGui] DESC, tk.[Id] DESC) AS rn
+                FROM [QT_TK_ThongKe] AS tk
+                WHERE tk.[Loai] = 1
+                  AND tk.[don_vi_cap1] IS NOT NULL
+                  AND tk.[DenNgay] = @DenNgay
+                  AND ((@HasKieuKy = 0 AND tk.[KieuKyBaoCao] IS NULL) OR (@HasKieuKy = 1 AND tk.[KieuKyBaoCao] = @KieuKyBaoCao))
+                  AND ((@HasTuNgay = 0 AND tk.[TuNgay] IS NULL) OR (@HasTuNgay = 1 AND tk.[TuNgay] = @TuNgay))
+            )
+            SELECT
+                rt.[don_vi_cap1] AS StationId,
+                d.[Ten] AS StationName,
+                rt.[Id] AS ThongKeId,
+                l.[Id] AS LineId,
+                l.[MaSo],
+                l.[TenThongKe],
+                l.[LoaiGia],
+                l.[ThoiDiemDinhGia],
+                l.[So_01] AS So01,
+                l.[So_02] AS So02,
+                l.[So_03] AS So03
+            FROM RankedTk AS rt
+            INNER JOIN [QT_TK_ThongKeChiTiet] AS l ON l.[ThongKeId] = rt.[Id]
+            LEFT JOIN [DM_DonVi] AS d ON d.[Id] = rt.[don_vi_cap1]
+            WHERE rt.[rn] = 1
+              AND (l.[LoaiGia] IS NOT NULL OR l.[ThoiDiemDinhGia] IS NOT NULL)
+              AND (l.[Xoa] IS NULL OR l.[Xoa] = 0)
+            ORDER BY rt.[don_vi_cap1], l.[ThuTu], l.[MaSo];
+            """;
+
+        var hasKieuKy = key.KieuKyBaoCao is not null ? 1 : 0;
+        var hasTuNgay = key.TuNgay is not null ? 1 : 0;
+        var parameters = new DynamicParameters();
+        parameters.Add("DenNgay", key.DenNgay.ToDateTime(TimeOnly.MinValue), DbType.Date);
+        parameters.Add("HasKieuKy", hasKieuKy, DbType.Int32);
+        parameters.Add("KieuKyBaoCao", key.KieuKyBaoCao ?? 0, DbType.Int32);
+        parameters.Add("HasTuNgay", hasTuNgay, DbType.Int32);
+        parameters.Add("TuNgay", key.TuNgay?.ToDateTime(TimeOnly.MinValue), DbType.Date);
+
+        await db.Database.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var connection = db.Database.GetDbConnection();
+            var rows = await connection
+                .QueryAsync<LatestPriceLineSqlRow>(
+                    new CommandDefinition(
+                        sql,
+                        parameters,
+                        commandTimeout: LatestPricesSqlCommandTimeoutSeconds,
+                        cancellationToken: cancellationToken))
+                .ConfigureAwait(false);
+
+            return rows
+                .Select(r => new FuelPriceLineDto(
+                    r.StationId,
+                    r.StationName,
+                    r.ThongKeId,
+                    r.LineId,
+                    r.MaSo,
+                    r.TenThongKe,
+                    r.LoaiGia,
+                    r.ThoiDiemDinhGia,
+                    r.So01,
+                    r.So02,
+                    r.So03))
+                .ToList();
+        }
+        finally
+        {
+            await db.Database.CloseConnectionAsync().ConfigureAwait(false);
+        }
+    }
+
     private async Task<string?> ValidateKieuKyAsync(int? kieuKyBaoCao, CancellationToken cancellationToken)
     {
         if (kieuKyBaoCao is null)
@@ -316,4 +383,19 @@ public sealed class FuelReportingReadService(
             .Where(d => d.Id == stationId)
             .Select(d => d.Ten)
             .FirstOrDefaultAsync(cancellationToken);
+
+    private sealed class LatestPriceLineSqlRow
+    {
+        public int StationId { get; init; }
+        public string? StationName { get; init; }
+        public Guid ThongKeId { get; init; }
+        public Guid LineId { get; init; }
+        public string? MaSo { get; init; }
+        public string? TenThongKe { get; init; }
+        public int? LoaiGia { get; init; }
+        public DateTime? ThoiDiemDinhGia { get; init; }
+        public decimal? So01 { get; init; }
+        public decimal? So02 { get; init; }
+        public decimal? So03 { get; init; }
+    }
 }
