@@ -188,10 +188,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                               Text(
                                 'Quanh tôi',
                                 textAlign: TextAlign.center,
-                                style: textTheme.titleMedium?.copyWith(
+                                style: textTheme.headlineMedium?.copyWith(
                                   color: LoginScreenTheme.titleBlue,
                                   fontWeight: FontWeight.w800,
-                                  height: 1.25,
+                                  height: 1.2,
                                   letterSpacing: 0.2,
                                 ),
                               ),

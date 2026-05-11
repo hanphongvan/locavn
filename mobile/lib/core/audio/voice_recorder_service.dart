@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
@@ -16,8 +17,9 @@ class VoiceRecorderService {
   String? _currentPath;
   DateTime? _startedAt;
 
-  /// Mime-type khớp với accept list của backend (audio/m4a).
-  static const String mimeType = 'audio/m4a';
+  /// Mime-type khớp với accept list của backend. Dùng WAV vì `record_ios` 6.x có bug
+  /// với AAC LC trên iOS 17/18 (file 28 bytes, chỉ có header, không samples).
+  static const String mimeType = 'audio/wav';
 
   bool _disposed = false;
 
@@ -39,20 +41,26 @@ class VoiceRecorderService {
     }
     final dir = await getTemporaryDirectory();
     final ts = DateTime.now().millisecondsSinceEpoch;
-    final path = '${dir.path}/locaai_voice_$ts.m4a';
+    final path = '${dir.path}/locaai_voice_$ts.wav';
+
+    final hasPermission = await _recorder.hasPermission();
+    debugPrint('[voice] start: hasPermission=$hasPermission path=$path');
 
     await _recorder.start(
       const RecordConfig(
-        encoder: AudioEncoder.aacLc,
-        // 16kHz mono — Whisper resample về 16kHz nội bộ, gửi đúng tần số tiết kiệm bandwidth.
+        // WAV PCM 16-bit — bypass bug AAC LC trên iOS 17/18. File ~32KB/s ở 16kHz mono.
+        encoder: AudioEncoder.wav,
         sampleRate: 16000,
         numChannels: 1,
-        bitRate: 64000,
       ),
       path: path,
     );
     _currentPath = path;
     _startedAt = DateTime.now();
+
+    // Verify recorder thực sự đang record sau khi start() trả về.
+    final actuallyRecording = await _recorder.isRecording();
+    debugPrint('[voice] start: isRecording=$actuallyRecording');
   }
 
   /// Stop record, trả file path đã ghi. Trả null nếu chưa start hoặc duration < 500ms.
@@ -70,6 +78,13 @@ class VoiceRecorderService {
     final duration = startedAt == null
         ? Duration.zero
         : DateTime.now().difference(startedAt);
+
+    // Log size để debug "file 1KB không có audio samples".
+    int fileSize = -1;
+    try {
+      fileSize = await File(path).length();
+    } catch (_) {}
+    debugPrint('[voice] stop: path=$path duration=${duration.inMilliseconds}ms size=${fileSize}B');
 
     if (duration < const Duration(milliseconds: 500)) {
       // Quá ngắn — xoá file rác, caller xử lý null = warn user.
