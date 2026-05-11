@@ -144,8 +144,9 @@ mobile/**/build/
 # --- Legacy code (không push) ---
 DMPPortal/
 
-# --- Backend ad-hoc build/output folders (root-level) ---
+# --- Backend ad-hoc build/output folders (root-level + nested) ---
 backend/_*/
+backend/**/_*/
 backend/out-*/
 backend/ef-build-out/
 

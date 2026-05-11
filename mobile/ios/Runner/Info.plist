@@ -50,6 +50,8 @@
 	<string>LocaVN dùng Face ID để đăng nhập nhanh khi bạn bật tính năng này.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Ứng dụng cần vị trí để hiển thị bản đồ cây xăng quanh bạn.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>LocaVN cần microphone để chuyển giọng nói thành câu hỏi cho Loca AI.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Ứng dụng cần truy cập thư viện ảnh để đính kèm minh chứng khi báo cáo vi phạm.</string>
 	<key>UIApplicationSceneManifest</key>
