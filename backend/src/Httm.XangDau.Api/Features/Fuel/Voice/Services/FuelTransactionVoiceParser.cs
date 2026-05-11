@@ -4,12 +4,12 @@ using System.Text.RegularExpressions;
 namespace Httm.XangDau.Api.Features.Fuel.Voice.Services;
 
 /// <summary>
-/// Phase 1 (P0) — Regex parser tiếng Việt cho 2 field bắt buộc form đổ nhiên liệu:
+/// Regex parser tiếng Việt cho form đổ nhiên liệu:
 /// <list type="bullet">
-///   <item>Số tiền (VNĐ)</item>
-///   <item>Số công tơ (km)</item>
+///   <item>Số tiền (VNĐ) — digit form (500.000, 500k, 1 triệu) + số chữ tiếng Việt (năm trăm nghìn, một triệu rưỡi)</item>
+///   <item>Số công tơ (km) — keyword + digit</item>
+///   <item>Ngày — tương đối (hôm nay/qua/kia), số (09/05), văn xuôi (ngày 9 tháng 5)</item>
 /// </list>
-/// Ngày luôn = today UTC date trong Phase 1; Phase 2 sẽ thêm parse "hôm nay/hôm qua/09/05".
 /// </summary>
 public sealed partial class FuelTransactionVoiceParser : IFuelTransactionVoiceParser
 {
@@ -17,12 +17,16 @@ public sealed partial class FuelTransactionVoiceParser : IFuelTransactionVoicePa
     private const long MaxOdometerKm = 1_000_000;
     private const long MinOdometerKm = 1;
 
+    // Số chữ tiếng Việt phải có ít nhất giá trị này mới coi là amount thực tế (tránh "hai" đơn lẻ).
+    private const long MinAmountFromWords = 1_000;
+
     public ParsedFuelTransactionResult Parse(string rawText)
     {
         var text = (rawText ?? string.Empty).Trim().ToLowerInvariant();
 
         var amount = ExtractAmount(text);
         var odometer = ExtractOdometer(text);
+        var date = VoiceDateExpressionParser.Parse(text, DateTime.UtcNow.Date);
 
         var missing = new List<string>(1);
         if (amount is null) missing.Add("amount");
@@ -30,7 +34,7 @@ public sealed partial class FuelTransactionVoiceParser : IFuelTransactionVoicePa
         return new ParsedFuelTransactionResult(
             AmountVnd: amount,
             OdometerKm: odometer,
-            TransactionDate: DateTime.UtcNow.Date,
+            TransactionDate: date,
             MissingRequiredFields: missing);
     }
 
@@ -69,6 +73,15 @@ public sealed partial class FuelTransactionVoiceParser : IFuelTransactionVoicePa
         {
             if (long.TryParse(m.Groups[1].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v))
                 candidates.Add(v);
+        }
+
+        // Pattern 5: số viết bằng chữ tiếng Việt (Phase 2). Whisper đôi khi keep nguyên giọng đọc:
+        // "năm trăm nghìn", "một triệu rưỡi", "tám trăm nghìn đồng".
+        // Threshold MinAmountFromWords để loại trừ cụm số nhỏ ngẫu nhiên trong câu (vd "hai" đơn lẻ).
+        foreach (var match in VietnameseNumberWordParser.FindAllInText(text))
+        {
+            if (match.Value >= MinAmountFromWords)
+                candidates.Add(match.Value);
         }
 
         if (candidates.Count == 0) return null;
@@ -127,7 +140,7 @@ public sealed partial class FuelTransactionVoiceParser : IFuelTransactionVoicePa
     private static partial Regex DongRegex();
 
     [GeneratedRegex(
-        @"(?:công\s*tơ(?:\s*mét)?|số\s*km|đồng\s*hồ|kilomet)\s*(?:của\s*xe\s*)?(?:là\s*)?(?:hiện\s*tại\s*)?(\d{1,3}(?:[.,]\d{3})+|\d+)",
+        @"(?:công\s*tơ(?:\s*mét)?|số\s*km|đồng\s*hồ|kilomet)\s*(?:của\s+)?(?:xe\s+)?(?:hiện\s*tại\s+)?(?:là\s+)?(\d{1,3}(?:[.,]\d{3})+|\d+)",
         RegexOptions.IgnoreCase | RegexOptions.Compiled)]
     private static partial Regex OdometerKeywordRegex();
 
