@@ -172,3 +172,7 @@ PR_DESCRIPTION_*.md
 
 # === Local-only setup scripts (chứa password/env-specific) ===
 scripts/sql/setup_ai_readonly.sql
+
+# === AI service local run scripts (per-machine paths/launch options) ===
+ai-service/run-ai-service*.vbs
+ai-service/run-ai-service*.bat
