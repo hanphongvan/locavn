@@ -26,9 +26,18 @@ class MapShellPage extends ConsumerStatefulWidget {
 
 class _MapShellPageState extends ConsumerState<MapShellPage> {
   AppMapController? _mapController;
+  ProviderContainer? _container;
   final GlobalKey _chromeKey = GlobalKey();
   double _mapTopInsetPx = 120;
   bool _chromeMeasureScheduled = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Capture container khi widget còn mounted để dispose() có reference an toàn.
+    // ProviderScope.containerOf(context) sẽ throw nếu gọi trong dispose vì widget đã deactivated.
+    _container = ProviderScope.containerOf(context, listen: false);
+  }
 
   void _scheduleChromeMeasure() {
     if (_chromeMeasureScheduled) return;
@@ -50,11 +59,13 @@ class _MapShellPageState extends ConsumerState<MapShellPage> {
   void dispose() {
     // Tránh stale reference trong `mapAppMapControllerProvider` sau khi page pop —
     // controller được giữ trong StateProvider không-autoDispose. Defer qua microtask để
-    // không ghi vào provider trong giai đoạn dispose của widget tree (Riverpod cấm).
-    final container = ProviderScope.containerOf(context, listen: false);
-    Future.microtask(() {
-      container.read(mapAppMapControllerProvider.notifier).state = null;
-    });
+    // không ghi vào provider trong giai đoạn dispose của widget tree.
+    final container = _container;
+    if (container != null) {
+      Future.microtask(() {
+        container.read(mapAppMapControllerProvider.notifier).state = null;
+      });
+    }
     _mapController = null;
     super.dispose();
   }

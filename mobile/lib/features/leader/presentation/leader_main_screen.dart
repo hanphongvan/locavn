@@ -5,12 +5,14 @@ import 'package:go_router/go_router.dart';
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/auth/portal_loai.dart';
 import '../../../core/auth/role_service.dart';
+import '../../../core/router/app_routes.dart';
 import '../../map/presentation/map_screen_palette.dart';
 import '../../more/presentation/account/account_screen.dart';
 import '../../reports/presentation/dashboard/loca_dashboard_tokens.dart';
 import 'leader_executive_app_bar.dart';
 import 'leader_floating_bottom_nav.dart';
 import 'stabilization_fund_filter_bus.dart';
+import 'widgets/leader_loca_ai_assist_bubble.dart';
 
 /// Nền [Scaffold] (khe quanh thẻ AppBar + vùng dưới) theo tab — AppBar vẫn gradient navy.
 ///
@@ -86,6 +88,10 @@ class LeaderMainScreen extends ConsumerWidget {
     return Scaffold(
       extendBody: true,
       backgroundColor: canvas,
+      floatingActionButton: LeaderLocaAiAssistBubble(
+        onPressed: () => context.push(AppRoute.leaderAiChat),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -95,6 +101,7 @@ class LeaderMainScreen extends ConsumerWidget {
                   ? () => ref.read(stabilizationFundFilterBusProvider).open()
                   : null,
               accountAction: () => _openAccount(context),
+              aiAction: () => context.push(AppRoute.leaderAiChat),
             ),
           Expanded(
             child: showExecutiveHeader

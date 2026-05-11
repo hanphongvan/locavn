@@ -144,8 +144,9 @@ mobile/**/build/
 # --- Legacy code (không push) ---
 DMPPortal/
 
-# --- Backend ad-hoc build/output folders (root-level) ---
+# --- Backend ad-hoc build/output folders (root-level + nested) ---
 backend/_*/
+backend/**/_*/
 backend/out-*/
 backend/ef-build-out/
 
@@ -156,3 +157,22 @@ backend/src/Httm.XangDau.Api/appsettings.Production.json
 !backend/src/Httm.XangDau.Api/appsettings.example.json
 !backend/src/Httm.XangDau.Api/appsettings.Development.example.json
 !backend/src/Httm.XangDau.Api/appsettings.Production.example.json
+
+# === Antigravity / Claude Code workspace ===
+.claude/
+
+# === Test/debug artifacts ===
+backend/body.json
+backend/response.json
+*.tmp.json
+
+# === PR drafts ===
+PR_DESCRIPTION.md
+PR_DESCRIPTION_*.md
+
+# === Local-only setup scripts (chứa password/env-specific) ===
+scripts/sql/setup_ai_readonly.sql
+
+# === AI service local run scripts (per-machine paths/launch options) ===
+ai-service/run-ai-service*.vbs
+ai-service/run-ai-service*.bat

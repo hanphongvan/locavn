@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Threading.RateLimiting;
 using Httm.XangDau.Api.Features;
+using Httm.XangDau.Api.Features.LeaderAi.Security;
 using Httm.XangDau.Api.Shared.DependencyInjection;
 using Httm.XangDau.Api.Shared.Persistence;
 using Httm.XangDau.Api.Shared.Security;
@@ -128,6 +129,10 @@ app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
+
+// Loca AI Leader rate limit — chỉ áp cho prefix /api/leader-ai (middleware tự skip route khác).
+app.UseMiddleware<RateLimitMiddleware>();
+
 app.MapControllers();
 
 app.MapGet("/health", () => Results.Ok(new { status = "healthy" }))

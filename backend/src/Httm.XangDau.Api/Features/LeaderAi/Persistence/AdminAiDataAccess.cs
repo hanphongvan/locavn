@@ -1,0 +1,561 @@
+using System.Data;
+using System.Text.Json;
+using Dapper;
+using Httm.XangDau.Api.Features.LeaderAi.Contracts;
+using Httm.XangDau.Api.Shared.DependencyInjection;
+using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+
+namespace Httm.XangDau.Api.Features.LeaderAi.Persistence;
+
+/// <summary>
+/// Phase 5G — Dapper implementation cho admin operations.
+/// </summary>
+public sealed class AdminAiDataAccess(
+    IConfiguration configuration,
+    ILogger<AdminAiDataAccess> logger) : IAdminAiDataAccess
+{
+    private readonly string _connectionString =
+        configuration.GetConnectionString(InfrastructureDependencyInjection.DefaultConnectionName)
+        ?? throw new InvalidOperationException("DefaultConnection missing.");
+
+    /// <summary>
+    /// Phase 5F (refactored) — connection string riêng cho user
+    /// <c>ai_readonly</c>. Empty/null → <see cref="ExecuteDynamicQuerySafelyAsync"/>
+    /// trả <see cref="DynamicQueryExecutionResult.ConnectionMissing"/>=true →
+    /// caller (controller) trả 503 → AI Gateway fallback Phase 5E preview.
+    /// KHÔNG throw ở constructor — admin/intent endpoints (dùng DefaultConnection)
+    /// phải tiếp tục hoạt động dù AiReadonly chưa cấu hình.
+    /// </summary>
+    private readonly string? _aiReadonlyConnectionString =
+        configuration.GetConnectionString(InfrastructureDependencyInjection.AiReadonlyConnectionName);
+
+    /// <summary>
+    /// Phase 5F+ refactor — chọn connection string cho method READ-only:
+    /// ưu tiên <c>AiReadonly</c> (defense-in-depth lớp DB). Nếu chưa cấu hình
+    /// → fallback <c>DefaultConnection</c> + log warning. Caller READ-only
+    /// vẫn hoạt động, chỉ mất defense layer 1 (không gãy app).
+    /// </summary>
+    private string PickReadonlyConnectionString()
+    {
+        if (!string.IsNullOrWhiteSpace(_aiReadonlyConnectionString))
+            return _aiReadonlyConnectionString;
+        logger.LogWarning(
+            "AiReadonly connection string chưa cấu hình — fallback DefaultConnection cho method READ. " +
+            "Production: set ConnectionStrings:AiReadonly để bật defense-in-depth lớp DB.");
+        return _connectionString;
+    }
+
+    /// <summary>Whitelist sortBy column để chặn SQL injection (param trong ORDER BY
+    /// không bind được qua Dapper). Admin caller pass key, server lookup column.</summary>
+    private static readonly Dictionary<string, string> SortByMap = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["lastUsedAt"] = "LastUsedAt DESC",
+        ["usageCount"] = "UsageCount DESC",
+        ["successCount"] = "SuccessCount DESC",
+        ["entityCode"] = "EntityCode ASC",
+    };
+
+    private const string DefaultSortBy = "lastUsedAt";
+
+    // ------------------------------------------------------------------
+    // Candidate intents
+    // ------------------------------------------------------------------
+
+    /// <inheritdoc />
+    public async Task<(IReadOnlyList<CandidateIntentListItemDto> Items, int TotalCount)>
+        ListCandidateIntentsAsync(
+            string? status,
+            int? minUsageCount,
+            string sortBy,
+            int skip,
+            int take,
+            CancellationToken cancellationToken)
+    {
+        var orderClause = SortByMap.TryGetValue(sortBy ?? DefaultSortBy, out var c)
+            ? c : SortByMap[DefaultSortBy];
+
+        var sql = $$"""
+            SELECT COUNT(*) FROM dbo.AiCandidateIntents
+            WHERE (@Status IS NULL OR Status = @Status)
+              AND (@MinUsageCount IS NULL OR UsageCount >= @MinUsageCount);
+
+            SELECT
+                Id, QuestionFingerprint, SampleQuestion, EntityCode,
+                UsageCount, SuccessCount,
+                CASE WHEN UsageCount = 0 THEN 0
+                     ELSE CAST(SuccessCount AS DECIMAL(5,4)) / UsageCount END AS SuccessRate,
+                Status, LastUsedAt, PromotedToIntentCode, Notes
+            FROM dbo.AiCandidateIntents
+            WHERE (@Status IS NULL OR Status = @Status)
+              AND (@MinUsageCount IS NULL OR UsageCount >= @MinUsageCount)
+            ORDER BY {{orderClause}}
+            OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY;
+            """;
+
+        // Phase 5F+ refactor — READ-only method dùng AiReadonly connection
+        // (defense-in-depth lớp DB). Fallback DefaultConnection + warning nếu
+        // chưa cấu hình.
+        await using var conn = new SqlConnection(PickReadonlyConnectionString());
+        await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+        var command = new CommandDefinition(
+            sql,
+            new { Status = status, MinUsageCount = minUsageCount, Skip = skip, Take = take },
+            cancellationToken: cancellationToken);
+
+        await using var multi = await conn.QueryMultipleAsync(command).ConfigureAwait(false);
+        var totalCount = await multi.ReadFirstAsync<int>().ConfigureAwait(false);
+        var items = (await multi.ReadAsync<CandidateIntentListItemDto>().ConfigureAwait(false)).ToList();
+
+        return (items, totalCount);
+    }
+
+    /// <inheritdoc />
+    public async Task<CandidateIntentDetailDto?> GetCandidateIntentAsync(
+        int id, CancellationToken cancellationToken)
+    {
+        const string sql = """
+            SELECT
+                ci.Id, ci.QuestionFingerprint, ci.SampleQuestion, ci.NormalizedQuestion,
+                ci.EntityCode, ci.GeneratedPlanJson, ci.UsageCount, ci.SuccessCount,
+                CASE WHEN ci.UsageCount = 0 THEN 0
+                     ELSE CAST(ci.SuccessCount AS DECIMAL(5,4)) / ci.UsageCount END AS SuccessRate,
+                ci.Status, ci.LastUsedAt, ci.PromotedToIntentCode,
+                ci.ApprovedBy, ci.ApprovedAt, ci.Notes
+            FROM dbo.AiCandidateIntents ci
+            WHERE ci.Id = @Id;
+
+            SELECT TOP 5
+                Id AS LogId, Created AS ExecutedAt, Status,
+                RowsReturned, DurationMs, ConfidenceScore, ErrorMessage
+            FROM dbo.AiDynamicQueryLogs
+            WHERE NormalizedQuestion = (
+                SELECT NormalizedQuestion FROM dbo.AiCandidateIntents WHERE Id = @Id
+            )
+            ORDER BY Created DESC;
+            """;
+
+        // Phase 5F+ refactor — READ-only method dùng AiReadonly connection.
+        await using var conn = new SqlConnection(PickReadonlyConnectionString());
+        await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+        var command = new CommandDefinition(sql, new { Id = id }, cancellationToken: cancellationToken);
+        await using var multi = await conn.QueryMultipleAsync(command).ConfigureAwait(false);
+
+        var head = await multi.ReadSingleOrDefaultAsync<CandidateIntentHeadRow>().ConfigureAwait(false);
+        if (head is null) return null;
+
+        var execs = (await multi.ReadAsync<DynamicQueryExecutionPreviewDto>().ConfigureAwait(false)).ToList();
+
+        return new CandidateIntentDetailDto(
+            head.Id, head.QuestionFingerprint, head.SampleQuestion, head.NormalizedQuestion,
+            head.EntityCode, head.GeneratedPlanJson, head.UsageCount, head.SuccessCount,
+            head.SuccessRate, head.Status, head.LastUsedAt, head.PromotedToIntentCode,
+            head.ApprovedBy, head.ApprovedAt, head.Notes, execs);
+    }
+
+    /// <inheritdoc />
+    public async Task<CandidateIntentMutationResponse?> ApproveCandidateAsync(
+        int id, int adminUserId, string? notes, CancellationToken cancellationToken)
+    {
+        // Approve allowed từ Status='pending' (chuyển sang 'approved').
+        // 'rejected' / 'promoted' KHÔNG cho approve lại — caller phải tạo candidate mới.
+        const string sql = """
+            UPDATE dbo.AiCandidateIntents
+            SET Status = N'approved',
+                ApprovedBy = @AdminUserId,
+                ApprovedAt = SYSUTCDATETIME(),
+                Notes = COALESCE(@Notes, Notes)
+            OUTPUT inserted.Id, inserted.Status, inserted.PromotedToIntentCode,
+                   inserted.ApprovedBy, inserted.ApprovedAt
+            WHERE Id = @Id AND Status = N'pending';
+            """;
+
+        return await ExecuteMutationAsync(
+            sql, new { Id = id, AdminUserId = adminUserId, Notes = notes },
+            successMessage: "Candidate đã được approve.",
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<CandidateIntentMutationResponse?> RejectCandidateAsync(
+        int id, int adminUserId, string notes, CancellationToken cancellationToken)
+    {
+        const string sql = """
+            UPDATE dbo.AiCandidateIntents
+            SET Status = N'rejected',
+                ApprovedBy = @AdminUserId,
+                ApprovedAt = SYSUTCDATETIME(),
+                Notes = @Notes
+            OUTPUT inserted.Id, inserted.Status, inserted.PromotedToIntentCode,
+                   inserted.ApprovedBy, inserted.ApprovedAt
+            WHERE Id = @Id AND Status IN (N'pending', N'approved');
+            """;
+
+        return await ExecuteMutationAsync(
+            sql, new { Id = id, AdminUserId = adminUserId, Notes = notes },
+            successMessage: "Candidate đã được reject.",
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<CandidateIntentPromoteResult> PromoteCandidateAsync(
+        int id, int adminUserId, string intentCode, string displayName, string? notes,
+        CancellationToken cancellationToken)
+    {
+        // 1. Lock candidate row + verify status='approved' + return GeneratedPlanJson + EntityCode.
+        // 2. INSERT AiIntentConfigs (UNIQUE constraint trên IntentCode → catch).
+        // 3. UPDATE AiCandidateIntents.Status='promoted' + PromotedToIntentCode.
+        // Wrapped trong transaction để atomic.
+        await using var conn = new SqlConnection(_connectionString);
+        await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+        await using var tx = await conn.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+
+        try
+        {
+            const string fetchSql = """
+                SELECT Id, Status, EntityCode, GeneratedPlanJson
+                FROM dbo.AiCandidateIntents WITH (UPDLOCK, ROWLOCK)
+                WHERE Id = @Id;
+                """;
+            var candidate = await conn.QuerySingleOrDefaultAsync<PromoteCandidateRow>(
+                new CommandDefinition(fetchSql, new { Id = id },
+                    transaction: tx, cancellationToken: cancellationToken))
+                .ConfigureAwait(false);
+
+            if (candidate is null)
+                return new CandidateIntentPromoteResult(
+                    PromotePreconditionFailure.CandidateNotFound, null, null);
+
+            if (!string.Equals(candidate.Status, "approved", StringComparison.Ordinal))
+                return new CandidateIntentPromoteResult(
+                    PromotePreconditionFailure.CandidateNotApproved, null, null);
+
+            // 2. INSERT AiIntentConfigs
+            const string insertConfigSql = """
+                INSERT INTO dbo.AiIntentConfigs
+                    (IntentCode, DisplayName, EntityCode, GeneratedPlanJson,
+                     SourceCandidateId, Status, CreatedBy)
+                OUTPUT inserted.Id
+                VALUES
+                    (@IntentCode, @DisplayName, @EntityCode, @GeneratedPlanJson,
+                     @SourceCandidateId, N'active', @AdminUserId);
+                """;
+
+            int intentConfigId;
+            try
+            {
+                intentConfigId = await conn.ExecuteScalarAsync<int>(
+                    new CommandDefinition(insertConfigSql, new
+                    {
+                        IntentCode = intentCode,
+                        DisplayName = displayName,
+                        EntityCode = candidate.EntityCode,
+                        GeneratedPlanJson = candidate.GeneratedPlanJson,
+                        SourceCandidateId = id,
+                        AdminUserId = adminUserId,
+                    }, transaction: tx, cancellationToken: cancellationToken))
+                    .ConfigureAwait(false);
+            }
+            catch (SqlException ex) when (ex.Number is 2627 or 2601)   // unique violation
+            {
+                logger.LogWarning(ex, "Promote intentCode {IntentCode} duplicate", intentCode);
+                await tx.RollbackAsync(cancellationToken).ConfigureAwait(false);
+                return new CandidateIntentPromoteResult(
+                    PromotePreconditionFailure.IntentCodeDuplicate, null, null);
+            }
+
+            // 3. UPDATE candidate
+            const string updateCandidateSql = """
+                UPDATE dbo.AiCandidateIntents
+                SET Status = N'promoted',
+                    PromotedToIntentCode = @IntentCode,
+                    Notes = COALESCE(@Notes, Notes)
+                OUTPUT inserted.Id, inserted.Status, inserted.PromotedToIntentCode,
+                       inserted.ApprovedBy, inserted.ApprovedAt
+                WHERE Id = @Id;
+                """;
+            var mutation = await conn.QuerySingleAsync<CandidateMutationRow>(
+                new CommandDefinition(updateCandidateSql, new
+                {
+                    Id = id, IntentCode = intentCode, Notes = notes,
+                }, transaction: tx, cancellationToken: cancellationToken))
+                .ConfigureAwait(false);
+
+            await tx.CommitAsync(cancellationToken).ConfigureAwait(false);
+
+            return new CandidateIntentPromoteResult(
+                PromotePreconditionFailure.None,
+                new CandidateIntentMutationResponse(
+                    mutation.Id, mutation.Status, mutation.PromotedToIntentCode,
+                    mutation.ApprovedBy, mutation.ApprovedAt,
+                    $"Đã promote thành intent '{intentCode}'."),
+                intentConfigId);
+        }
+        catch
+        {
+            await tx.RollbackAsync(cancellationToken).ConfigureAwait(false);
+            throw;
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Reindex queue (worker poll)
+    // ------------------------------------------------------------------
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<ReindexQueueItemDto>> FetchAndLockReindexQueueAsync(
+        int limit, CancellationToken cancellationToken)
+    {
+        // Atomically pick top N pending + mark 'processing'. UPDATE...OUTPUT
+        // pattern: lock row + transition trong 1 statement.
+        const string sql = """
+            UPDATE TOP (@Limit) dbo.AiReindexQueue
+            SET Status = N'processing'
+            OUTPUT inserted.Id, inserted.EntityCode, inserted.RequestedAt, inserted.Status
+            WHERE Status = N'pending';
+            """;
+
+        await using var conn = new SqlConnection(_connectionString);
+        await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+        var command = new CommandDefinition(sql, new { Limit = limit }, cancellationToken: cancellationToken);
+        var rows = await conn.QueryAsync<ReindexQueueItemDto>(command).ConfigureAwait(false);
+        return rows.ToList();
+    }
+
+    /// <inheritdoc />
+    public async Task MarkReindexCompleteAsync(
+        int id, string status, string? errorMessage, CancellationToken cancellationToken)
+    {
+        if (status != "done" && status != "failed")
+            throw new ArgumentException(
+                $"Status must be 'done' or 'failed', got '{status}'", nameof(status));
+
+        const string sql = """
+            UPDATE dbo.AiReindexQueue
+            SET Status = @Status,
+                ProcessedAt = SYSUTCDATETIME(),
+                ErrorMessage = @ErrorMessage
+            WHERE Id = @Id AND Status = N'processing';
+            """;
+
+        await using var conn = new SqlConnection(_connectionString);
+        await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+        await conn.ExecuteAsync(new CommandDefinition(
+            sql, new { Id = id, Status = status, ErrorMessage = errorMessage },
+            cancellationToken: cancellationToken)).ConfigureAwait(false);
+    }
+
+    // ------------------------------------------------------------------
+    // Phase 5F (refactored) — Dynamic query proxy
+    // ------------------------------------------------------------------
+
+    /// <inheritdoc />
+    public async Task<DynamicQueryExecutionResult> ExecuteDynamicQuerySafelyAsync(
+        string sql,
+        IReadOnlyDictionary<string, object?> parameters,
+        int timeoutSeconds,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(_aiReadonlyConnectionString))
+        {
+            logger.LogWarning(
+                "ExecuteDynamicQuerySafely: AiReadonly connection string chưa cấu hình");
+            return new DynamicQueryExecutionResult(
+                ConnectionMissing: true, Rows: [], DurationMs: 0,
+                ErrorMessage: "ConnectionStrings:AiReadonly chưa cấu hình.");
+        }
+
+        // Convert dict<string, object?> → Dapper DynamicParameters. Dapper
+        // tự handle null + type inference. AI Gateway gửi key dạng "p0",
+        // "p1_lo", etc. (không có @ prefix); Dapper tự thêm @ khi bind.
+        //
+        // Phase 5H bugfix — body JSON deserialize bằng System.Text.Json với
+        // Dictionary<string, object?> → mỗi value bị wrap thành JsonElement.
+        // Dapper KHÔNG hỗ trợ JsonElement (NotSupportedException). Phải
+        // unwrap về CLR primitive (string/int/double/decimal/bool/null/list)
+        // trước khi pass xuống Dapper.
+        var dapperParams = new DynamicParameters();
+        foreach (var (name, value) in parameters)
+        {
+            dapperParams.Add(name, UnwrapJsonElement(value));
+        }
+
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+        try
+        {
+            await using var conn = new SqlConnection(_aiReadonlyConnectionString);
+            await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+            // Session-level SET options:
+            // - LOCK_TIMEOUT 5000ms: defense-in-depth Section 11.5 — fail fast
+            //   nếu DB bận thay vì block worker thread.
+            // - ARITHABORT ON + các SET kèm: ép SET options khớp SSMS default.
+            //   Microsoft.Data.SqlClient default ARITHABORT OFF, trong khi
+            //   SSMS dùng ON. View có CTE + GROUP BY + window function cache
+            //   query plan theo SET options — mismatch → SQL Server có thể
+            //   trả empty rowset thay vì raise error (bug kinh điển khi
+            //   migrate query SSMS → ADO.NET). Bug confirmed Phase 5F.
+            // - LOẠI BỎ QUERY_GOVERNOR_COST_LIMIT (cần sysadmin permission,
+            //   `ai_readonly` không có → silent fail). Cost protection thay
+            //   bằng commandTimeout + LOCK_TIMEOUT.
+            await using (var sessionCmd = conn.CreateCommand())
+            {
+                sessionCmd.CommandText =
+                    "SET LOCK_TIMEOUT 5000;" +
+                    "SET ARITHABORT ON;" +
+                    "SET ANSI_NULLS ON;" +
+                    "SET ANSI_WARNINGS ON;" +
+                    "SET ANSI_PADDING ON;" +
+                    "SET QUOTED_IDENTIFIER ON;" +
+                    "SET CONCAT_NULL_YIELDS_NULL ON;";
+                await sessionCmd.ExecuteNonQueryAsync(cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            var command = new CommandDefinition(
+                sql, dapperParams,
+                commandTimeout: timeoutSeconds,
+                cancellationToken: cancellationToken);
+
+            // QueryAsync (dynamic) trả IEnumerable<DapperRow>. Convert sang
+            // Dictionary<string, object?> để JSON serialize sang AI Gateway.
+            var dynamicRows = await conn.QueryAsync(command).ConfigureAwait(false);
+            var rows = dynamicRows.Select(r =>
+                ((IDictionary<string, object?>)r).ToDictionary(
+                    kv => kv.Key, kv => kv.Value)
+            ).ToList();
+
+            stopwatch.Stop();
+            logger.LogInformation(
+                "ExecuteDynamicQuery success — rows={RowCount} duration={DurationMs}ms",
+                rows.Count, stopwatch.ElapsedMilliseconds);
+
+            return new DynamicQueryExecutionResult(
+                ConnectionMissing: false, Rows: rows,
+                DurationMs: (int)stopwatch.ElapsedMilliseconds,
+                ErrorMessage: null);
+        }
+        catch (SqlException ex) when (ex.Number == 1222 || ex.Number == -2)
+        {
+            // 1222 = Lock request timeout. -2 = Client/SQL Server timeout.
+            stopwatch.Stop();
+            logger.LogWarning(ex,
+                "ExecuteDynamicQuery timeout — duration={DurationMs}ms",
+                stopwatch.ElapsedMilliseconds);
+            return new DynamicQueryExecutionResult(
+                ConnectionMissing: false, Rows: [],
+                DurationMs: (int)stopwatch.ElapsedMilliseconds,
+                ErrorMessage: $"Query timeout: {ex.Message}");
+        }
+        catch (SqlException ex)
+        {
+            stopwatch.Stop();
+            logger.LogError(ex,
+                "ExecuteDynamicQuery SQL error — number={Number} duration={DurationMs}ms",
+                ex.Number, stopwatch.ElapsedMilliseconds);
+            return new DynamicQueryExecutionResult(
+                ConnectionMissing: false, Rows: [],
+                DurationMs: (int)stopwatch.ElapsedMilliseconds,
+                ErrorMessage: $"SQL error {ex.Number}: {ex.Message}");
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Internals
+    // ------------------------------------------------------------------
+
+    private async Task<CandidateIntentMutationResponse?> ExecuteMutationAsync(
+        string sql, object parameters, string successMessage,
+        CancellationToken cancellationToken)
+    {
+        await using var conn = new SqlConnection(_connectionString);
+        await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+        var command = new CommandDefinition(sql, parameters, cancellationToken: cancellationToken);
+        var row = await conn.QuerySingleOrDefaultAsync<CandidateMutationRow>(command).ConfigureAwait(false);
+        if (row is null) return null;
+
+        return new CandidateIntentMutationResponse(
+            row.Id, row.Status, row.PromotedToIntentCode, row.ApprovedBy, row.ApprovedAt,
+            successMessage);
+    }
+
+    /// <summary>Dapper row reader cho mutation OUTPUT clause.</summary>
+    private sealed record CandidateMutationRow(
+        int Id, string Status, string? PromotedToIntentCode,
+        int? ApprovedBy, DateTime? ApprovedAt);
+
+    /// <summary>
+    /// Phase 5H bugfix — convert <see cref="JsonElement"/> (System.Text.Json
+    /// wrapper khi deserialize <c>Dictionary&lt;string, object?&gt;</c>) sang
+    /// CLR primitive Dapper hiểu được.
+    ///
+    /// <para>
+    /// Number được "downcast" theo độ rộng nhỏ nhất giữ được: <c>int → long
+    /// → decimal → double</c> để khớp tốt với SQL Server param type inference.
+    /// </para>
+    ///
+    /// <para>Không phải JsonElement → trả nguyên (đã là primitive).</para>
+    ///
+    /// <para>Object/Undefined → throw NotSupportedException (AI Gateway chỉ
+    /// gửi scalar/list, không gửi nested object).</para>
+    /// </summary>
+    private static object? UnwrapJsonElement(object? value)
+    {
+        if (value is not JsonElement el) return value;
+
+        return el.ValueKind switch
+        {
+            JsonValueKind.Null => null,
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            JsonValueKind.String => el.GetString(),
+            JsonValueKind.Number => UnwrapNumber(el),
+            JsonValueKind.Array => el.EnumerateArray()
+                .Select(item => UnwrapJsonElement(item))
+                .ToList(),
+            _ => throw new NotSupportedException(
+                $"JsonElement ValueKind {el.ValueKind} không được hỗ trợ làm SQL parameter."),
+        };
+    }
+
+    private static object UnwrapNumber(JsonElement el)
+    {
+        if (el.TryGetInt32(out var i32)) return i32;
+        if (el.TryGetInt64(out var i64)) return i64;
+        if (el.TryGetDecimal(out var dec)) return dec;
+        return el.GetDouble();
+    }
+
+    /// <summary>Dapper row cho promote precondition fetch.</summary>
+    private sealed record PromoteCandidateRow(
+        int Id, string Status, string EntityCode, string GeneratedPlanJson);
+
+    /// <summary>Head row của detail query — DTO record không có setter để Dapper bind
+    /// → dùng class internal có setter rồi map sang DTO.</summary>
+    private sealed class CandidateIntentHeadRow
+    {
+        public int Id { get; set; }
+        public string QuestionFingerprint { get; set; } = "";
+        public string SampleQuestion { get; set; } = "";
+        public string NormalizedQuestion { get; set; } = "";
+        public string EntityCode { get; set; } = "";
+        public string GeneratedPlanJson { get; set; } = "";
+        public int UsageCount { get; set; }
+        public int SuccessCount { get; set; }
+        public decimal SuccessRate { get; set; }
+        public string Status { get; set; } = "";
+        public DateTime LastUsedAt { get; set; }
+        public string? PromotedToIntentCode { get; set; }
+        public int? ApprovedBy { get; set; }
+        public DateTime? ApprovedAt { get; set; }
+        public string? Notes { get; set; }
+    }
+}

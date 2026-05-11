@@ -31,6 +31,11 @@ class ApiConfig {
     defaultValue: '',
   );
 
+  static const String _googleServerClientId = String.fromEnvironment(
+    'GOOGLE_SERVER_CLIENT_ID',
+    defaultValue: '',
+  );
+
   static String _stripTrailingSlash(String s) {
     var t = s.trim();
     while (t.endsWith('/')) {
@@ -57,6 +62,12 @@ class ApiConfig {
     }
     return _stripTrailingSlash(host.devDefaultBaseUrl());
   }
+
+  /// Web-type OAuth Client ID dùng làm `serverClientId` cho Google Sign-In.
+  /// Phải khớp với một entry trong `GoogleAuth:AllowedAudiences` ở backend.
+  /// Truyền qua `--dart-define=GOOGLE_SERVER_CLIENT_ID=xxxxx.apps.googleusercontent.com`.
+  /// Trống → ẩn nút "Đăng nhập với Google" trên login page.
+  static String get googleServerClientId => _googleServerClientId.trim();
 
   /// Trùng `Admin:ApiKey` trên server — nguồn: dart-define / env (xem [AdminApiCredentials]).
   static String get adminApiKey => AdminApiCredentials.resolvedAdminApiKey;

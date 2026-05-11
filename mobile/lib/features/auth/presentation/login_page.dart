@@ -6,6 +6,7 @@ import '../../../core/auth/admin_auth_repository.dart';
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/auth/biometric/biometric_login_coordinator.dart';
 import '../../../core/auth/biometric/biometric_providers.dart';
+import '../../../core/auth/google/google_sign_in_service.dart';
 import '../../../core/router/app_routes.dart';
 import '../../../core/router/role_home_navigation.dart';
 import 'widgets/feature_badge.dart';
@@ -82,6 +83,42 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     context.push(AppRoute.forgotPassword);
   }
 
+  Future<void> _onGoogleLoginPressed() async {
+    if (_loading) return;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final auth = ref.read(authSessionControllerProvider);
+      final ok = await auth.loginWithGoogle();
+      if (!mounted) return;
+      if (!ok) {
+        // User cancel chooser — không hiện lỗi.
+        return;
+      }
+      final loai = auth.session!.loai;
+      final home = roleHomeLocationForLoai(loai);
+      if (home == null) {
+        context.go(AppRoute.accessDenied);
+        return;
+      }
+      context.go(home);
+    } on UnsupportedPortalLoaiException {
+      if (mounted) context.go(AppRoute.accessDenied);
+    } on GoogleSignInException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = dioErrorUserMessage(e) ?? 'Đăng nhập Google thất bại.';
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
   Future<void> _onBiometricLoginPressed(BiometricLoginUiState ui) async {
     if (_loading) return;
     if (ui.kind != BiometricLoginUiKind.ready) return;
@@ -149,7 +186,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                               Center(child: LoginBrandLogo(size: logoSize)),
                               const SizedBox(height: 20),
                               Text(
-                                'LocaVN',
+                                'Quanh tôi',
                                 textAlign: TextAlign.center,
                                 style: textTheme.titleMedium?.copyWith(
                                   color: LoginScreenTheme.titleBlue,
@@ -160,7 +197,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                               ),
                               const SizedBox(height: 10),
                               Text(
-                                'Quanh tôi - Tìm cây xăng, chợ, siêu thị',
+                                'Tìm cây xăng, chợ, siêu thị',
                                 textAlign: TextAlign.center,
                                 style: textTheme.bodyMedium?.copyWith(
                                   color: LoginScreenTheme.titleBlue.withValues(alpha: 0.82),
@@ -349,6 +386,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                           );
                                         },
                                       ),
+                                      _GoogleLoginSection(
+                                        loading: _loading,
+                                        onPressed: _onGoogleLoginPressed,
+                                      ),
                                     ],
                                   ),
                                 ),
@@ -406,6 +447,85 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _GoogleLoginSection extends ConsumerWidget {
+  const _GoogleLoginSection({required this.loading, required this.onPressed});
+
+  final bool loading;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final google = ref.watch(googleSignInServiceProvider);
+    if (!google.isConfigured) {
+      return const SizedBox.shrink();
+    }
+    final biometricUi = ref.watch(biometricLoginUiProvider);
+    final biometricVisible = biometricUi.maybeWhen(
+      data: (ui) => ui.showButton,
+      orElse: () => false,
+    );
+    final textTheme = Theme.of(context).textTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (!biometricVisible) ...[
+          const SizedBox(height: 20),
+          const _OrDivider(),
+          const SizedBox(height: 16),
+        ] else
+          const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: loading ? null : onPressed,
+          icon: const _GoogleGlyph(),
+          label: Text(
+            'Đăng nhập với Google',
+            style: textTheme.labelLarge?.copyWith(
+              color: LoginScreenTheme.titleBlue,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: LoginScreenTheme.titleBlue,
+            side: const BorderSide(color: LoginScreenTheme.fieldBorder),
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(LoginScreenTheme.controlRadius),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Glyph chữ "G" tự vẽ (không phụ thuộc asset). Có thể thay bằng asset SVG/logo Google chính chủ sau.
+class _GoogleGlyph extends StatelessWidget {
+  const _GoogleGlyph();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 22,
+      height: 22,
+      alignment: Alignment.center,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        shape: BoxShape.circle,
+        border: Border.fromBorderSide(BorderSide(color: LoginScreenTheme.fieldBorder)),
+      ),
+      child: const Text(
+        'G',
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w800,
+          color: Color(0xFF4285F4),
+          height: 1.0,
+        ),
       ),
     );
   }

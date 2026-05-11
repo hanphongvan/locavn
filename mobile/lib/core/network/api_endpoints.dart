@@ -113,6 +113,19 @@ abstract final class ApiEndpoints {
 
   static String leaderMapViolations(int stationId) => '/api/leader/map/violations?stationId=$stationId';
 
+  /// Loca AI Leader Assistant — Bearer JWT, chỉ `Loai == 6` (Phase 2B).
+  static const leaderAiChat = '/api/leader-ai/chat';
+  static const leaderAiChatStream = '/api/leader-ai/chat/stream';
+  static const leaderAiConversations = '/api/leader-ai/conversations';
+  static String leaderAiConversation(String id) => '/api/leader-ai/conversations/$id';
+  static const leaderAiReport = '/api/leader-ai/report';
+  static const leaderAiHealth = '/api/leader-ai/health';
+  static const leaderAiVoiceTranscribe = '/api/leader-ai/voice/transcribe';
+
+  /// Voice → form đổ nhiên liệu cho citizen (Loai=5). Toggle bằng setting `loca.donhienlieu`.
+  static const fuelVoiceFeatureStatus = '/api/fuel/voice/feature-status';
+  static const fuelVoiceParseTransaction = '/api/fuel/voice/parse-fuel-tx';
+
   static String leaderMapPrices(String idsCommaSeparated) => '/api/leader/map/prices?ids=$idsCommaSeparated';
 
   /// Phân tích Lãnh đạo (GET, `window=d7|d30|m3|m6`, `fuel=xang|dau` khi cần).

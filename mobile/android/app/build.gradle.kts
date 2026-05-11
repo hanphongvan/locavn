@@ -16,19 +16,25 @@ if (localPropertiesFile.exists()) {
 
 // Flutter Gradle plugin truyền compile defines qua `dart-defines` (chuỗi base64("KEY=VALUE") nối bằng dấu phẩy).
 // Build từ Android Studio không dùng `flutter build --dart-define=...` nên thiếu API_BASE_URL → release crash.
-// Thêm vào android/local.properties (đã gitignore): API_BASE_URL=https://hoặc-http://máy-chủ-của-bạn
-// Hoặc đặt biến môi trường API_BASE_URL khi chạy Gradle/CI.
-val apiBaseUrlForDart =
-    localProperties.getProperty("API_BASE_URL")?.trim()?.takeIf { it.isNotEmpty() }
-        ?: System.getenv("API_BASE_URL")?.trim()?.takeIf { it.isNotEmpty() }
-if (apiBaseUrlForDart != null) {
+// Thêm vào android/local.properties (đã gitignore):
+//   API_BASE_URL=https://hoặc-http://máy-chủ-của-bạn
+//   GOOGLE_SERVER_CLIENT_ID=xxxxx.apps.googleusercontent.com   (Web client ID cho Google Sign-In)
+// Hoặc đặt biến môi trường tương ứng khi chạy Gradle/CI.
+fun appendDartDefine(key: String) {
+    val value =
+        localProperties.getProperty(key)?.trim()?.takeIf { it.isNotEmpty() }
+            ?: System.getenv(key)?.trim()?.takeIf { it.isNotEmpty() }
+            ?: return
     val encodedSegment =
-        Base64.getEncoder().encodeToString("API_BASE_URL=$apiBaseUrlForDart".toByteArray(Charsets.UTF_8))
-    val existingDartDefines =
+        Base64.getEncoder().encodeToString("$key=$value".toByteArray(Charsets.UTF_8))
+    val existing =
         (findProperty("dart-defines") as String?)?.trim()?.takeIf { it.isNotEmpty() }
     extra["dart-defines"] =
-        if (existingDartDefines != null) "$existingDartDefines,$encodedSegment" else encodedSegment
+        if (existing != null) "$existing,$encodedSegment" else encodedSegment
 }
+
+appendDartDefine("API_BASE_URL")
+appendDartDefine("GOOGLE_SERVER_CLIENT_ID")
 
 fun releaseProp(name: String): String? =
     (rootProject.findProperty(name) as String?)?.trim()?.takeIf { it.isNotEmpty() }

@@ -9,10 +9,12 @@ import '../../../shared/widgets/form/app_switch.dart';
 import '../../../shared/widgets/form/app_text_field.dart';
 import '../../../shared/widgets/form/gradient_button.dart';
 import '../../auth/presentation/widgets/login_background.dart';
+import '../../fuel/presentation/fuel_tracking_providers.dart';
 import '../../store_sale_prices/data/models/store_admin_fuel_product_list_item.dart';
 import '../data/models/vehicle_dto.dart';
 import '../data/my_vehicles_api.dart';
 import 'my_vehicles_fuel_products_provider.dart';
+import 'my_vehicles_providers.dart';
 import 'widgets/vehicle_form_card.dart';
 import 'widgets/vehicle_form_section_title.dart';
 
@@ -127,6 +129,12 @@ class _AddEditVehicleSheetState extends ConsumerState<AddEditVehicleSheet> {
       } else {
         await api.updateVehicle(widget.existing!.id, body);
       }
+      // Invalidate ngay tại source — parent page refresh `myVehiclesListProvider` qua callback,
+      // nhưng trang "Nhiên liệu" (`fuelDashboardProvider`) là consumer độc lập trong shell tab
+      // alive cùng lúc nên không tự pickup invalidate qua dependency chain. Force cả hai để
+      // mọi tab đang watch đều fetch lại sau khi user add/edit xe.
+      ref.invalidate(myVehiclesListProvider);
+      ref.invalidate(fuelDashboardProvider);
       if (mounted) {
         Navigator.of(context).pop(true);
       }

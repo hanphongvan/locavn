@@ -48,6 +48,10 @@ enum AppRoute {
   static const String leaderStabilizationFund = '/leader/stabilization-fund';
   static const String leaderAccount = '/leader/account';
 
+  /// Loca AI Leader Assistant (Phase 2B) — top-level GoRoute, mở qua icon
+  /// trên LeaderExecutiveAppBar khi `Loai == 6`.
+  static const String leaderAiChat = '/leader/ai-chat';
+
   static const String accessDenied = '/access-denied';
 
   /// Shell roots — parent redirect targets (mỗi root redirect về tab đầu của shell).

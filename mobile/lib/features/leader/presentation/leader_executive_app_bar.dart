@@ -9,6 +9,7 @@ class LeaderExecutiveAppBar extends StatelessWidget {
     super.key,
     this.filterAction,
     this.accountAction,
+    this.aiAction,
   });
 
   /// Tab Quỹ bình ổn: mở lọc kỳ BC08.
@@ -16,6 +17,10 @@ class LeaderExecutiveAppBar extends StatelessWidget {
 
   /// Mở `/leader/account` — icon person ở góc phải AppBar (thay tab Tài khoản đã bỏ khỏi bottom nav).
   final VoidCallback? accountAction;
+
+  /// Phase 2B — mở Loca AI Leader Assistant (`/leader/ai-chat`).
+  /// Icon sparkles ở phía trước icon Tài khoản.
+  final VoidCallback? aiAction;
 
   static const Color navyDeep = Color(0xFF0B2F6B);
   static const Color navyMid = Color(0xFF1F3C93);
@@ -98,6 +103,20 @@ class LeaderExecutiveAppBar extends StatelessWidget {
                       icon: Icon(
                         Icons.filter_list_rounded,
                         size: 20,
+                        color: Colors.white.withValues(alpha: 0.95),
+                      ),
+                    ),
+                  if (aiAction != null)
+                    IconButton(
+                      tooltip: 'Loca AI',
+                      onPressed: aiAction,
+                      style: IconButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.all(6),
+                      ),
+                      icon: Icon(
+                        Icons.auto_awesome_rounded,
+                        size: 22,
                         color: Colors.white.withValues(alpha: 0.95),
                       ),
                     ),

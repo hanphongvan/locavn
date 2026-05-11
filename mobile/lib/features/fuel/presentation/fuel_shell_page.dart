@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/router/app_routes.dart';
 import '../data/models/fuel_tracking_models.dart';
 import '../../my_vehicles/presentation/my_vehicles_providers.dart';
+import '../voice/fuel_voice_button.dart';
 import 'fuel_palette.dart';
 import 'fuel_screen.dart';
 import 'fuel_tracking_providers.dart';
@@ -135,20 +136,30 @@ class _FuelShellPageState extends ConsumerState<FuelShellPage> {
               ),
               Padding(
                 padding: EdgeInsets.fromLTRB(16, 0, 16, 10 + bottomInset),
-                child: AddFuelButton(
-                  onPressed: () async {
-                    final vm = ref.read(fuelDashboardProvider).valueOrNull;
-                    if (vm == null || !vm.hasVehicle) {
-                      _snack('Vui lòng thêm xe trước khi ghi lần đổ xăng.');
-                      return;
-                    }
-                    final ok = await context.push<bool>(
-                      '${AppRoute.addFuelTransaction.path}?vehicleId=${vm.activeVehicleId}',
-                    );
-                    if (ok == true && mounted) {
-                      ref.invalidate(fuelDashboardProvider);
-                    }
-                  },
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: AddFuelButton(
+                        onPressed: () async {
+                          final vm = ref.read(fuelDashboardProvider).valueOrNull;
+                          if (vm == null || !vm.hasVehicle) {
+                            _snack('Vui lòng thêm xe trước khi ghi lần đổ xăng.');
+                            return;
+                          }
+                          final ok = await context.push<bool>(
+                            '${AppRoute.addFuelTransaction.path}?vehicleId=${vm.activeVehicleId}',
+                          );
+                          if (ok == true && mounted) {
+                            ref.invalidate(fuelDashboardProvider);
+                          }
+                        },
+                      ),
+                    ),
+                    Consumer(builder: (context, ref, _) {
+                      final vm = ref.watch(fuelDashboardProvider).valueOrNull;
+                      return FuelVoiceButton(vehicleId: vm?.activeVehicleId);
+                    }),
+                  ],
                 ),
               ),
             ],
