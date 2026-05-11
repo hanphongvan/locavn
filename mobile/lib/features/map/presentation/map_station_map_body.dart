@@ -107,6 +107,10 @@ class _MapStationMapBodyState extends State<MapStationMapBody> {
   /// GPS xong trước khi map tạo controller — fit bounds khi `onMapCreated`.
   AppLatLngBounds? _pendingFitBounds;
 
+  /// [getLastKnownPosition] + [getCurrentPosition] có thể gọi [_applyUserLocation] liên tiếp;
+  /// chỉ lần cuối mới animate camera (tránh hai `camera#move` dồn khi máy nhanh).
+  int _locationApplyGeneration = 0;
+
   @override
   void initState() {
     super.initState();
@@ -149,6 +153,7 @@ class _MapStationMapBodyState extends State<MapStationMapBody> {
   /// Khung [kDefaultMapUserRadiusMeters] m mỗi hướng từ tâm (bán kính nhìn quanh GPS).
   void _applyUserLocation(AppLatLng here) {
     if (!mounted) return;
+    final gen = ++_locationApplyGeneration;
     final w = MediaQuery.sizeOf(context).width;
     final spanMeters = 2 * kDefaultMapUserRadiusMeters;
     final zoom = _zoomForSpanMetersAtLat(here.latitude, w, spanMeters);
@@ -159,6 +164,7 @@ class _MapStationMapBodyState extends State<MapStationMapBody> {
     final ctrl = _controller;
     if (ctrl != null) {
       unawaited(() async {
+        if (gen != _locationApplyGeneration) return;
         try {
           await ctrl.animateCamera(AppMapCameraUpdate.newLatLngBounds(
             bounds: fit,
@@ -166,10 +172,13 @@ class _MapStationMapBodyState extends State<MapStationMapBody> {
           ));
         } catch (_) {
           try {
+            if (gen != _locationApplyGeneration) return;
             await ctrl.animateCamera(AppMapCameraUpdate.newLatLngZoom(here, zoom));
           } catch (_) {}
         }
-        if (mounted) _kickApplyMarkersSoon();
+        if (mounted && gen == _locationApplyGeneration) {
+          _kickApplyMarkersSoon();
+        }
       }());
     } else {
       _pendingFitBounds = fit;
