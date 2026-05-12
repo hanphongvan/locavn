@@ -30,7 +30,11 @@ public sealed class AppleTokenVerifier(
     private static readonly TimeSpan CacheTtl = TimeSpan.FromHours(24);
 
     private readonly AppleAuthOptions _options = options.Value;
-    private static readonly JwtSecurityTokenHandler TokenHandler = new();
+
+    // MapInboundClaims = false để giữ nguyên JWT standard claim names ("sub", "email", …).
+    // Mặc định JwtSecurityTokenHandler rename "sub" → ClaimTypes.NameIdentifier (WS-* URI cũ)
+    // làm principal.FindFirst("sub") trả null.
+    private static readonly JwtSecurityTokenHandler TokenHandler = new() { MapInboundClaims = false };
 
     public async Task<AppleVerifiedIdentity?> VerifyAsync(string idToken, CancellationToken cancellationToken = default)
     {
