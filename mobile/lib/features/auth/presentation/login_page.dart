@@ -599,7 +599,7 @@ class _AppleLoginSection extends ConsumerWidget {
         SignInWithAppleButton(
           onPressed: loading ? () {} : onPressed,
           height: 48,
-          style: SignInWithAppleButtonStyle.black,
+          style: SignInWithAppleButtonStyle.whiteOutlined,
           borderRadius: BorderRadius.circular(LoginScreenTheme.controlRadius),
           text: 'Đăng nhập với Apple',
         ),
