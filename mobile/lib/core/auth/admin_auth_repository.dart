@@ -74,6 +74,41 @@ class AdminAuthRepository {
     return map;
   }
 
+  /// `POST /api/oauth/apple` (application/json). `fullName` chỉ truyền lần đầu user authorize
+  /// (Apple privacy — sau đó null). BE lưu DisplayName từ field này khi auto-create user.
+  Future<Map<String, dynamic>> fetchOAuthAppleGrantJson({
+    required String idToken,
+    String? givenName,
+    String? familyName,
+  }) async {
+    final body = <String, dynamic>{'idToken': idToken};
+    if ((givenName?.isNotEmpty ?? false) || (familyName?.isNotEmpty ?? false)) {
+      body['fullName'] = <String, dynamic>{
+        if (givenName?.isNotEmpty ?? false) 'givenName': givenName,
+        if (familyName?.isNotEmpty ?? false) 'familyName': familyName,
+      };
+    }
+    final response = await _dio.post<Object>(
+      '/api/oauth/apple',
+      data: body,
+    );
+    final data = response.data;
+    if (data is! Map) {
+      throw const AdminAuthException('Phản hồi đăng nhập Apple không hợp lệ.');
+    }
+    final map = data.cast<String, dynamic>();
+    final err = map['error'] as String?;
+    if (err != null) {
+      final desc = map['error_description'] as String? ?? err;
+      throw AdminAuthException(desc);
+    }
+    final token = map['access_token'];
+    if (token is! String || token.trim().isEmpty) {
+      throw const AdminAuthException('Phản hồi Apple không chứa access_token hợp lệ.');
+    }
+    return map;
+  }
+
   /// `POST /api/oauth/token` (x-www-form-urlencoded).
   Future<String> fetchAccessToken({
     required String username,

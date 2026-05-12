@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'admin_auth_repository.dart';
 import 'app_session_bootstrap.dart';
+import 'apple/apple_sign_in_service.dart';
 import 'auth_service.dart';
 import 'auth_session_controller.dart';
 import 'google/google_sign_in_service.dart';
@@ -23,11 +24,16 @@ final googleSignInServiceProvider = Provider<GoogleSignInService>((ref) {
   return GoogleSignInService();
 });
 
+final appleSignInServiceProvider = Provider<AppleSignInService>((ref) {
+  return AppleSignInService();
+});
+
 final authServiceProvider = Provider<AuthService>((ref) {
   return AuthService(
     ref.watch(adminAuthRepositoryProvider),
     ref.watch(localPersistentSessionStoreProvider),
     ref.watch(googleSignInServiceProvider),
+    ref.watch(appleSignInServiceProvider),
   );
 });
 

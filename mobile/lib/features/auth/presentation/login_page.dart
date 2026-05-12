@@ -7,6 +7,9 @@ import '../../../core/auth/admin_auth_repository.dart';
 import '../../../core/auth/auth_providers.dart';
 import '../../../core/auth/biometric/biometric_login_coordinator.dart';
 import '../../../core/auth/biometric/biometric_providers.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+
+import '../../../core/auth/apple/apple_sign_in_service.dart';
 import '../../../core/auth/google/google_sign_in_service.dart';
 import '../../../core/router/app_routes.dart';
 import '../../../core/router/role_home_navigation.dart';
@@ -111,6 +114,42 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       if (mounted) {
         setState(() {
           _error = dioErrorUserMessage(e) ?? 'Đăng nhập Google thất bại.';
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _onAppleLoginPressed() async {
+    if (_loading) return;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final auth = ref.read(authSessionControllerProvider);
+      final ok = await auth.loginWithApple();
+      if (!mounted) return;
+      if (!ok) {
+        // User cancel Apple sheet — không hiện lỗi.
+        return;
+      }
+      final loai = auth.session!.loai;
+      final home = roleHomeLocationForLoai(loai);
+      if (home == null) {
+        context.go(AppRoute.accessDenied);
+        return;
+      }
+      context.go(home);
+    } on UnsupportedPortalLoaiException {
+      if (mounted) context.go(AppRoute.accessDenied);
+    } on AppleSignInException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = dioErrorUserMessage(e) ?? 'Đăng nhập Apple thất bại.';
         });
       }
     } finally {
@@ -390,6 +429,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                         loading: _loading,
                                         onPressed: _onGoogleLoginPressed,
                                       ),
+                                      _AppleLoginSection(
+                                        loading: _loading,
+                                        onPressed: _onAppleLoginPressed,
+                                      ),
                                     ],
                                   ),
                                 ),
@@ -532,6 +575,35 @@ class _GoogleGlyph extends StatelessWidget {
           height: 1.0,
         ),
       ),
+    );
+  }
+}
+
+class _AppleLoginSection extends ConsumerWidget {
+  const _AppleLoginSection({required this.loading, required this.onPressed});
+
+  final bool loading;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final apple = ref.watch(appleSignInServiceProvider);
+    // Apple Sign-In MVP chỉ hỗ trợ iOS native. Android/web: ẩn nút.
+    if (!apple.isAvailable) return const SizedBox.shrink();
+
+    // Vì Google section đã render OrDivider khi biometric hidden, Apple chỉ cần spacing dưới Google.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: 10),
+        SignInWithAppleButton(
+          onPressed: loading ? () {} : onPressed,
+          height: 48,
+          style: SignInWithAppleButtonStyle.black,
+          borderRadius: BorderRadius.circular(LoginScreenTheme.controlRadius),
+          text: 'Đăng nhập với Apple',
+        ),
+      ],
     );
   }
 }
