@@ -1,4 +1,6 @@
 using System.Text.Json;
+using Httm.XangDau.Api.Features.Auth.Apple;
+using Httm.XangDau.Api.Features.Auth.Apple.Contracts;
 using Httm.XangDau.Api.Features.Auth.Google;
 using Httm.XangDau.Api.Features.Auth.Google.Contracts;
 using Httm.XangDau.Api.Shared.Security.OAuth;
@@ -17,7 +19,8 @@ public sealed class OAuthTokenController(
     ApplicationOAuthProvider oauth,
     OAuthJwtTokenIssuer jwtIssuer,
     IOptions<OAuthServerOptions> oauthOptions,
-    GoogleLoginService googleLogin) : ControllerBase
+    GoogleLoginService googleLogin,
+    AppleLoginService appleLogin) : ControllerBase
 {
     private static readonly JsonSerializerOptions OAuthJson = new()
     {
@@ -52,6 +55,25 @@ public sealed class OAuthTokenController(
             return InvalidGrant("Thiếu idToken.");
 
         var result = await googleLogin.SignInAsync(request.IdToken, cancellationToken).ConfigureAwait(false);
+        return BuildTokenResponse(result);
+    }
+
+    /// <summary>
+    /// Đăng nhập bằng Apple ID token (Sign in with Apple — citizen Loai=5). Auto-create user nếu
+    /// chưa có. Response cùng shape với <c>POST /api/oauth/token</c>. <c>fullName</c> optional —
+    /// Apple chỉ trả ở lần authorize đầu tiên trên client.
+    /// </summary>
+    [HttpPost("apple")]
+    [Consumes("application/json")]
+    [Produces("application/json")]
+    public async Task<IActionResult> Apple([FromBody] AppleLoginRequest request, CancellationToken cancellationToken)
+    {
+        if (request is null || string.IsNullOrWhiteSpace(request.IdToken))
+            return InvalidGrant("Thiếu idToken.");
+
+        var result = await appleLogin
+            .SignInAsync(request.IdToken, request.FullName, cancellationToken)
+            .ConfigureAwait(false);
         return BuildTokenResponse(result);
     }
 

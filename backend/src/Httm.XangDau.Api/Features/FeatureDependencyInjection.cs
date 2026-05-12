@@ -1,5 +1,6 @@
 using Httm.XangDau.Api.Features.Account;
 using Httm.XangDau.Api.Features.Admin;
+using Httm.XangDau.Api.Features.Auth.Apple;
 using Httm.XangDau.Api.Features.Auth.Google;
 using Httm.XangDau.Api.Features.Auth.Registration;
 using Httm.XangDau.Api.Features.BadReports;
@@ -39,6 +40,7 @@ public static class FeatureDependencyInjection
         services.AddAdminFeature();
         services.AddPublicUserRegistration(configuration);
         services.AddGoogleAuth(configuration);
+        services.AddAppleAuth(configuration);
         services.AddStoreAdminFeature();
         services.AddStationRatingsFeature();
         services.AddUserVehiclesFeature();
