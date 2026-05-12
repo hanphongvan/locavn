@@ -1,4 +1,5 @@
 import 'admin_auth_repository.dart';
+import 'apple/apple_sign_in_service.dart';
 import 'auth_session.dart';
 import 'google/google_sign_in_service.dart';
 import 'local_persistent_session_store.dart';
@@ -12,11 +13,14 @@ import '../router/role_home_navigation.dart';
 /// Application auth facade: OAuth2 password grant (`POST /api/oauth/token`) + `GET /api/admin/auth/me`,
 /// same contract as Angular admin (no custom protocol).
 class AuthService {
-  AuthService(this._repository, this._sessionStore, this._googleSignIn);
+  AuthService(this._repository, this._sessionStore, this._googleSignIn, this._appleSignIn);
 
   final AdminAuthRepository _repository;
   final LocalPersistentSessionStore _sessionStore;
   final GoogleSignInService _googleSignIn;
+  final AppleSignInService _appleSignIn;
+
+  AppleSignInService get appleSignIn => _appleSignIn;
 
   /// Same path Angular uses: `{baseUrl}/api/oauth/token` (OAuth “token” endpoint).
   static const String oauthTokenPath = '/api/oauth/token';
@@ -136,6 +140,61 @@ class AuthService {
     final role = mapLoaiToPortalRole(profile.loai);
     if (role == null) {
       await _googleSignIn.signOut();
+      throw UnsupportedPortalLoaiException(profile.loai);
+    }
+    await _sessionStore.saveSession(
+      accessToken: tokenResponse.accessToken,
+      username: profile.userName,
+      donViId: profile.donViId,
+      loai: profile.loai,
+      expiresIn: tokenResponse.expiresIn,
+      displayName: profile.displayName,
+      email: profile.email,
+      portalRole: profile.role,
+      fullSystemScope: profile.fullSystemScope,
+    );
+    final session = AuthSession(
+      accessToken: tokenResponse.accessToken,
+      userName: profile.userName,
+      donViId: profile.donViId,
+      loai: profile.loai,
+      role: role,
+      displayName: profile.displayName,
+      expiresIn: tokenResponse.expiresIn,
+      email: profile.email,
+      portalRole: profile.role,
+      fullSystemScope: profile.fullSystemScope,
+    );
+    return AuthLoginResult(
+      tokenResponse: tokenResponse,
+      profile: profile,
+      session: session,
+    );
+  }
+
+  /// Apple Sign-In flow cho citizen (iOS only). Trả `null` nếu user huỷ Apple sheet.
+  ///
+  /// Throws [AdminAuthException], [AppleSignInException], hoặc [UnsupportedPortalLoaiException].
+  Future<AuthLoginResult?> loginWithApple() async {
+    final AppleSignInResult appleResult;
+    try {
+      appleResult = await _appleSignIn.signIn();
+    } on AppleSignInCancelledException {
+      return null;
+    }
+    final map = await _repository.fetchOAuthAppleGrantJson(
+      idToken: appleResult.idToken,
+      givenName: appleResult.givenName,
+      familyName: appleResult.familyName,
+    );
+    final tokenResponse = OAuthTokenLoginResponse.fromJson(map);
+    final profile = await _resolveProfileAfterToken(
+      accessToken: tokenResponse.accessToken,
+      tokenResponse: tokenResponse,
+      loginUsername: '',
+    );
+    final role = mapLoaiToPortalRole(profile.loai);
+    if (role == null) {
       throw UnsupportedPortalLoaiException(profile.loai);
     }
     await _sessionStore.saveSession(

@@ -50,6 +50,17 @@ class AuthSessionController extends ChangeNotifier {
     return true;
   }
 
+  /// Trả `true` nếu login Apple thành công, `false` nếu user huỷ Apple sheet. Throws khi lỗi.
+  Future<bool> loginWithApple() async {
+    final result = await _authService.loginWithApple();
+    if (result == null) {
+      return false;
+    }
+    _session = result.session;
+    notifyListeners();
+    return true;
+  }
+
   /// Clears secure storage via [AuthService.logout], drops in-memory [AuthSession], then
   /// [notifyListeners] so [GoRouter] (`refreshListenable`) runs [redirect] → `/map` (guest Citizen).
   ///
