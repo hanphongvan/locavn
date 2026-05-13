@@ -326,5 +326,4 @@ Tuân theo pattern `Features/{Domain}/{Contracts,Controllers,Persistence,Service
 | Ngày | Người | Thay đổi |
 |------|-------|----------|
 | 2026-05-13 | Claude | Khởi tạo checklist từ docs/modules/httm/* + 7 decisions D1-D7 |
-| 2026-05-13 | Agent | Hoàn thành §1.1.1: 7 file migration `backend/database/migrations/2026051310000*_Httm*.sql` |
-| 2026-05-13 | Agent | Hoàn thành §1.1.2–§1.1.5: views, SP Phase1, seed catalogs/facilities, AppSystemSettings map |
+| 2026-05-13 | Agent | Git commit `b5ec412`: §1.1.1–§1.1.5 (migrations SQL + cập nhật checklist) |
