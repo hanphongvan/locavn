@@ -1,4 +1,19 @@
-# HTTM – Data Model & Schema
+# HTTM – Data Model & Schema (PostgreSQL — DEPRECATED)
+
+> ⚠️ **FILE NÀY ĐÃ DEPRECATED — chỉ giữ để tham chiếu business rules / enum.**
+>
+> Lý do: project dùng **SQL Server `DMPPortal`** dùng chung toàn dự án, không phải PostgreSQL.
+> Schema thực tế cho SQL Server: 👉 **[`data-model-sqlserver.md`](./data-model-sqlserver.md)**
+> Decision log: [`checklist.md`](./checklist.md) — D1, D2 (2026-05-13).
+>
+> Các phần dưới đây vẫn hữu ích cho:
+> - Tham chiếu **enum values** (`httm_type`, `status`, `image_type`, ...)
+> - Tham chiếu **business constraints** (fill_rate 0–100, expiry warning < 30 ngày, ...)
+> - So sánh khi cần convert spec PostgreSQL → SQL Server cho domain khác.
+
+---
+
+# (Bản gốc PostgreSQL — không implement)
 
 > Schema PostgreSQL cho domain HTTM. Tất cả bảng đều có prefix `httm_` để tránh xung đột với các domain khác.
 
