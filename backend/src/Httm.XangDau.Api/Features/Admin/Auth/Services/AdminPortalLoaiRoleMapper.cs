@@ -14,7 +14,19 @@ public static class AdminPortalLoaiRoleMapper
     /// <summary>Self-registered / general portal user (mobile consumer shell; no admin RBAC).</summary>
     public const int LoaiPortalUser = 5;
 
+    /// <summary>Reserved HTTM domain — checklist docs/modules/httm.</summary>
+    public const int LoaiHttmAdmin = 10;
+
+    public const int LoaiBctStaff = 11;
+    public const int LoaiSoStaff = 12;
+    public const int LoaiUnitUser = 13;
+
     public const string PortalUser = "PORTAL_USER";
+
+    public const string HttmAdmin = "HTTM_ADMIN";
+    public const string BctStaff = "BCT_STAFF";
+    public const string SoStaff = "SO_STAFF";
+    public const string UnitUser = "UNIT_USER";
 
     public static string? MapRole(int? loai) =>
         loai switch
@@ -23,8 +35,21 @@ public static class AdminPortalLoaiRoleMapper
             LoaiTrader => Trader,
             LoaiStore => Store,
             LoaiPortalUser => PortalUser,
+            LoaiHttmAdmin => HttmAdmin,
+            LoaiBctStaff => BctStaff,
+            LoaiSoStaff => SoStaff,
+            LoaiUnitUser => UnitUser,
             _ => null,
         };
 
     public static bool IsFullSystemScope(int? loai) => loai == LoaiAdmin;
+
+    /// <summary>Toàn quốc cho nghiệp vụ HTTM (đọc dữ liệu nhạy cảm, không giới hạn tỉnh).</summary>
+    public static bool IsHttmNationalScope(int? loai) =>
+        loai is LoaiAdmin or LoaiHttmAdmin or LoaiBctStaff;
+
+    /// <summary>Được gọi API quản lý HTTM (đọc/ghi theo policy từng endpoint).</summary>
+    public static bool CanUseHttmModule(int? loai, bool isMachineFullAccess) =>
+        isMachineFullAccess
+        || loai is LoaiAdmin or LoaiHttmAdmin or LoaiBctStaff or LoaiSoStaff;
 }

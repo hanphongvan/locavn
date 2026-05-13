@@ -1,5 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using Httm.XangDau.Api.Features.Admin.Auth.Services;
 using Httm.XangDau.Api.Features.Auth.Registration;
 using Httm.XangDau.Api.Shared.Persistence;
 using Httm.XangDau.Api.Shared.Persistence.Entities;
@@ -216,6 +217,12 @@ public sealed class ApplicationOAuthProvider(
 
         foreach (var role in roles)
             claims.Add(new Claim(ClaimTypes.Role, role));
+
+        var mappedLoaiRole = AdminPortalLoaiRoleMapper.MapRole(user.Loai);
+        if (!string.IsNullOrEmpty(mappedLoaiRole) && !roles.Contains(mappedLoaiRole, StringComparer.Ordinal))
+        {
+            claims.Add(new Claim(ClaimTypes.Role, mappedLoaiRole));
+        }
 
         var extra = await db.AspNetUserClaims.AsNoTracking()
             .Where(c => c.UserId == user.Id && c.ClaimType != null && c.ClaimValue != null)

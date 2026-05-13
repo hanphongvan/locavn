@@ -92,46 +92,45 @@ Naming convention: `YYYYMMDDHHMMSS_HttmXxx.sql` (theo pattern hiện tại).
 Tuân theo pattern `Features/{Domain}/{Contracts,Controllers,Persistence,Services}/`.
 
 #### 1.2.1 Cấu trúc folder
-- [ ] Tạo `Features/Httm/` + `HttmDependencyInjection.cs`
-- [ ] Subfolder: `Controllers/`, `Services/`, `Persistence/` (Repositories + SQL helper), `Contracts/` (DTOs + requests + responses), `Validators/`, `Authorization/`
+- [x] Tạo `Features/Httm/` + `HttmDependencyInjection.cs` · 2026-05-13
+- [x] Subfolder: `Controllers/`, `Services/`, `Persistence/`, `Contracts/`, `Validators/`, `Authorization/` (`.gitkeep`) · 2026-05-13
 
 #### 1.2.2 DTOs & Contracts (`Contracts/`)
-- [ ] `HttmFacilityDto.cs` — full record
-- [ ] `HttmFacilityListItemDto.cs` — light cho list/search
-- [ ] `HttmFacilityCreateRequest.cs`
-- [ ] `HttmFacilityUpdateRequest.cs` — partial (nullable fields)
-- [ ] `HttmFacilitySearchQuery.cs` — query params
-- [ ] `HttmMapFeatureDto.cs` — GeoJSON Feature
-- [ ] `HttmMapFeatureCollectionResponse.cs`
-- [ ] `HttmFacilityImageDto.cs`, `HttmFacilityLicenseDto.cs`
-- [ ] `HttmAuditLogDto.cs`
-- [ ] `HttmCatalogItemDto.cs`
+- [x] `HttmFacilityDto.cs` — full record (trong `HttmFacilityDtos.cs`) · 2026-05-13
+- [x] `HttmFacilityListItemDto.cs` · 2026-05-13
+- [x] `HttmFacilityCreateRequest.cs` · 2026-05-13
+- [x] `HttmFacilityUpdateRequest.cs` — partial + `ClearLocation` · 2026-05-13
+- [x] `HttmFacilitySearchQuery.cs` · 2026-05-13
+- [x] `HttmMapDtos.cs` — `HttmMapPointGeometryDto`, `HttmMapFeatureDto`, `HttmMapFeaturePropertiesDto`, `HttmMapFeatureCollectionResponse` · 2026-05-13
+- [x] `HttmFacilityImageDto.cs`, `HttmFacilityLicenseDto.cs` · 2026-05-13
+- [x] `HttmAuditLogDto.cs` · 2026-05-13
+- [x] `HttmCatalogItemDto.cs` · 2026-05-13
 
 #### 1.2.3 Validators (`Validators/`) — FluentValidation
-- [ ] `HttmFacilityCreateValidator.cs` — required: name, httm_type, province_code, status
-- [ ] `HttmFacilityUpdateValidator.cs`
-- [ ] `HttmFacilityImageUploadValidator.cs` — file ≤ 10MB, ext `jpg|jpeg|png|webp`
+- [x] `HttmFacilityCreateValidator.cs` — required: name, httm_type, province_code, status · 2026-05-13
+- [x] `HttmFacilityUpdateValidator.cs` · 2026-05-13
+- [x] `HttmFacilityImageUploadValidator.cs` — file ≤ 10MB, ext `jpg|jpeg|png|webp` · 2026-05-13
 
 #### 1.2.4 Repositories (`Persistence/`)
-- [ ] `IHttmFacilityRepository.cs` + `HttmFacilityRepository.cs` (Dapper, gọi SP)
-- [ ] `IHttmCatalogRepository.cs` + `HttmCatalogRepository.cs`
-- [ ] `IHttmAuditLogRepository.cs` + `HttmAuditLogRepository.cs`
+- [x] `IHttmFacilityRepository.cs` + `HttmFacilityRepository.cs` (Dapper, gọi SP) · 2026-05-13
+- [x] `IHttmCatalogRepository.cs` + `HttmCatalogRepository.cs` · 2026-05-13
+- [x] `IHttmAuditLogRepository.cs` + `HttmAuditLogRepository.cs` · 2026-05-13
 
 #### 1.2.5 Services (`Services/`)
-- [ ] `HttmFacilityService.cs` — orchestrate repo + audit + sensitive filter
-- [ ] `HttmAuditService.cs` — wrapper ghi audit, capture `ip_address`, `user_agent`
-- [ ] `HttmGeoScopeService.cs` — check `user.province_codes[] ⊇ facility.province_code`, raise `SCOPE_VIOLATION`
-- [ ] `HttmSensitiveFieldFilter.cs` — strip `avg_rent_price`, `annual_revenue` cho non-BCT/non-ADMIN/non-HTTM_ADMIN
-- [ ] `HttmMapDataService.cs` — bounds parse + clamp 2000 features
-- [ ] `IHttmImageStorage.cs` — abstraction (MinIO/local), Phase 1 dùng local `/wwwroot/uploads/httm/`
+- [x] `HttmFacilityService.cs` — orchestrate repo + audit + sensitive filter · 2026-05-13
+- [-] `HttmAuditService.cs` — không tách class; ghi audit + IP/UA trong `HttmFacilityService` qua `IHttmAuditLogRepository` · 2026-05-13
+- [x] `HttmGeoScopeService.cs` — static helpers + claim `httm_province_codes` (không raise attribute; service trả 403) · 2026-05-13
+- [-] `HttmSensitiveFieldFilter.cs` — không tách; strip trong `GetById`/`Search` mapping trong service · 2026-05-13
+- [-] `HttmMapDataService.cs` — không tách; map-data trong `HttmFacilityService` + SP `sp_Httm_Facility_GetMapData` · 2026-05-13
+- [x] `IHttmImageStorage.cs` + `LocalHttmImageStorage` — `/wwwroot/uploads/httm/` · 2026-05-13
 
 #### 1.2.6 Controllers (`Controllers/`)
-- [ ] `HttmFacilityController.cs` — `/api/httm/*` (CRUD, map-data, images, licenses, audit-logs)
-- [ ] `HttmCatalogController.cs` — `/api/catalogs/{type}` (read-only Phase 1)
-- [ ] Update `Geography` feature: kiểm tra có sẵn endpoint `provinces/districts/wards` chưa, nếu chưa thì thêm
+- [x] `HttmFacilityController.cs` — `/api/httm/*` (CRUD, map-data, images, licenses, audit-logs) · 2026-05-13
+- [x] `HttmCatalogController.cs` — `/api/catalogs/{type}` + provinces/districts/wards (ủy quyền `IGeographyReadService`) · 2026-05-13
+- [x] `Geography`: đã có `api/geography/...` (`GeographyController`); catalog mirror tại `api/catalogs/...` · 2026-05-13
 
 #### 1.2.7 Authorization (`Authorization/`)
-- [ ] Mở rộng `AdminPortalLoaiRoleMapper.cs`:
+- [x] Mở rộng `AdminPortalLoaiRoleMapper.cs`:
   ```csharp
   public const int LoaiHttmAdmin = 10;
   public const int LoaiBctStaff = 11;
@@ -143,34 +142,34 @@ Tuân theo pattern `Features/{Domain}/{Contracts,Controllers,Persistence,Service
   public const string UnitUser = "UNIT_USER";
   ```
   + cập nhật `MapRole()` và `IsFullSystemScope()` (Loai 1, 10 đều full HTTM scope; Loai 1 thêm Fuel)
-- [ ] `[HttmGeoScopeAttribute]` filter — đọc `province_code` từ route/body, so với claim `province_codes`
-- [ ] `[HttmSensitivePolicy]` — đính kèm DTO mapper, xoá field nhạy cảm trước khi serialize
-- [ ] Policy DI: `policy.RequireRole("ADMIN","HTTM_ADMIN","BCT_STAFF")` cho sensitive endpoints
+- [-] `[HttmGeoScopeAttribute]` — chưa tách filter MVC; kiểm tra phạm vi trong `HttmFacilityService` · 2026-05-13
+- [-] `[HttmSensitivePolicy]` — chưa; strip field nhạy cảm trong service/repo · 2026-05-13
+- [-] Policy DI ASP.NET riêng — chưa; phân quyền theo `Loai` + claims trong service · 2026-05-13
 
 #### 1.2.8 Endpoints Phase 1
-- [ ] `GET /api/httm` — search + filter + paging
-- [ ] `POST /api/httm` — create (SO_STAFF+ trong tỉnh, HTTM_ADMIN+)
-- [ ] `GET /api/httm/{id}` — detail (auto filter sensitive)
-- [ ] `PUT /api/httm/{id}` — full update
-- [ ] `PATCH /api/httm/{id}` — partial update (1 tab)
-- [ ] `DELETE /api/httm/{id}` — ADMIN/HTTM_ADMIN only
-- [ ] `GET /api/httm/map-data?bounds=...&types=...&province_code=...`
-- [ ] `POST /api/httm/{id}/images` — multipart
-- [ ] `DELETE /api/httm/{id}/images/{imgId}`
-- [ ] `GET /api/httm/{id}/licenses`
-- [ ] `POST /api/httm/{id}/licenses`
-- [ ] `PUT /api/httm/{id}/licenses/{lid}`
-- [ ] `DELETE /api/httm/{id}/licenses/{lid}`
-- [ ] `GET /api/httm/{id}/audit-logs?page=&limit=`
-- [ ] `GET /api/catalogs/{type}` — `httm_types|building_quality|...`
-- [ ] `GET /api/catalogs/provinces` (nếu chưa có)
-- [ ] `GET /api/catalogs/districts?province_code=`
-- [ ] `GET /api/catalogs/wards?district_code=`
+- [x] `GET /api/httm` — search + filter + paging · 2026-05-13
+- [x] `POST /api/httm` — create (SO_STAFF+ trong tỉnh, HTTM_ADMIN+) · 2026-05-13
+- [x] `GET /api/httm/{id}` — detail (auto filter sensitive) · 2026-05-13
+- [x] `PUT /api/httm/{id}` — full update · 2026-05-13
+- [x] `PATCH /api/httm/{id}` — partial update (1 tab) · 2026-05-13
+- [x] `DELETE /api/httm/{id}` — ADMIN/HTTM_ADMIN only · 2026-05-13
+- [x] `GET /api/httm/map-data` — query `west,south,east,north` + `types`, `provinceCode`, `maxRows` · 2026-05-13
+- [x] `POST /api/httm/{id}/images` — multipart · 2026-05-13
+- [x] `DELETE /api/httm/{id}/images/{imgId}` · 2026-05-13
+- [x] `GET /api/httm/{id}/licenses` · 2026-05-13
+- [x] `POST /api/httm/{id}/licenses` · 2026-05-13
+- [x] `PUT /api/httm/{id}/licenses/{lid}` · 2026-05-13
+- [x] `DELETE /api/httm/{id}/licenses/{lid}` · 2026-05-13
+- [x] `GET /api/httm/{id}/audit-logs` — query `page`, `pageSize` · 2026-05-13
+- [x] `GET /api/catalogs/{type}` — `httm_types|building_quality|...` · 2026-05-13
+- [x] `GET /api/catalogs/provinces` · 2026-05-13
+- [x] `GET /api/catalogs/districts?province_code=` · 2026-05-13
+- [x] `GET /api/catalogs/wards?district_code=` · 2026-05-13
 
 #### 1.2.9 DI & Swagger
-- [ ] `HttmDependencyInjection.cs` — `AddHttmFeature()` đăng ký toàn bộ
-- [ ] Gọi `AddHttmFeature()` trong `FeatureDependencyInjection.cs`
-- [ ] Cập nhật OpenAPI tags + xmldoc cho mọi action
+- [x] `HttmDependencyInjection.cs` — `AddHttmFeature()` đăng ký repos, `IHttmFacilityService`, `IHttmImageStorage`, FluentValidation · 2026-05-13
+- [x] Gọi `AddHttmFeature()` trong `FeatureDependencyInjection.cs` · 2026-05-13
+- [ ] Cập nhật OpenAPI tags + xmldoc cho mọi action (Tags trên controller có; xmldoc chi tiết từng action chưa đầy)
 
 ---
 
@@ -327,3 +326,4 @@ Tuân theo pattern `Features/{Domain}/{Contracts,Controllers,Persistence,Service
 |------|-------|----------|
 | 2026-05-13 | Claude | Khởi tạo checklist từ docs/modules/httm/* + 7 decisions D1-D7 |
 | 2026-05-13 | Agent | Git commit `b5ec412`: §1.1.1–§1.1.5 (migrations SQL + cập nhật checklist) |
+| 2026-05-13 | Agent | §1.2.2 Contracts HTTM (`Features/Httm/Contracts/*.cs`) |
