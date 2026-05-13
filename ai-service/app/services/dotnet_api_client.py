@@ -60,7 +60,11 @@ class DotnetApiClient:
     Timeout 10s/SP call (Section 5.2 tool 15s — buffer 5s cho mạng + .NET serialize).
     """
 
-    SP_TIMEOUT = 10.0
+    # Phase 5J — tăng từ 10s lên 30s (đồng bộ với ai_dynamic_query_timeout_seconds
+    # Phase 5H ở config.py:82). SP wholesale có CTE + JOIN 4 bảng, plan cache lần
+    # đầu mất 10-15s với prod data. 30s là buffer cho cold cache; sau khi warm
+    # query xuống <2s.
+    SP_TIMEOUT = 30.0
     LOG_TIMEOUT = 3.0
     INTERNAL_KEY_HEADER = "X-Internal-Key"
 
@@ -614,13 +618,35 @@ class DotnetApiClient:
         url = f"{self._base_url}{path}"
         headers = {self.INTERNAL_KEY_HEADER: self._internal_key}
 
+        _logger.debug(
+            "dotnet_api.sp_request_payload",
+            path=path,
+            params=params,
+            timeout=self.SP_TIMEOUT,
+        )
+
         last_error: Exception | None = None
         for attempt in range(2):  # 1 lần đầu + 1 retry khi timeout (yêu cầu 3).
             try:
+                started = asyncio.get_event_loop().time()
                 async with httpx.AsyncClient(timeout=self.SP_TIMEOUT) as client:
                     response = await client.post(url, json=params, headers=headers)
                 response.raise_for_status()
-                return response.json()
+                body = response.json()
+                duration_ms = int((asyncio.get_event_loop().time() - started) * 1000)
+                _logger.debug(
+                    "dotnet_api.sp_response_ok",
+                    path=path,
+                    attempt=attempt + 1,
+                    status=response.status_code,
+                    duration_ms=duration_ms,
+                    row_count=(
+                        body.get("count")
+                        if isinstance(body, dict) and "count" in body
+                        else (len(body.get("rows", [])) if isinstance(body, dict) else None)
+                    ),
+                )
+                return body
             except httpx.TimeoutException as ex:
                 last_error = ex
                 _logger.warning(
