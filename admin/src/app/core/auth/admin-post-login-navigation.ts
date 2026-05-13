@@ -1,5 +1,5 @@
 import type { PortalRole } from './portal-loai-role';
-import { portalRoleToDashboardSegment } from './portal-loai-role';
+import { isHttmPortalRole, portalRoleToDashboardSegment } from './portal-loai-role';
 
 /**
  * Landing path from backend-confirmed {@link PortalRole} (derived only from `Loai` on `/api/admin/auth/me`).
@@ -9,7 +9,14 @@ export function buildRoleLandingPathFromPortalRole(role: PortalRole | null): str
   if (!role) {
     return '/access-denied';
   }
-  return `/dashboard/${portalRoleToDashboardSegment(role)}`;
+  if (isHttmPortalRole(role)) {
+    return '/httm';
+  }
+  const seg = portalRoleToDashboardSegment(role);
+  if (!seg) {
+    return '/access-denied';
+  }
+  return `/dashboard/${seg}`;
 }
 
 /**
@@ -23,7 +30,6 @@ export function resolvePostLoginNavigationUrl(options: {
   if (roleLanding === '/access-denied') {
     return roleLanding;
   }
-  const mySeg = portalRoleToDashboardSegment(options.portalRole!);
   const raw = options.returnUrl?.trim();
   const safe =
     raw && raw.startsWith('/') && !raw.startsWith('//') && !raw.includes('://') ? raw : null;
@@ -33,8 +39,20 @@ export function resolvePostLoginNavigationUrl(options: {
   }
 
   if (safe.startsWith('/dashboard')) {
-    const prefix = `/dashboard/${mySeg}`;
+    const seg = portalRoleToDashboardSegment(options.portalRole!);
+    if (!seg) {
+      return roleLanding;
+    }
+    const prefix = `/dashboard/${seg}`;
     if (safe === prefix || safe.startsWith(`${prefix}/`)) {
+      return safe;
+    }
+    return roleLanding;
+  }
+
+  if (safe.startsWith('/httm')) {
+    const role = options.portalRole;
+    if (role === 'ADMIN' || isHttmPortalRole(role)) {
       return safe;
     }
     return roleLanding;

@@ -1,0 +1,62 @@
+<div class="stack">
+  <app-page-header title="Thêm hồ sơ HTTM">
+    <p appPageHeaderDesc>Nhập các trường bắt buộc; có thể bổ sung chi tiết sau tại trang chi tiết.</p>
+  </app-page-header>
+
+  @if (errorMessage(); as err) {
+    <div class="banner banner--error" role="alert">{{ err }}</div>
+  }
+
+  <app-section-card title="Thông tin cơ bản">
+    <form class="filters" [formGroup]="form" (ngSubmit)="submit()">
+      <div class="form-grid form-grid--2">
+        <div class="form-field form-field--full">
+          <label class="form-label" for="c-name">Tên cơ sở *</label>
+          <input id="c-name" class="form-control" formControlName="name" />
+          @if (form.controls.name.invalid && form.controls.name.touched) {
+            <span class="field-error">Bắt buộc, tối đa 500 ký tự.</span>
+          }
+        </div>
+        <div class="form-field">
+          <label class="form-label" for="c-type">Loại *</label>
+          <select id="c-type" class="form-control" formControlName="httmType">
+            <option value="" disabled>Chọn</option>
+            @for (t of typeItems(); track t.id) {
+              <option [value]="t.code">{{ t.name }}</option>
+            }
+          </select>
+        </div>
+        <div class="form-field">
+          <label class="form-label" for="c-st">Trạng thái *</label>
+          <select id="c-st" class="form-control" formControlName="status">
+            <option value="" disabled>Chọn</option>
+            @for (s of statusItems(); track s.id) {
+              <option [value]="s.code">{{ s.name }}</option>
+            }
+          </select>
+        </div>
+        <div class="form-field">
+          <label class="form-label" for="c-pc">Tỉnh / TP *</label>
+          <select id="c-pc" class="form-control" formControlName="provinceCode">
+            <option value="" disabled>Chọn</option>
+            @for (p of provinces(); track p.code) {
+              <option [value]="p.code">{{ p.name }}</option>
+            }
+          </select>
+        </div>
+        <div class="form-field form-field--full">
+          <label class="form-label" for="c-addr">Địa chỉ chi tiết</label>
+          <input id="c-addr" class="form-control" formControlName="addressDetail" />
+        </div>
+        <div class="form-field form-field--full">
+          <label class="form-label" for="c-notes">Ghi chú</label>
+          <textarea id="c-notes" class="form-control" rows="3" formControlName="notes"></textarea>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button type="submit" class="btn btn--primary" [disabled]="saving()">Lưu</button>
+        <a routerLink="/httm" class="btn btn--secondary">Huỷ</a>
+      </div>
+    </form>
+  </app-section-card>
+</div>

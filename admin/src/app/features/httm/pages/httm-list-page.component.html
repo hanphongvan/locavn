@@ -1,0 +1,115 @@
+<div class="stack">
+  <app-page-header title="Hồ sơ HTTM">
+    <p appPageHeaderDesc>
+      Cơ sở hạ tầng thương mại — tìm kiếm, lọc theo tỉnh/loại/trạng thái.
+      <a routerLink="/httm/map" class="link-inline">Mở bản đồ</a>
+    </p>
+  </app-page-header>
+
+  @if (errorMessage(); as err) {
+    <div class="banner banner--error" role="alert">{{ err }}</div>
+  }
+
+  <app-httm-filter-bar>
+    <form class="filters" [formGroup]="filterForm" (ngSubmit)="applyFilters()">
+      <div class="form-grid form-grid--2">
+        <div class="form-field">
+          <label class="form-label" for="httm-q">Từ khóa</label>
+          <input id="httm-q" class="form-control" type="search" formControlName="q" autocomplete="off" />
+        </div>
+        <div class="form-field">
+          <label class="form-label" for="httm-type">Loại cơ sở</label>
+          <select id="httm-type" class="form-control" formControlName="httmType">
+            <option value="">Tất cả</option>
+            @for (t of typeItems(); track t.id) {
+              <option [value]="t.code">{{ t.name }}</option>
+            }
+          </select>
+        </div>
+        <div class="form-field">
+          <label class="form-label" for="httm-prov">Tỉnh / TP</label>
+          <select id="httm-prov" class="form-control" formControlName="provinceCode">
+            <option value="">Tất cả</option>
+            @for (p of provinces(); track p.code) {
+              <option [value]="p.code">{{ p.name }}</option>
+            }
+          </select>
+        </div>
+        <div class="form-field">
+          <label class="form-label" for="httm-st">Trạng thái</label>
+          <select id="httm-st" class="form-control" formControlName="status">
+            <option value="">Tất cả</option>
+            @for (s of statusItems(); track s.id) {
+              <option [value]="s.code">{{ s.name }}</option>
+            }
+          </select>
+        </div>
+      </div>
+      <div class="btn-row filters__actions">
+        <button type="submit" class="btn btn--primary" [disabled]="loading()">Áp dụng</button>
+        <button type="button" class="btn btn--secondary" (click)="clearFilters()">Xóa lọc</button>
+        @if (canOpenCreate()) {
+          <a routerLink="/httm/new" class="btn btn--primary">Thêm hồ sơ</a>
+        }
+      </div>
+    </form>
+  </app-httm-filter-bar>
+
+  <app-section-card title="Danh sách">
+    <div appSectionCardActions class="list-header__meta">
+      <span class="muted">Tổng {{ totalCount() }} — trang {{ page() }} / {{ totalPages() }}</span>
+      <div class="btn-row">
+        <button type="button" class="btn btn--secondary" [disabled]="loading() || page() <= 1" (click)="setPage(page() - 1)">
+          Trước
+        </button>
+        <button
+          type="button"
+          class="btn btn--secondary"
+          [disabled]="loading() || page() >= totalPages()"
+          (click)="setPage(page() + 1)"
+        >
+          Sau
+        </button>
+      </div>
+    </div>
+
+    @if (loading()) {
+      <p class="muted">Đang tải…</p>
+    } @else if (items().length === 0) {
+      <p class="muted">Không có bản ghi.</p>
+    } @else {
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Tên</th>
+              <th>Loại</th>
+              <th>Tỉnh</th>
+              <th>Trạng thái</th>
+              <th>Cập nhật</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of items(); track row.id) {
+              <tr>
+                <td>{{ row.name }}</td>
+                <td>
+                  <app-httm-type-badge [code]="row.httmType" [label]="typeName(row.httmType)" />
+                </td>
+                <td>{{ row.provinceCode }}</td>
+                <td>
+                  <app-httm-status-badge [code]="row.status" [label]="statusName(row.status)" />
+                </td>
+                <td>{{ row.updatedAt | date: 'short' }}</td>
+                <td>
+                  <a [routerLink]="['/httm', row.id]" class="btn btn--text">Chi tiết</a>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </app-section-card>
+</div>

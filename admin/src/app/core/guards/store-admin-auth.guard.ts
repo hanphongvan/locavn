@@ -7,7 +7,7 @@ import { AdminAuthService } from '../auth/admin-auth.service';
 
 /**
  * Protects the admin shell: requires a stored OAuth access token **and** a successful
- * `GET /api/admin/auth/me` with `Loai` in {1, 3, 4} (portal role from backend).
+ * `GET /api/admin/auth/me` with `Loai` hợp lệ cho SPA (Fuel 1,3,4; HTTM 10,11,12).
  */
 export const storeAdminAuthGuard: CanActivateFn = (_route, state) => {
   const auth = inject(AdminAuthService);

@@ -1,15 +1,22 @@
 import type { Routes } from '@angular/router';
 
-import { ADMIN_PORTAL_ROLES_ONLY, RETAIL_PORTAL_ROLES } from '../../core/auth/portal-route-roles.config';
+import { ADMIN_PORTAL_ROLES_ONLY, HTTM_PORTAL_ROLES, RETAIL_PORTAL_ROLES } from '../../core/auth/portal-route-roles.config';
 import { portalRoleGuard } from '../../core/guards/portal-role.guard';
 
 const retailData = { portalRoles: RETAIL_PORTAL_ROLES };
+const httmData = { portalRoles: HTTM_PORTAL_ROLES };
 const fuelCatalogAdminData = { portalRoles: ADMIN_PORTAL_ROLES_ONLY };
 /** `/inventory-map` — chỉ Admin (`Loai === 1`); đồng bộ mục sidebar `Bản đồ tồn kho`. */
 const inventoryMapAdminData = { portalRoles: ADMIN_PORTAL_ROLES_ONLY };
 
 /** Store / inventory / pricing: all portal roles; fuel product CRUD UI is ADMIN-only (GET still used from hubs). */
 export const RETAIL_SHELL_ROUTES: Routes = [
+  {
+    path: 'httm',
+    canActivate: [portalRoleGuard],
+    data: httmData,
+    loadChildren: () => import('../httm/httm.routes').then((m) => m.HTTM_ROUTES),
+  },
   {
     path: 'stores',
     canActivate: [portalRoleGuard],

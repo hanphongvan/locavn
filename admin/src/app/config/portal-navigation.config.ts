@@ -1,8 +1,13 @@
-import { ADMIN_PORTAL_ROLES_ONLY, ALL_PORTAL_ROLES, RETAIL_PORTAL_ROLES } from '../core/auth/portal-route-roles.config';
+import {
+  ADMIN_PORTAL_ROLES_ONLY,
+  ALL_PORTAL_ROLES,
+  HTTM_PORTAL_ROLES,
+  RETAIL_PORTAL_ROLES,
+} from '../core/auth/portal-route-roles.config';
 import type { PortalRole } from '../core/auth/portal-loai-role';
 
 /**
- * ## Single app — three scopes (Loai → ADMIN | TRADER | STORE)
+ * ## Single app — portal roles (`Loai` → Fuel + HTTM)
  *
  * **Route access (authoritative):** guards + `Route.data.portalRoles`.
  *
@@ -48,6 +53,15 @@ export const SHELL_NAV_MENU_GROUPS: readonly ShellNavMenuGroup[] = [
       { path: '/inventory-current', label: 'Tồn kho', icon: 'warehouse', roles: RETAIL_PORTAL_ROLES },
       /* Bản đồ tồn kho: chỉ Admin — `Loai === 1` → `PortalRole.ADMIN` (khớp `retail.routes` + `portalRoleGuard`). */
       { path: '/inventory-map', label: 'Bản đồ tồn kho', icon: 'map', roles: ADMIN_PORTAL_ROLES_ONLY },
+    ],
+  },
+  {
+    id: 'httm',
+    title: 'Hạ tầng thương mại',
+    roles: HTTM_PORTAL_ROLES,
+    items: [
+      { path: '/httm', label: 'Hồ sơ HTTM', icon: 'store_mall_directory', roles: HTTM_PORTAL_ROLES },
+      { path: '/httm/map', label: 'Bản đồ HTTM', icon: 'map', roles: HTTM_PORTAL_ROLES },
     ],
   },
   {

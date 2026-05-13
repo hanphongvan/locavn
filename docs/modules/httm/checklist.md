@@ -176,48 +176,42 @@ Tuân theo pattern `Features/{Domain}/{Contracts,Controllers,Persistence,Service
 ### 1.3 Admin Angular — `admin/src/app/features/httm/`
 
 #### 1.3.1 Cấu trúc
-- [ ] Tạo `features/httm/` + `httm.routes.ts`
-- [ ] Mount vào `shell.routes.ts`: `path: 'httm'`
-- [ ] Lazy-load module
+- [x] Tạo `features/httm/` + `httm.routes.ts` · 2026-05-13
+- [x] Mount lazy route `path: 'httm'` trong `retail.routes.ts` (cùng shell đã đăng nhập) · 2026-05-13
+- [x] Lazy-load `HTTM_ROUTES` + `HttmShellComponent` · 2026-05-13
 
 #### 1.3.2 Models & Services
-- [ ] `models/httm-facility.model.ts`
-- [ ] `models/httm-map.model.ts` (GeoJSON types)
-- [ ] `services/httm-facility.service.ts` — full CRUD
-- [ ] `services/httm-catalog.service.ts`
-- [ ] `services/httm-map.service.ts` — provider switch (Goong/OSM) từ `system_configs`
+- [x] `models/httm-facility.model.ts` · 2026-05-13
+- [x] `models/httm-map.model.ts` (GeoJSON types) · 2026-05-13
+- [x] `services/httm-facility.service.ts` — CRUD, map-data, audit, licenses, upload ảnh · 2026-05-13
+- [x] `services/httm-catalog.service.ts` · 2026-05-13
+- [-] `services/httm-map.service.ts` — OSM/Goong tại client; chưa đọc `AppSystemSettings` (Goong preview dùng nền Carto) · 2026-05-13
 
 #### 1.3.3 Guards & Interceptors
-- [ ] `guards/httm-scope.guard.ts` — kiểm role + province trước khi cho vào route
-- [ ] Interceptor handle `SCOPE_VIOLATION` → toast tiếng Việt
+- [x] `guards/httm-scope.guard.ts` — `HTTM_PORTAL_ROLES` · 2026-05-13
+- [x] `httm-scope-feedback.interceptor.ts` — 403 `/api/httm` + `MatSnackBar` · 2026-05-13
 
 #### 1.3.4 Pages
-- [ ] `pages/httm-list/` (S3.1) — table + filter bar + map toggle button
-- [ ] `pages/httm-detail/` (S3.2) — 7 tabs:
-  - [ ] Tab 1: Thông tin chung
-  - [ ] Tab 2: Vị trí địa lý (map picker)
-  - [ ] Tab 3: Hạ tầng & quy mô
-  - [ ] Tab 4: Kinh doanh (hide sensitive nếu non-BCT)
-  - [ ] Tab 5: Pháp lý & giấy phép
-  - [ ] Tab 6: Hình ảnh (gallery + upload)
-  - [ ] Tab 7: Lịch sử thay đổi (audit log)
-- [ ] `pages/httm-create/` — wizard hoặc single form
-- [ ] `pages/httm-map/` (S4.1) — full map view
+- [x] `pages/httm-list-page` — bảng + lọc + link bản đồ · 2026-05-13
+- [x] `pages/httm-detail-page` — 7 tab (tab 2 chưa map picker; tab 6 gallery placeholder + upload) · 2026-05-13
+  - [x] Tab 1–7 MVP · 2026-05-13
+- [x] `pages/httm-create-page` — form đơn · 2026-05-13
+- [x] `pages/httm-map-page` — Leaflet + API + nhãn Hoàng Sa/Trường Sa · 2026-05-13
 
 #### 1.3.5 Shared components
-- [ ] `components/httm-filter-bar/` — tái dùng list + map
-- [ ] `components/httm-map/` — wrapper Leaflet/Goong, provider-aware
-- [ ] `components/httm-image-gallery/` — lightbox
-- [ ] `components/httm-license-card/` — badge expiry warning
-- [ ] `components/httm-type-badge/`, `httm-status-badge/`
-- [ ] `components/httm-province-picker/` — cascade tỉnh/huyện/xã
+- [x] `components/httm-filter-bar` — bọc `FilterPanel` · 2026-05-13
+- [-] `components/httm-map` — chưa tách; logic trong `httm-map-page` · 2026-05-13
+- [-] `components/httm-image-gallery` — placeholder (chưa API list ảnh) · 2026-05-13
+- [x] `components/httm-license-card` · 2026-05-13
+- [x] `components/httm-type-badge`, `httm-status-badge` · 2026-05-13
+- [-] `components/httm-province-picker` — chưa; select tỉnh đơn · 2026-05-13
 
 #### 1.3.6 Map provider compliance
-- [ ] **Verify Hoàng Sa/Trường Sa labels** trên cả 2 provider (Goong + OSM tile) — blocking, theo memory `compliance_map_provider`
-- [ ] Document tile URL final ở `docs/architecture/map-providers.md`
+- [x] Nhãn Hoàng Sa / Trường Sa trên bản đồ HTTM (`mountSeaIslandGeoLabels`, nền OSM/Carto) · 2026-05-13
+- [ ] `docs/architecture/map-providers.md` — chưa tạo
 
 #### 1.3.7 i18n
-- [ ] Vietnamese labels — không hardcode tiếng Anh trong template
+- [x] Nhãn UI tiếng Việt chủ đạo; mã API/catalog giữ theo backend · 2026-05-13
 
 ---
 
