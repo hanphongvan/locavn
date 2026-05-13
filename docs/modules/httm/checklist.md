@@ -51,43 +51,39 @@
 Naming convention: `YYYYMMDDHHMMSS_HttmXxx.sql` (theo pattern hiện tại).
 
 #### 1.1.1 Bảng & Index
-- [ ] `*_HttmFacilities_Create.sql` — bảng chính + index (province, type, status, GEOGRAPHY spatial)
-- [ ] `*_HttmFacilityProducts_Create.sql` — N-N mặt hàng KD
-- [ ] `*_HttmFacilityImages_Create.sql` — gallery
-- [ ] `*_HttmFacilityLicenses_Create.sql` — giấy phép pháp lý + trigger cảnh báo expiry
-- [ ] `*_HttmAuditLogs_Create.sql` — nhật ký thay đổi
-- [ ] `*_HttmCatalogs_Create.sql` — danh mục hệ thống
-- [ ] `*_HttmFullTextIndex.sql` — FULLTEXT INDEX trên `Name` (thay thế GIN của PostgreSQL)
+- [x] `20260513100000_HttmFacilities_Create.sql` — bảng chính + index (province, type, status, GEOGRAPHY spatial) · 2026-05-13
+- [x] `20260513100001_HttmFacilityProducts_Create.sql` — N-N mặt hàng KD · 2026-05-13
+- [x] `20260513100002_HttmFacilityImages_Create.sql` — gallery · 2026-05-13
+- [x] `20260513100003_HttmFacilityLicenses_Create.sql` — giấy phép pháp lý + trigger `tr_Httm_FacilityLicenses_ExpiryAlert30d` · 2026-05-13
+- [x] `20260513100004_HttmAuditLogs_Create.sql` — nhật ký thay đổi · 2026-05-13
+- [x] `20260513100005_HttmCatalogs_Create.sql` — danh mục hệ thống · 2026-05-13
+- [x] `20260513100006_HttmFullTextIndex.sql` — FULLTEXT INDEX trên `Name` (catalog `FT_Httm`; skip nếu instance không cài FTS) · 2026-05-13
 
 #### 1.1.2 Views
-- [ ] `*_HttmViews_Map.sql` — `vw_HttmFacility_Map` (chiếu lng/lat từ GEOGRAPHY)
-- [ ] `*_HttmViews_StatsByProvince.sql` — `vw_HttmStats_ByProvince` (cho dashboard sau)
+- [x] `20260513120000_HttmViews_Map.sql` — `vw_HttmFacility_Map` · 2026-05-13
+- [x] `20260513120001_HttmViews_StatsByProvince.sql` — `vw_HttmStats_ByProvince` · 2026-05-13
 
 #### 1.1.3 Stored Procedures (Phase 1)
-- [ ] `sp_Httm_Facility_Search` — filter + paging (q, type, province, district, ward, status, area, stall, year)
-- [ ] `sp_Httm_Facility_GetById` — trả full record + flag `is_sensitive_visible`
-- [ ] `sp_Httm_Facility_Insert` — output `Id`
-- [ ] `sp_Httm_Facility_Update` — partial update (input nullable params)
-- [ ] `sp_Httm_Facility_Delete` — soft? Decision: HARD delete + audit log (Phase 1 đơn giản)
-- [ ] `sp_Httm_Facility_GetMapData` — input `@BoundsWest/South/East/North`, output GeoJSON-ready columns, max 2000 rows
-- [ ] `sp_Httm_Facility_GetAuditLogs` — paging theo facility_id
-- [ ] `sp_Httm_FacilityImage_Insert`
-- [ ] `sp_Httm_FacilityImage_Delete`
-- [ ] `sp_Httm_FacilityLicense_GetByFacility`
-- [ ] `sp_Httm_FacilityLicense_Upsert`
-- [ ] `sp_Httm_FacilityLicense_Delete`
-- [ ] `sp_Httm_Catalog_GetByType` — input `@Type` (httm_types, product_categories, ...)
-- [ ] `sp_Httm_AuditLog_Insert` — internal use, gọi từ Service
+- [x] `sp_Httm_Facility_Search` — trong `20260513121000_HttmStoredProcedures_Phase1.sql` · 2026-05-13
+- [x] `sp_Httm_Facility_GetById` — cột `IsSensitiveVisible` theo tham số `@CanViewSensitive` · 2026-05-13
+- [x] `sp_Httm_Facility_Insert` — `OUTPUT inserted.Id` · 2026-05-13
+- [x] `sp_Httm_Facility_Update` — COALESCE partial + `@ClearLocation` · 2026-05-13
+- [x] `sp_Httm_Facility_Delete` — HARD delete · 2026-05-13
+- [x] `sp_Httm_Facility_GetMapData` — bounds + types + `TOP` tối đa 2000 · 2026-05-13
+- [x] `sp_Httm_Facility_GetAuditLogs` — paging · 2026-05-13
+- [x] `sp_Httm_FacilityImage_Insert` / `sp_Httm_FacilityImage_Delete` · 2026-05-13
+- [x] `sp_Httm_FacilityLicense_GetByFacility` / `Upsert` / `Delete` · 2026-05-13
+- [x] `sp_Httm_Catalog_GetByType` · 2026-05-13
+- [x] `sp_Httm_AuditLog_Insert` · 2026-05-13
 
 #### 1.1.4 Seed data
-- [ ] `*_HttmCatalogs_Seed.sql` — 10 httm_types, 4 statuses, building_quality, image_type, license_type, ownership_types
-- [ ] Seed sample data 5–10 facilities Hà Nội/TP.HCM cho dev/test
+- [x] `20260513122000_HttmCatalogs_Seed.sql` — httm_types, operation_statuses, building_quality, image_type, license_type, ownership_types, product_categories · 2026-05-13
+- [x] `20260513122001_HttmFacilities_SeedSample.sql` — 6 cơ sở HN/HCM (`Notes = __httm_seed__`, cần `AspNetUsers`) · 2026-05-13
 
 #### 1.1.5 Cấu hình hệ thống cho Map
-- [ ] Thêm key vào `system_configs`:
-  - `httm.map.provider` = `goong` | `osm` (default `osm`)
-  - `httm.map.goong_api_key` (encrypted)
-  - `httm.map.default_center_lng`, `httm.map.default_center_lat`, `httm.map.default_zoom`
+- [x] Keys trong `dbo.AppSystemSettings` (thay `system_configs` không tồn tại trong repo): `20260513122002_HttmAppSystemSettings_Map.sql`
+  - `httm.map.provider` (default `osm`), `httm.map.goong_api_key` (placeholder rỗng — mã hoá do app/ops)
+  - `httm.map.default_center_lng`, `httm.map.default_center_lat`, `httm.map.default_zoom` · 2026-05-13
 
 ---
 
@@ -330,3 +326,5 @@ Tuân theo pattern `Features/{Domain}/{Contracts,Controllers,Persistence,Service
 | Ngày | Người | Thay đổi |
 |------|-------|----------|
 | 2026-05-13 | Claude | Khởi tạo checklist từ docs/modules/httm/* + 7 decisions D1-D7 |
+| 2026-05-13 | Agent | Hoàn thành §1.1.1: 7 file migration `backend/database/migrations/2026051310000*_Httm*.sql` |
+| 2026-05-13 | Agent | Hoàn thành §1.1.2–§1.1.5: views, SP Phase1, seed catalogs/facilities, AppSystemSettings map |
