@@ -3828,9 +3828,9 @@ Trong [`backend/src/Httm.XangDau.Api/Shared/Persistence/Migrations/`](../../back
 
 Setup user database: chạy thủ công [`scripts/sql/setup_ai_readonly.sql`](../../scripts/sql/setup_ai_readonly.sql) sau khi 5 migration đã apply.
 
-### 6. HTTM (Hạ tầng thương mại) — Phase 1
+### 6. HTTM (Hạ tầng thương mại) — Phase 1–2
 
-Bảng và stored procedure HTTM được thêm vào **cùng database `DMPPortal`** qua script SQL trong repo (xem checklist §1.1). Chi tiết cột, index, SP và view: **[`docs/modules/httm/data-model-sqlserver.md`](../modules/httm/data-model-sqlserver.md)**.
+Bảng và stored procedure HTTM được thêm vào **cùng database `DMPPortal`** qua script SQL trong repo (xem checklist §1.1, §2.1). Chi tiết cột, index, SP và view: **[`docs/modules/httm/data-model-sqlserver.md`](../modules/httm/data-model-sqlserver.md)**.
 
 | Bảng (Phase 1) | Mô tả ngắn |
 |----------------|------------|
@@ -3841,4 +3841,12 @@ Bảng và stored procedure HTTM được thêm vào **cùng database `DMPPortal
 | `HttmAuditLogs` | Nhật ký thay đổi |
 | `HttmCatalogs` | Danh mục hệ thống (type/code) |
 
-API đọc/ghi qua **Dapper + stored procedure** (`Features/Httm/Persistence/`), không EF cho nghiệp vụ — đúng nguyên tắc mục 1–2 của tài liệu này.
+| Bảng (Phase 2) | Mô tả ngắn |
+|----------------|------------|
+| `HttmSurveyCounters` | Bộ đếm mã phiếu theo (năm, tỉnh) |
+| `HttmSurveys` | Phiếu khảo sát + 8 cột JSON |
+| `HttmSurveyHistories` | Lịch sử trạng thái / hành động |
+
+Migrations Phase 2: `backend/database/migrations/20260513150000` … `20260513151000_HttmSurveyStoredProcedures_Phase2.sql`.
+
+API đọc/ghi qua **Dapper + stored procedure** (`Features/Httm/Persistence/`, `Features/Surveys/Persistence/`), không EF cho nghiệp vụ — đúng nguyên tắc mục 1–2 của tài liệu này.

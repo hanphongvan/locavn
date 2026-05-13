@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Httm.XangDau.Api.Features.Httm.Contracts;
 using Httm.XangDau.Api.Features.Httm.Controllers;
 using Httm.XangDau.Api.Features.Httm.Services;
+using Httm.XangDau.Api.Features.Surveys.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
@@ -18,7 +19,8 @@ public sealed class HttmFacilityControllerTests
         svc.Setup(s => s.SearchAsync(It.IsAny<HttmFacilitySearchQuery>(), It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((null, "SCOPE_VIOLATION", StatusCodes.Status403Forbidden));
 
-        var controller = new HttmFacilityController(svc.Object);
+        var surveys = new Mock<IHttmSurveyService>();
+        var controller = new HttmFacilityController(svc.Object, surveys.Object);
         BindUser(controller);
 
         var result = await controller.Search(new HttmFacilitySearchQuery(), CancellationToken.None);
@@ -35,7 +37,8 @@ public sealed class HttmFacilityControllerTests
         svc.Setup(s => s.GetByIdAsync(id, It.IsAny<ClaimsPrincipal>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((null, "NOT_FOUND", StatusCodes.Status404NotFound));
 
-        var controller = new HttmFacilityController(svc.Object);
+        var surveys = new Mock<IHttmSurveyService>();
+        var controller = new HttmFacilityController(svc.Object, surveys.Object);
         BindUser(controller);
 
         var result = await controller.GetById(id, CancellationToken.None);

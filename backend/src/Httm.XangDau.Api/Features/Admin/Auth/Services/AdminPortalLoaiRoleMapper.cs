@@ -52,4 +52,9 @@ public static class AdminPortalLoaiRoleMapper
     public static bool CanUseHttmModule(int? loai, bool isMachineFullAccess) =>
         isMachineFullAccess
         || loai is LoaiAdmin or LoaiHttmAdmin or LoaiBctStaff or LoaiSoStaff;
+
+    /// <summary>Phiếu khảo sát — thêm đơn vị được khảo sát (<see cref="LoaiUnitUser"/>).</summary>
+    public static bool CanUseSurveyModule(int? loai, bool isMachineFullAccess) =>
+        isMachineFullAccess
+        || loai is LoaiAdmin or LoaiHttmAdmin or LoaiBctStaff or LoaiSoStaff or LoaiUnitUser;
 }

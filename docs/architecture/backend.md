@@ -69,3 +69,16 @@ Phase 1 thêm domain **Hạ tầng thương mại** vào API `Httm.XangDau.Api`:
 Đăng ký: `FeatureDependencyInjection.AddFeatureModules` gọi `AddHttmFeature()`.
 
 Tài liệu chi tiết: [`docs/modules/httm/data-model-sqlserver.md`](../modules/httm/data-model-sqlserver.md), [`docs/modules/httm/checklist.md`](../modules/httm/checklist.md).
+
+## 8. Surveys — phiếu khảo sát (`Features/Surveys`)
+
+Phase 2: workflow draft → submitted → reviewing → approved/rejected; tạo hồ sơ từ phiếu đã duyệt qua `POST /api/httm/from-survey/{surveyId}`.
+
+| Thư mục / file | Vai trò |
+|-----------------|---------|
+| `Features/Surveys/Controllers/SurveyController.cs` | `/api/surveys` |
+| `Features/Surveys/Services/HttmSurveyService.cs` | Phân quyền, map phiếu → `HttmFacilityCreateRequest` |
+| `Features/Surveys/Persistence/` | Dapper + `sp_Httm_Survey_*`, `sp_Httm_Facility_LinkSourceSurvey` |
+| `Features/Surveys/SurveysDependencyInjection.cs` | `AddSurveysFeature()` |
+
+Đăng ký: `AddFeatureModules` gọi `AddSurveysFeature()` sau `AddHttmFeature()`. SQL migrations: `backend/database/migrations/2026051315*.sql`.

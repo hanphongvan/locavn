@@ -53,4 +53,10 @@ public interface IHttmFacilityRepository
 
     /// <summary>Chỉ để kiểm tra phạm vi tỉnh (Sở).</summary>
     Task<string?> GetProvinceCodeAsync(Guid facilityId, CancellationToken cancellationToken = default);
+
+    /// <summary>Gán <c>SourceSurveyId</c> và <c>HttmSurveys.LinkedFacilityId</c> (SP Phase 2).</summary>
+    Task<(bool Ok, string? Error)> LinkSourceSurveyAsync(
+        Guid facilityId,
+        Guid surveyId,
+        CancellationToken cancellationToken = default);
 }

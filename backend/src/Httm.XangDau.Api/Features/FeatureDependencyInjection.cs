@@ -17,6 +17,7 @@ using Httm.XangDau.Api.Features.Reports;
 using Httm.XangDau.Api.Features.StoreAdmin;
 using Httm.XangDau.Api.Features.StationRatings;
 using Httm.XangDau.Api.Features.Stations;
+using Httm.XangDau.Api.Features.Surveys;
 using Httm.XangDau.Api.Features.UserVehicles;
 using Microsoft.Extensions.Configuration;
 
@@ -32,6 +33,7 @@ public static class FeatureDependencyInjection
         services.AddStationsFeature();
         services.AddGeographyFeature();
         services.AddHttmFeature();
+        services.AddSurveysFeature();
         services.AddPricingFeature();
         services.AddInventoryFeature();
         services.AddReportsFeature();

@@ -1,5 +1,6 @@
 using Httm.XangDau.Api.Features.Httm.Contracts;
 using Httm.XangDau.Api.Features.Httm.Services;
+using Httm.XangDau.Api.Features.Surveys.Services;
 using Httm.XangDau.Api.Shared.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -15,7 +16,7 @@ namespace Httm.XangDau.Api.Features.Httm.Controllers;
 [Route("api/httm")]
 [Tags("HTTM — facilities")]
 [Authorize(AuthenticationSchemes = PortalAuthSchemes.AdminApiKeyOrBearer)]
-public sealed class HttmFacilityController(IHttmFacilityService httm) : ControllerBase
+public sealed class HttmFacilityController(IHttmFacilityService httm, IHttmSurveyService surveyService) : ControllerBase
 {
     /// <summary>Tìm kiếm và phân trang hồ sơ HTTM.</summary>
     /// <param name="query">Bộ lọc (camelCase query string).</param>
@@ -81,6 +82,19 @@ public sealed class HttmFacilityController(IHttmFacilityService httm) : Controll
         if (err is not null)
             return Problem(status, err);
         return CreatedAtAction(nameof(GetById), new { id }, new { id });
+    }
+
+    /// <summary>Tạo hồ sơ HTTM từ phiếu khảo sát đã duyệt (BCT / ADMIN / HTTM_ADMIN).</summary>
+    [HttpPost("from-survey/{surveyId:guid}")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status201Created)]
+    public async Task<IActionResult> CreateFromSurvey(Guid surveyId, CancellationToken cancellationToken)
+    {
+        var (fid, err, status) = await surveyService
+            .CreateFacilityFromApprovedSurveyAsync(surveyId, User, cancellationToken)
+            .ConfigureAwait(false);
+        if (err is not null)
+            return Problem(status, err);
+        return CreatedAtAction(nameof(GetById), new { id = fid }, new { id = fid });
     }
 
     /// <summary>Cập nhật toàn bộ hồ sơ (PUT).</summary>

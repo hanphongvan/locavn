@@ -385,6 +385,28 @@ public sealed class HttmFacilityRepository(IConfiguration configuration) : IHttm
         return dto?.ProvinceCode;
     }
 
+    public async Task<(bool Ok, string? Error)> LinkSourceSurveyAsync(
+        Guid facilityId,
+        Guid surveyId,
+        CancellationToken cancellationToken = default)
+    {
+        await using var conn = new SqlConnection(_connectionString);
+        var r = await conn.QuerySingleAsync<LinkSurveySpResult>(
+                new CommandDefinition(
+                    "dbo.sp_Httm_Facility_LinkSourceSurvey",
+                    new { FacilityId = facilityId, SurveyId = surveyId },
+                    commandType: CommandType.StoredProcedure,
+                    cancellationToken: cancellationToken))
+            .ConfigureAwait(false);
+        return r.Ok == 1 ? (true, null) : (false, r.Err);
+    }
+
+    private sealed class LinkSurveySpResult
+    {
+        public int Ok { get; init; }
+        public string? Err { get; init; }
+    }
+
     private static HttmMapFeatureDto MapToMapFeature(MapDataRow r)
     {
         var lng = r.Lng ?? 0;

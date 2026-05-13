@@ -4,9 +4,9 @@
 > Auth header: `Authorization: Bearer <JWT>`  
 > Response format chuẩn: `{ success: bool, data: ..., meta: { page, limit, total } }`
 
-> **Triển khai thực tế (Phase 1, 2026-05):** API portal dùng `ProblemDetails` (RFC 7807) cho lỗi; một số endpoint trả trực tiếp DTO (không bọc `success`). Chi tiết HTTP status cho `/api/httm` và `/api/catalogs` xem mục **Hồ Sơ HTTM** dưới đây và Swagger (`/swagger` môi trường Development). Bản đồ tile: [`docs/architecture/map-providers.md`](../../architecture/map-providers.md).
+> **Triển khai thực tế (Phase 1–2, 2026-05):** API portal dùng `ProblemDetails` (RFC 7807) cho lỗi; một số endpoint trả trực tiếp DTO (không bọc `success`). Chi tiết HTTP status cho `/api/httm`, `/api/catalogs` và **`/api/surveys`** xem Swagger (`/swagger` môi trường Development). Bản đồ tile: [`docs/architecture/map-providers.md`](../../architecture/map-providers.md).
 
----
+> **`/api/surveys`:** luồng phiếu khảo sát qua `sp_Httm_Survey_*`; `POST .../review` chuyển `submitted` → `reviewing`. Import/Export Excel và `GET /api/surveys/export` chưa có trong code.
 
 ## Auth & Session
 
@@ -50,7 +50,7 @@ GET    /api/surveys
 
 POST   /api/surveys
   Body: { province_code, httm_type }   # Tạo phiếu mới rỗng, trả về { id, survey_code }
-  Auth: Tất cả
+  Auth: Người dùng portal có quyền module Survey (ADMIN, HTTM_ADMIN, BCT, SO, UNIT_USER, …)
 
 GET    /api/surveys/:id
   Auth: Tất cả (kiểm tra quyền xem)
@@ -66,13 +66,17 @@ POST   /api/surveys/:id/submit
 
 POST   /api/surveys/:id/approve
   Body: { notes? }
-  Auth: BCT_STAFF, ADMIN
+  Auth: BCT_STAFF, ADMIN, HTTM_ADMIN (+ API key máy)
   Effect: status → 'approved'
 
 POST   /api/surveys/:id/reject
   Body: { reason: string }   # Bắt buộc
-  Auth: BCT_STAFF, ADMIN
+  Auth: BCT_STAFF, ADMIN, HTTM_ADMIN (+ API key máy)
   Effect: status → 'rejected'
+
+POST   /api/surveys/:id/review
+  Auth: như approve
+  Effect: submitted → reviewing
 
 DELETE /api/surveys/:id
   Auth: Người tạo (chỉ draft) hoặc ADMIN
@@ -133,8 +137,8 @@ DELETE /api/httm/:id
 
 # Từ phiếu khảo sát đã duyệt
 POST   /api/httm/from-survey/:survey_id
-  Auth: BCT_STAFF, ADMIN
-  Effect: Tạo facility từ dữ liệu phiếu đã approve
+  Auth: BCT_STAFF, ADMIN, HTTM_ADMIN (+ API key máy)
+  Effect: Tạo facility từ phiếu `approved`, gọi `sp_Httm_Facility_LinkSourceSurvey`
 
 # Hình ảnh
 POST   /api/httm/:id/images

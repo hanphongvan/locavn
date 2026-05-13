@@ -257,17 +257,17 @@ Tuân theo pattern `Features/{Domain}/{Contracts,Controllers,Persistence,Service
 **Estimated effort**: ~4 sprint. Start sau khi Phase 1 Definition of Done.
 
 ### 2.1 Database
-- [ ] `*_HttmSurveys_Create.sql` — bảng + 8 cột `JSON` (NVARCHAR(MAX) + CHECK ISJSON)
-- [ ] `*_HttmSurveyHistories_Create.sql`
-- [ ] Trigger auto-generate `survey_code` format `KS-{YEAR}-{PROVINCE}-{SEQ}`
-- [ ] SPs: Search/Get/Insert/Update/Submit/Approve/Reject/Delete/GetHistory/Export
+- [x] `20260513150000_HttmSurveyCounters_Create.sql` — bảng đếm mã KS-{YEAR}-{PROVINCE}-{SEQ} · 2026-05-13
+- [x] `20260513150100_HttmSurveys_Create.sql` — `HttmSurveys` + 8 cột JSON (`Step1`…`Step7`, `ConfirmerData`) + `HttmType`; FK `LinkedFacilityId` / `SourceSurveyId` có điều kiện · 2026-05-13
+- [x] `20260513150200_HttmSurveyHistories_Create.sql` — `HttmSurveyHistories` · 2026-05-13
+- [x] `20260513151000_HttmSurveyStoredProcedures_Phase2.sql` — SP Insert/Search/Get/Patch/Submit/Approve/Reject/Review/Delete/History + `sp_Httm_Facility_LinkSourceSurvey` · 2026-05-13
 
 ### 2.2 Backend
-- [ ] `Features/Surveys/` folder (mirror pattern Httm)
-- [ ] Workflow state machine: `draft → submitted → reviewing → approved/rejected`
-- [ ] Auto-save endpoint `PATCH /api/surveys/{id}` — debounce server-side (idempotent)
-- [ ] Import/Export Excel (EPPlus hoặc ClosedXML)
-- [ ] `POST /api/httm/from-survey/{id}` — transform approved survey → facility
+- [x] `Features/Surveys/` — mirror Httm (Controllers, Contracts, Persistence, Services, Validators, `SurveysDependencyInjection`) · 2026-05-13
+- [x] Workflow: `draft|rejected` → `submitted` → `reviewing` → `approved|rejected` (SP + service) · 2026-05-13
+- [x] `PATCH /api/surveys/{id}` — auto-save (idempotent COALESCE trong SP) · 2026-05-13
+- [-] Import/Export Excel — chưa · 2026-05-13
+- [x] `POST /api/httm/from-survey/{id}` — map JSON bước 1–2 + `LinkSourceSurvey` · 2026-05-13
 
 ### 2.3 Admin Angular
 - [ ] Module `features/surveys/`
@@ -323,4 +323,4 @@ Tuân theo pattern `Features/{Domain}/{Contracts,Controllers,Persistence,Service
 | 2026-05-13 | Agent | §1.2.2 Contracts HTTM (`Features/Httm/Contracts/*.cs`) |
 | 2026-05-13 | Agent | Git commit `ae06a82`: Phase 1 backend API HTTM (controllers, SP, DI) |
 | 2026-05-13 | Agent | Git commit `cbc80f0`: Admin Angular HTTM §1.3 + portal Loai 10–12 |
-| 2026-05-13 | Agent | HTTM: OpenAPI xmldoc, xUnit (geo/controller/service), Karma `httm-facility.service`, `map-providers.md`, architecture docs, checklist §1.4.1 — `git log` nhánh `feat/ha-tang-thuong-mai` |
+| 2026-05-13 | Agent | Phase 2 (MVP backend): migrations `2026051315*`, `Features/Surveys`, `POST /api/httm/from-survey`, `AdminPortalLoaiRoleMapper.CanUseSurveyModule` — `git log` nhánh làm việc |
