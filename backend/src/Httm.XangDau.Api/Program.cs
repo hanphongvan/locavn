@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.Json;
 using System.Threading.RateLimiting;
 using Httm.XangDau.Api.Features;
@@ -49,6 +50,12 @@ builder.Services.AddSwaggerGen(options =>
         BearerFormat = "JWT",
     });
     options.OperationFilter<AdminApiKeyOperationFilter>();
+    var xml = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xml);
+    if (File.Exists(xmlPath))
+    {
+        options.IncludeXmlComments(xmlPath, includeControllerXmlComments: true);
+    }
 });
 
 builder.Services.AddInfrastructure(builder.Configuration);

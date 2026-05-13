@@ -3827,3 +3827,18 @@ Trong [`backend/src/Httm.XangDau.Api/Shared/Persistence/Migrations/`](../../back
 | `20260508120400` | `AddAiSchemaCatalogReindexTrigger` | 1 trigger enqueue Qdrant re-index |
 
 Setup user database: chạy thủ công [`scripts/sql/setup_ai_readonly.sql`](../../scripts/sql/setup_ai_readonly.sql) sau khi 5 migration đã apply.
+
+### 6. HTTM (Hạ tầng thương mại) — Phase 1
+
+Bảng và stored procedure HTTM được thêm vào **cùng database `DMPPortal`** qua script SQL trong repo (xem checklist §1.1). Chi tiết cột, index, SP và view: **[`docs/modules/httm/data-model-sqlserver.md`](../modules/httm/data-model-sqlserver.md)**.
+
+| Bảng (Phase 1) | Mô tả ngắn |
+|----------------|------------|
+| `HttmFacilities` | Hồ sơ cơ sở HTTM chính |
+| `HttmFacilityProducts` | N-N mặt hàng kinh doanh |
+| `HttmFacilityImages` | Ảnh đính kèm |
+| `HttmFacilityLicenses` | Giấy phép / pháp lý |
+| `HttmAuditLogs` | Nhật ký thay đổi |
+| `HttmCatalogs` | Danh mục hệ thống (type/code) |
+
+API đọc/ghi qua **Dapper + stored procedure** (`Features/Httm/Persistence/`), không EF cho nghiệp vụ — đúng nguyên tắc mục 1–2 của tài liệu này.

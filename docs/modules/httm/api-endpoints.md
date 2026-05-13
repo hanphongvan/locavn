@@ -4,6 +4,8 @@
 > Auth header: `Authorization: Bearer <JWT>`  
 > Response format chuẩn: `{ success: bool, data: ..., meta: { page, limit, total } }`
 
+> **Triển khai thực tế (Phase 1, 2026-05):** API portal dùng `ProblemDetails` (RFC 7807) cho lỗi; một số endpoint trả trực tiếp DTO (không bọc `success`). Chi tiết HTTP status cho `/api/httm` và `/api/catalogs` xem mục **Hồ Sơ HTTM** dưới đây và Swagger (`/swagger` môi trường Development). Bản đồ tile: [`docs/architecture/map-providers.md`](../../architecture/map-providers.md).
+
 ---
 
 ## Auth & Session
@@ -99,6 +101,10 @@ GET    /api/surveys/import/template
 
 ## Hồ Sơ HTTM `/api/httm`
 
+**Auth:** `Authorization: Bearer` hoặc header API key admin (cùng scheme các API portal khác).
+
+**Lỗi:** thường là `403` với `ProblemDetails.detail` chứa `SCOPE_VIOLATION` (cán bộ Sở truy cập ngoài tỉnh); `404` với `NOT_FOUND`; `400` validation hoặc bbox không hợp lệ.
+
 ```
 GET    /api/httm
   Query: q, httm_type, province_code, district_code, ward_code,
@@ -154,9 +160,20 @@ GET    /api/httm/export
 
 # Dữ liệu bản đồ
 GET    /api/httm/map-data
-  Query: bounds=west,south,east,north&types=&province_code=
+  Query: west, south, east, north (WGS84), types?, provinceCode?, maxRows?
   Response: GeoJSON FeatureCollection
   Ghi chú: Clustering tự động khi có > 500 điểm trong viewport
+```
+
+### `/api/catalogs` (HTTM + địa giới)
+
+Mirror cho Admin Angular; địa lý ủy quyền cùng dữ liệu với `api/geography`.
+
+```
+GET    /api/catalogs/{type}?activeOnly=true
+GET    /api/catalogs/provinces
+GET    /api/catalogs/districts?province_code=
+GET    /api/catalogs/wards?district_code=
 ```
 
 ---

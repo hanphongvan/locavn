@@ -12,6 +12,7 @@
 | [`api-endpoints.md`](./api-endpoints.md) | Danh sách API endpoints theo module |
 | [`implementation-plan.md`](./implementation-plan.md) | Scope Phase 1 chính thức (CRUD facilities, không bao gồm Survey) |
 | [`checklist.md`](./checklist.md) | ✅ **Single source of truth tiến độ** — track Phase 1/2/3, đánh dấu khi merge |
+| [`docs/architecture/map-providers.md`](../../architecture/map-providers.md) | Nền bản đồ OSM/Carto + Goong + nhãn Hoàng Sa/Trường Sa (Admin) |
 | [`docs/architecture/database.md`](../../architecture/database.md) | Schema tổng thể toàn dự án (tham chiếu) |
 
 ---

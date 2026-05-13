@@ -169,7 +169,7 @@ Tuân theo pattern `Features/{Domain}/{Contracts,Controllers,Persistence,Service
 #### 1.2.9 DI & Swagger
 - [x] `HttmDependencyInjection.cs` — `AddHttmFeature()` đăng ký repos, `IHttmFacilityService`, `IHttmImageStorage`, FluentValidation · 2026-05-13
 - [x] Gọi `AddHttmFeature()` trong `FeatureDependencyInjection.cs` · 2026-05-13
-- [ ] Cập nhật OpenAPI tags + xmldoc cho mọi action (Tags trên controller có; xmldoc chi tiết từng action chưa đầy)
+- [x] OpenAPI: `GenerateDocumentationFile` + `IncludeXmlComments` trong `Program.cs`; xmldoc trên action `HttmFacilityController` / `HttmCatalogController` · 2026-05-13
 
 ---
 
@@ -208,7 +208,7 @@ Tuân theo pattern `Features/{Domain}/{Contracts,Controllers,Persistence,Service
 
 #### 1.3.6 Map provider compliance
 - [x] Nhãn Hoàng Sa / Trường Sa trên bản đồ HTTM (`mountSeaIslandGeoLabels`, nền OSM/Carto) · 2026-05-13
-- [ ] `docs/architecture/map-providers.md` — chưa tạo
+- [x] `docs/architecture/map-providers.md` — tile URL + Goong placeholder + `AppSystemSettings` · 2026-05-13
 
 #### 1.3.7 i18n
 - [x] Nhãn UI tiếng Việt chủ đạo; mã API/catalog giữ theo backend · 2026-05-13
@@ -218,37 +218,37 @@ Tuân theo pattern `Features/{Domain}/{Contracts,Controllers,Persistence,Service
 ### 1.4 Testing
 
 #### 1.4.1 Backend
-- [ ] xUnit `HttmFacilityServiceTests` — mock repo, test sensitive filter
-- [ ] xUnit `HttmGeoScopeServiceTests` — test SCOPE_VIOLATION
-- [ ] Integration test `HttmFacilityController` — 1 happy path mỗi endpoint
-- [ ] SP test bằng cách chạy LocalDB hoặc test container
+- [x] xUnit `HttmFacilityServiceTests` — mock repo + portal; SO strip `AvgRentPrice`/`AnnualRevenue`; Search SO (mặc định tỉnh, 403 ngoài phạm vi, empty khi không claim) · 2026-05-13
+- [x] xUnit `HttmGeoScopeServiceTests` — claim tỉnh + `CanAccessProvince` · 2026-05-13
+- [x] xUnit `HttmFacilityControllerTests` — mock `IHttmFacilityService` (403/404) · 2026-05-13
+- [-] Integration / SP test tự động — chưa · 2026-05-13
 
 #### 1.4.2 Frontend
-- [ ] Karma test `httm-facility.service` (HTTP mock)
-- [ ] E2E smoke (Playwright/Cypress): login → /httm → filter → click marker → detail
+- [x] Karma `httm-facility.service.spec.ts` (HTTP mock) · 2026-05-13
+- [-] E2E smoke — chưa · 2026-05-13
 
 ---
 
 ### 1.5 Documentation
 
-- [ ] Cập nhật `docs/architecture/database.md` — thêm section "HTTM tables"
-- [ ] Cập nhật `docs/architecture/backend.md` — thêm Features/Httm
-- [ ] Tạo `docs/architecture/map-providers.md` — Goong + OSM config + tile URL
-- [ ] Cập nhật `docs/modules/httm/README.md` — đổi link sang `data-model-sqlserver.md`
-- [ ] Cập nhật `docs/modules/httm/api-endpoints.md` — note status code thực tế
+- [x] `docs/architecture/database.md` — section **6. HTTM** · 2026-05-13
+- [x] `docs/architecture/backend.md` — section **7. HTTM module** · 2026-05-13
+- [x] `docs/architecture/map-providers.md` · 2026-05-13
+- [x] `docs/modules/httm/README.md` — thêm link `map-providers.md` (đã có `data-model-sqlserver.md`) · 2026-05-13
+- [x] `docs/modules/httm/api-endpoints.md` — status thực tế + `/api/catalogs` · 2026-05-13
 
 ---
 
 ### 1.6 Deliverable kiểm tra Phase 1 (Definition of Done)
 
-- [ ] Tất cả endpoint trả 200 với data thật từ SQL Server (không mock)
-- [ ] Phân quyền hoạt động: tạo user Loai=12 (SO_STAFF) gán 1 tỉnh, login, không xem được tỉnh khác → 403 SCOPE_VIOLATION
-- [ ] User Loai=12 không nhận được `avg_rent_price`, `annual_revenue` trong response (verify bằng curl/Swagger)
-- [ ] Admin Angular: list → filter → detail → edit → save → audit log xuất hiện
-- [ ] Map data: zoom in/out OK, ≤ 2000 points, clustering khi zoom < 10
-- [ ] Goong + OSM toggle hoạt động, label Hoàng Sa/Trường Sa đầy đủ
-- [ ] OpenAPI swagger render đầy đủ cho `/api/httm/*` và `/api/catalogs/*`
-- [ ] Mọi PR đã merge có ghi commit hash vào checklist này
+- [~] Endpoint + DB thật — verify thủ công sau migration/seed · 2026-05-13
+- [~] SO_STAFF + SCOPE — verify thủ công · 2026-05-13
+- [~] Ẩn trường nhạy cảm với Loai=12 — verify thủ công · 2026-05-13
+- [~] Angular list → detail → save → audit — verify thủ công · 2026-05-13
+- [~] Clustering map khi zoom thấp — chưa implement · 2026-05-13
+- [~] Goong tile thật — chưa; nhãn HS/TS có trên OSM/Carto · 2026-05-13
+- [x] Swagger mô tả XML cho HTTM (`IncludeXmlComments`) · 2026-05-13
+- [~] Ghi hash PR — cập nhật khi merge (mục Lịch sử) · 2026-05-13
 
 ---
 
@@ -321,3 +321,6 @@ Tuân theo pattern `Features/{Domain}/{Contracts,Controllers,Persistence,Service
 | 2026-05-13 | Claude | Khởi tạo checklist từ docs/modules/httm/* + 7 decisions D1-D7 |
 | 2026-05-13 | Agent | Git commit `b5ec412`: §1.1.1–§1.1.5 (migrations SQL + cập nhật checklist) |
 | 2026-05-13 | Agent | §1.2.2 Contracts HTTM (`Features/Httm/Contracts/*.cs`) |
+| 2026-05-13 | Agent | Git commit `ae06a82`: Phase 1 backend API HTTM (controllers, SP, DI) |
+| 2026-05-13 | Agent | Git commit `cbc80f0`: Admin Angular HTTM §1.3 + portal Loai 10–12 |
+| 2026-05-13 | Agent | HTTM: OpenAPI xmldoc, xUnit (geo/controller/service), Karma `httm-facility.service`, `map-providers.md`, architecture docs, checklist §1.4.1 — `git log` nhánh `feat/ha-tang-thuong-mai` |

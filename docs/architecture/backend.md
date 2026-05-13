@@ -53,3 +53,19 @@ Examples:
 
 - All tables and columns must be defined in `docs/architecture/database.md`
 - Application code must NOT assume or invent schema
+
+## 7. HTTM module (`Features/Httm`)
+
+Phase 1 thêm domain **Hạ tầng thương mại** vào API `Httm.XangDau.Api`:
+
+| Thư mục / file | Vai trò |
+|-----------------|---------|
+| `Features/Httm/Controllers/` | `HttmFacilityController` (`/api/httm`), `HttmCatalogController` (`/api/catalogs`) |
+| `Features/Httm/Services/` | `HttmFacilityService` — orchestration, phân quyền nhạy cảm, phạm vi tỉnh |
+| `Features/Httm/Persistence/` | Dapper + stored procedure (`IHttmFacilityRepository`, …) |
+| `Features/Httm/Validators/` | FluentValidation |
+| `Features/Httm/HttmDependencyInjection.cs` | `AddHttmFeature()` |
+
+Đăng ký: `FeatureDependencyInjection.AddFeatureModules` gọi `AddHttmFeature()`.
+
+Tài liệu chi tiết: [`docs/modules/httm/data-model-sqlserver.md`](../modules/httm/data-model-sqlserver.md), [`docs/modules/httm/checklist.md`](../modules/httm/checklist.md).
