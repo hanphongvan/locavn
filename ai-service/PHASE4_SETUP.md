@@ -25,17 +25,83 @@ Yêu cầu phần cứng đề xuất: GPU ≥ 12GB VRAM cho qwen3:14b. Nếu ch
 qwen3:8b, sửa `app/config/models.yaml` block `models_local` → đổi mọi `name`
 thành `qwen3:8b`.
 
-## 2. Cài Qdrant
+## 2. Cài / khởi động Qdrant
 
+Convention team: container đặt tên `locavn-qdrant`, storage mount `D:\qdrant_storage`,
+expose port `6333` (HTTP) + `6334` (gRPC). Yêu cầu **Docker Desktop đang chạy**
+(verify: icon con cá voi xanh ở system tray).
+
+### 2.1 Trường hợp lần đầu — tạo container mới
+
+**Linux/macOS:**
 ```bash
-# Docker (khuyến nghị)
-docker run -d --name qdrant \
+docker run -d --name locavn-qdrant \
   -p 6333:6333 -p 6334:6334 \
   -v $(pwd)/qdrant_storage:/qdrant/storage \
   qdrant/qdrant
+```
 
-# Verify
+**Windows (PowerShell):**
+```powershell
+New-Item -ItemType Directory -Path D:\qdrant_storage -Force | Out-Null
+docker run -d --name locavn-qdrant `
+  -p 6333:6333 -p 6334:6334 `
+  -v D:\qdrant_storage:/qdrant/storage `
+  qdrant/qdrant
+```
+
+### 2.2 Trường hợp container đã tồn tại — chỉ start lại
+
+Sau khi reboot máy hoặc tắt Docker Desktop, container đã tạo nhưng đang `Exited`.
+KHÔNG cần `docker run` lại (sẽ báo conflict tên), chỉ cần start:
+
+```powershell
+# Kiểm tra trạng thái container
+docker ps -a --filter "name=locavn-qdrant"
+
+# Nếu thấy STATUS = "Exited..." → start lại
+docker start locavn-qdrant
+
+# Verify đã Up + healthy (chờ ~5s sau start)
+docker ps --filter "name=locavn-qdrant"
+```
+
+Storage tại `D:\qdrant_storage` persist giữa các lần start → collection
+`ai_schema_catalog` + `loca_documents` giữ nguyên, KHÔNG cần re-index lại.
+
+### 2.3 Verify Qdrant reachable
+
+```powershell
+# REST endpoint
 curl http://localhost:6333/collections
+# Expect: {"result":{"collections":[{"name":"ai_schema_catalog"},...]},"status":"ok","time":...}
+
+# Web UI (xem collection trực quan)
+# Mở trình duyệt: http://localhost:6333/dashboard
+```
+
+### 2.4 Troubleshoot
+
+| Triệu chứng | Nguyên nhân | Fix |
+|---|---|---|
+| `curl: Failed to connect to localhost port 6333` | Container chưa start | `docker start locavn-qdrant` |
+| `docker: failed to connect to the docker API` | Docker Desktop daemon chưa chạy | Mở Docker Desktop từ Start menu, chờ icon cá voi xanh |
+| `docker: Error response: Conflict. The container name "/locavn-qdrant" is already in use` | Container đã tồn tại → đừng `run` mà `start` | `docker start locavn-qdrant` |
+| Collection `ai_schema_catalog` trống sau start | Volume mount path sai → mất data persist | Verify `docker inspect locavn-qdrant` → check `Mounts.Source` |
+
+### 2.5 Auto-start Docker Desktop cùng Windows
+
+Docker Desktop mặc định KHÔNG auto-start khi login Windows. Để Qdrant
+sẵn sàng mỗi lần khởi động máy:
+
+1. Mở **Docker Desktop** → **Settings** → **General**
+2. Tick **"Start Docker Desktop when you sign in"**
+3. Apply & Restart Docker Desktop
+
+Container `locavn-qdrant` có `--restart` policy mặc định là `no`. Nếu muốn
+Qdrant cũng auto-start khi Docker daemon start:
+```powershell
+docker update --restart unless-stopped locavn-qdrant
 ```
 
 ## 3. Cấu hình `.env`
