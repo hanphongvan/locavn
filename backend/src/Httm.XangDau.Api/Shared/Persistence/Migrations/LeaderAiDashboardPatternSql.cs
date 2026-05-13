@@ -68,31 +68,67 @@ internal static class LeaderAiDashboardPatternSql
             DECLARE @Thang INT = MONTH(@NgayHienTai), @Nam INT = YEAR(@NgayHienTai);
             DECLARE @ThangTruoc INT = MONTH(@NgayTruoc), @NamTruoc INT = YEAR(@NgayTruoc);
 
-            ;WITH BaseData AS (
-                SELECT
-                    tk.Nam,
-                    tk.ThangQuy,
-                    FuelGroup = CASE
-                        WHEN tct.Ma IN (N'CT2', N'CT3', N'CT4', N'CT5', N'CT6', N'CT7', N'CT18') THEN 1
-                        WHEN tct.Ma IN (N'CT8', N'CT9', N'CT10') THEN 2
-                    END,
-                    l.So_01, l.So_02, l.So_03, l.So_04, l.So_05, l.So_06, l.So_07, l.So_14
-                FROM dbo.QT_TK_ThongKe       AS tk
-                INNER JOIN dbo.QT_TK_ThongKeChiTiet AS l   ON l.ThongKeId = tk.Id
-                INNER JOIN dbo.TK_ChiTieuBaoCao     AS tct ON tct.Id = l.ChiTieuThongKeId
-                INNER JOIN dbo.DM_DonVi             AS dv  ON dv.Id = tk.don_vi_cap1
-                WHERE tk.Loai = 1
-                  AND tk.TrangThai = 5
-                  AND tk.KieuKyBaoCao = 2
-                  AND tk.BaoCaoId = '{{WholesaleNxtBaoCaoId}}'
-                  AND dv.CapDonViId = 235
-                  AND (dv.Ten IS NULL OR dv.Ten NOT LIKE N'%nhiên liệu bay%')
-                  AND tct.Ma IN (N'CT2', N'CT3', N'CT4', N'CT5', N'CT6', N'CT7', N'CT18',
-                                 N'CT8', N'CT9', N'CT10')
-                  AND ((tk.Nam = @Nam      AND tk.ThangQuy = @Thang)
-                    OR (tk.Nam = @NamTruoc AND tk.ThangQuy = @ThangTruoc))
-            ),
-            Curr AS (
+            -- Phase 5J optimize: pre-filter DM_DonVi (chỉ vài chục rows đầu mối)
+            -- → tránh JOIN bảng dimension cho mỗi row của QT_TK_ThongKe.
+            DECLARE @DonViIds TABLE (Id INT PRIMARY KEY);
+            INSERT INTO @DonViIds (Id)
+            SELECT Id FROM dbo.DM_DonVi
+            WHERE CapDonViId = 235
+              AND (Ten IS NULL OR Ten NOT LIKE N'%nhiên liệu bay%');
+
+            -- Phase 5J optimize: materialize BaseData vào #temp (CTE trước bị
+            -- scan 2 lần do Curr + Prev reference); UNION ALL 2 cặp (Nam, ThangQuy)
+            -- thay OR predicate → optimizer dùng index seek thay vì scan.
+            IF OBJECT_ID('tempdb..#BaseData') IS NOT NULL DROP TABLE #BaseData;
+
+            SELECT
+                tk.Nam,
+                tk.ThangQuy,
+                FuelGroup = CASE
+                    WHEN tct.Ma IN (N'CT2', N'CT3', N'CT4', N'CT5', N'CT6', N'CT7', N'CT18') THEN 1
+                    WHEN tct.Ma IN (N'CT8', N'CT9', N'CT10') THEN 2
+                END,
+                l.So_01, l.So_02, l.So_03, l.So_04, l.So_05, l.So_06, l.So_07, l.So_14
+            INTO #BaseData
+            FROM dbo.QT_TK_ThongKe              AS tk
+            INNER JOIN dbo.QT_TK_ThongKeChiTiet AS l   ON l.ThongKeId = tk.Id
+            INNER JOIN dbo.TK_ChiTieuBaoCao     AS tct ON tct.Id = l.ChiTieuThongKeId
+            WHERE tk.Loai = 1
+              AND tk.TrangThai = 5
+              AND tk.KieuKyBaoCao = 2
+              AND tk.BaoCaoId = '{{WholesaleNxtBaoCaoId}}'
+              AND tk.Nam = @Nam AND tk.ThangQuy = @Thang
+              AND tct.Ma IN (N'CT2', N'CT3', N'CT4', N'CT5', N'CT6', N'CT7', N'CT18',
+                             N'CT8', N'CT9', N'CT10')
+              AND EXISTS (SELECT 1 FROM @DonViIds d WHERE d.Id = tk.don_vi_cap1)
+
+            UNION ALL
+
+            SELECT
+                tk.Nam,
+                tk.ThangQuy,
+                FuelGroup = CASE
+                    WHEN tct.Ma IN (N'CT2', N'CT3', N'CT4', N'CT5', N'CT6', N'CT7', N'CT18') THEN 1
+                    WHEN tct.Ma IN (N'CT8', N'CT9', N'CT10') THEN 2
+                END,
+                l.So_01, l.So_02, l.So_03, l.So_04, l.So_05, l.So_06, l.So_07, l.So_14
+            FROM dbo.QT_TK_ThongKe              AS tk
+            INNER JOIN dbo.QT_TK_ThongKeChiTiet AS l   ON l.ThongKeId = tk.Id
+            INNER JOIN dbo.TK_ChiTieuBaoCao     AS tct ON tct.Id = l.ChiTieuThongKeId
+            WHERE tk.Loai = 1
+              AND tk.TrangThai = 5
+              AND tk.KieuKyBaoCao = 2
+              AND tk.BaoCaoId = '{{WholesaleNxtBaoCaoId}}'
+              AND tk.Nam = @NamTruoc AND tk.ThangQuy = @ThangTruoc
+              AND tct.Ma IN (N'CT2', N'CT3', N'CT4', N'CT5', N'CT6', N'CT7', N'CT18',
+                             N'CT8', N'CT9', N'CT10')
+              AND EXISTS (SELECT 1 FROM @DonViIds d WHERE d.Id = tk.don_vi_cap1);
+
+            -- Index hỗ trợ 2 GROUP BY phía dưới (Curr + Prev) — KHÔNG dùng
+            -- inline INDEX trong SELECT INTO vì tránh phụ thuộc syntax SQL 2014+.
+            CREATE CLUSTERED INDEX IX_BaseData_NamThang ON #BaseData (Nam, ThangQuy, FuelGroup);
+
+            ;WITH Curr AS (
                 SELECT
                     FuelGroup,
                     TonCuoi    = SUM(CAST(ISNULL(So_14, 0) AS DECIMAL(28, 3))),
@@ -101,7 +137,7 @@ internal static class LeaderAiDashboardPatternSql
                         ISNULL(So_02, 0) + ISNULL(So_03, 0) + ISNULL(So_04, 0) +
                         ISNULL(So_05, 0) + ISNULL(So_06, 0) + ISNULL(So_07, 0)
                         AS DECIMAL(28, 3)))
-                FROM BaseData
+                FROM #BaseData
                 WHERE FuelGroup IS NOT NULL AND Nam = @Nam AND ThangQuy = @Thang
                 GROUP BY FuelGroup
             ),
@@ -109,7 +145,7 @@ internal static class LeaderAiDashboardPatternSql
                 SELECT
                     FuelGroup,
                     TonCuoi = SUM(CAST(ISNULL(So_14, 0) AS DECIMAL(28, 3)))
-                FROM BaseData
+                FROM #BaseData
                 WHERE FuelGroup IS NOT NULL AND Nam = @NamTruoc AND ThangQuy = @ThangTruoc
                 GROUP BY FuelGroup
             )
@@ -141,6 +177,8 @@ internal static class LeaderAiDashboardPatternSql
             LEFT JOIN Prev p ON p.FuelGroup = c.FuelGroup
             WHERE (@FuelGroup IS NULL OR c.FuelGroup = @FuelGroup)
             ORDER BY c.FuelGroup;
+
+            DROP TABLE #BaseData;
         END;
         """;
 
@@ -174,6 +212,21 @@ internal static class LeaderAiDashboardPatternSql
                 SET @NgayHienTai = DATEADD(MONTH, -1, @NgayHienTai);
             DECLARE @Thang INT = MONTH(@NgayHienTai), @Nam INT = YEAR(@NgayHienTai);
 
+            -- Phase 5J optimize: pre-filter DM_DonVi cấp 1 (đầu mối) vào table
+            -- variable kèm Ma/Ten — giảm JOIN DM_DonVi 2 lần xuống 1 lần seek
+            -- trên @HeadOffices (≤ vài chục rows), tránh LIKE leading wildcard
+            -- trên scan toàn bảng DM_DonVi cho mỗi row của QT_TK_ThongKe.
+            DECLARE @HeadOffices TABLE (
+                Id   INT PRIMARY KEY,
+                Code NVARCHAR(50),
+                Ten  NVARCHAR(255)
+            );
+            INSERT INTO @HeadOffices (Id, Code, Ten)
+            SELECT Id, ISNULL(Ma, N''), ISNULL(Ten, N'')
+            FROM dbo.DM_DonVi
+            WHERE CapDonViId = 235
+              AND (Ten IS NULL OR Ten NOT LIKE N'%nhiên liệu bay%');
+
             ;WITH ByUnit AS (
                 SELECT
                     HeadOfficeId = tk.don_vi_cap1,
@@ -187,19 +240,17 @@ internal static class LeaderAiDashboardPatternSql
                         ISNULL(l.So_02, 0) + ISNULL(l.So_03, 0) + ISNULL(l.So_04, 0) +
                         ISNULL(l.So_05, 0) + ISNULL(l.So_06, 0) + ISNULL(l.So_07, 0)
                         AS DECIMAL(28, 3)))
-                FROM dbo.QT_TK_ThongKe       AS tk
+                FROM dbo.QT_TK_ThongKe              AS tk
                 INNER JOIN dbo.QT_TK_ThongKeChiTiet AS l   ON l.ThongKeId = tk.Id
                 INNER JOIN dbo.TK_ChiTieuBaoCao     AS tct ON tct.Id = l.ChiTieuThongKeId
-                INNER JOIN dbo.DM_DonVi             AS dv  ON dv.Id = tk.don_vi_cap1
                 WHERE tk.Loai = 1
                   AND tk.TrangThai = 5
                   AND tk.KieuKyBaoCao = 2
                   AND tk.BaoCaoId = '{{WholesaleNxtBaoCaoId}}'
-                  AND dv.CapDonViId = 235
-                  AND (dv.Ten IS NULL OR dv.Ten NOT LIKE N'%nhiên liệu bay%')
                   AND tk.Nam = @Nam AND tk.ThangQuy = @Thang
                   AND tct.Ma IN (N'CT2', N'CT3', N'CT4', N'CT5', N'CT6', N'CT7', N'CT18',
                                  N'CT8', N'CT9', N'CT10')
+                  AND EXISTS (SELECT 1 FROM @HeadOffices ho WHERE ho.Id = tk.don_vi_cap1)
                 GROUP BY tk.don_vi_cap1,
                     CASE
                         WHEN tct.Ma IN (N'CT2', N'CT3', N'CT4', N'CT5', N'CT6', N'CT7', N'CT18') THEN 1
@@ -209,11 +260,11 @@ internal static class LeaderAiDashboardPatternSql
             Ranked AS (
                 SELECT
                     b.HeadOfficeId, b.FuelGroup, b.TonCuoi, b.TonDau, b.NhapTrongKy,
-                    HeadOfficeCode = ISNULL(ho.Ma, N''),
-                    HeadOfficeName = ISNULL(ho.Ten, N''),
+                    HeadOfficeCode = ho.Code,
+                    HeadOfficeName = ho.Ten,
                     RankNumber = ROW_NUMBER() OVER (PARTITION BY b.FuelGroup ORDER BY b.TonCuoi DESC)
                 FROM ByUnit AS b
-                INNER JOIN dbo.DM_DonVi AS ho ON ho.Id = b.HeadOfficeId
+                INNER JOIN @HeadOffices AS ho ON ho.Id = b.HeadOfficeId
                 WHERE b.FuelGroup IS NOT NULL
                   AND (@FuelGroup IS NULL OR b.FuelGroup = @FuelGroup)
             )
@@ -286,7 +337,11 @@ internal static class LeaderAiDashboardPatternSql
                   AND ct.So_01 = 1
                   AND ct.So_04 > 0
                   AND tct.Ma = @MaSo
-                  AND ISNULL(ct.ThoiDiemDinhGia, CAST(tk.TuNgay AS DATETIME)) >= @CutoffDate
+                  -- Phase 5J optimize: tách ISNULL trên LHS thành 2 nhánh sargable
+                  -- → SQL Server có thể seek index trên ThoiDiemDinhGia (nhánh 1)
+                  -- hoặc trên tk.TuNgay (nhánh 2) thay vì scan toàn ChiTieuThongKe.
+                  AND ((ct.ThoiDiemDinhGia IS NOT NULL AND ct.ThoiDiemDinhGia >= @CutoffDate)
+                    OR (ct.ThoiDiemDinhGia IS NULL     AND tk.TuNgay         >= @CutoffDate))
             ),
             ByDate AS (
                 SELECT

@@ -198,7 +198,13 @@ internal static class LeaderAiWholesaleQueriesSql
         BEGIN
             SET NOCOUNT ON;
 
-            DECLARE @AsOfDate DATE = ISNULL(@ToDate, CAST(SYSUTCDATETIME() AS DATE));
+            -- Phase 5J optimize: ép default range 30 ngày gần nhất khi caller không
+            -- cung cấp @FromDate/@ToDate. Tránh full scan
+            -- StationInventoryTransactions (bảng OLTP, có thể triệu rows tích lũy).
+            -- Lãnh đạo hỏi "tồn kho bán lẻ hôm nay" → 30 ngày gần đây là cửa sổ hợp lý.
+            DECLARE @EffectiveFromDate DATE = ISNULL(@FromDate, DATEADD(DAY, -30, CAST(GETDATE() AS DATE)));
+            DECLARE @EffectiveToDate   DATE = ISNULL(@ToDate,   CAST(GETDATE() AS DATE));
+            DECLARE @AsOfDate          DATE = @EffectiveToDate;
 
             ;WITH RetailNet AS (
                 SELECT
@@ -213,8 +219,8 @@ internal static class LeaderAiWholesaleQueriesSql
                 LEFT  JOIN dbo.DM_DonViTinh  AS u  ON u.Id = d.UnitId
                 WHERE (@FuelType   IS NULL OR p.Code = @FuelType)
                   AND (@ProvinceId IS NULL OR dv.Tinh = @ProvinceId)
-                  AND (@FromDate   IS NULL OR h.TransactionDate >= @FromDate)
-                  AND (@ToDate     IS NULL OR h.TransactionDate <= DATEADD(DAY, 1, @ToDate))
+                  AND h.TransactionDate >= @EffectiveFromDate
+                  AND h.TransactionDate <  DATEADD(DAY, 1, @EffectiveToDate)
                 GROUP BY p.Code, p.Name
             )
             SELECT
