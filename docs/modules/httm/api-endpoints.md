@@ -186,25 +186,55 @@ GET    /api/catalogs/wards?district_code=
 
 ```
 GET /api/public/httm/map-data
-  Query: bounds, types, province_code
-  Response: GeoJSON (đã lọc trường nhạy cảm)
-
-GET /api/public/httm/:id/summary
-  Response: Thông tin cơ bản (không có doanh thu, pháp lý)
+  Query: west, south, east, north (WGS84 bbox), types?, province_code?, max_rows? (clamp tối đa 800)
+  Response: GeoJSON FeatureCollection (điểm công khai; không dữ liệu nhạy cảm)
+  Rate limit: policy ASP.NET `public-httm` (partition theo IP)
 ```
 
 ---
 
-## Analytics `/api/analytics`
+## Analytics HTTM `/api/httm-analytics`
+
+Auth: Bearer / Admin API key — cùng nhóm `CanUseHttmModule` như `/api/httm`.
 
 ```
+GET /api/httm-analytics/charts/facilities-by-type
+GET /api/httm-analytics/charts/facilities-by-province?top=12
+GET /api/httm-analytics/charts/surveys-by-status
+GET /api/httm-analytics/charts/facility-created-by-month?months=6
+GET /api/httm-analytics/charts/survey-submitted-by-month?months=6
+GET /api/httm-analytics/summary
+GET /api/httm-analytics/export/summary.csv
+```
+
+---
+
+## Mẫu báo cáo `/api/httm-report-templates`
+
+Auth: `CanUseHttmModule`.
+
+```
+GET    /api/httm-report-templates?includeInactive=false
+GET    /api/httm-report-templates/:id
+POST   /api/httm-report-templates   # Upsert body: id?, code, name, description?, reminderIntervalDays, isActive — trả { id }
+DELETE /api/httm-report-templates/:id
+```
+
+> Worker: `ReportTemplateReminderWorker` (HostedService) gọi `sp_Httm_ReportTemplate_ListDueForReminder` + `TouchReminder` (log + cập nhật `LastReminderAt`).
+
+---
+
+## Analytics (tài liệu cũ — placeholder, chưa map 1:1 code)
+
+```
+# Các đường dẫn /api/analytics/* dưới đây là thiết kế tài liệu; triển khai hiện tại dùng /api/httm-analytics (mục trên).
 GET /api/analytics/httm-by-type?province_code=&status=
 GET /api/analytics/httm-by-province?limit=10&httm_type=
 GET /api/analytics/httm-trend?months=6&province_code=
-GET /api/analytics/httm-density-map          # GeoJSON choropleth theo tỉnh
+GET /api/analytics/httm-density-map
 GET /api/analytics/top-provinces?limit=10
 GET /api/analytics/httm-status-ratio?province_code=
-GET /api/analytics/export/excel              # Query params như trên
+GET /api/analytics/export/excel
 GET /api/analytics/export/pdf
 ```
 

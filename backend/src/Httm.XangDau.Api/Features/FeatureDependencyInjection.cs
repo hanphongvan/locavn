@@ -33,6 +33,7 @@ public static class FeatureDependencyInjection
         services.AddStationsFeature();
         services.AddGeographyFeature();
         services.AddHttmFeature();
+        services.AddHttmPhase2Features();
         services.AddSurveysFeature();
         services.AddPricingFeature();
         services.AddInventoryFeature();

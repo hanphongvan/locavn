@@ -17,6 +17,16 @@ export const HTTM_ROUTES: Routes = [
         loadComponent: () => import('./pages/httm-map-page.component').then((m) => m.HttmMapPageComponent),
       },
       {
+        path: 'analytics',
+        loadComponent: () =>
+          import('./pages/httm-analytics-page.component').then((m) => m.HttmAnalyticsPageComponent),
+      },
+      {
+        path: 'report-templates',
+        loadComponent: () =>
+          import('./pages/httm-report-templates-page.component').then((m) => m.HttmReportTemplatesPageComponent),
+      },
+      {
         path: 'new',
         loadComponent: () => import('./pages/httm-create-page.component').then((m) => m.HttmCreatePageComponent),
       },

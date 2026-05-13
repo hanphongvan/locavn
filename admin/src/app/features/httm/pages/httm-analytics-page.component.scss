@@ -1,0 +1,41 @@
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 1rem;
+}
+
+.chart-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.chart-box {
+  max-width: 900px;
+}
+
+.muted {
+  opacity: 0.75;
+}
+
+.banner--error {
+  padding: 0.75rem 1rem;
+  background: #fdecea;
+  color: #611a15;
+  border-radius: 8px;
+}
+
+.btn {
+  margin-left: 0.5rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  background: #fff;
+  cursor: pointer;
+}

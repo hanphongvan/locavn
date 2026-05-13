@@ -1,0 +1,133 @@
+<div class="stack">
+  <app-page-header [title]="survey()?.surveyCode ?? 'Phiếu khảo sát'">
+    <p appPageHeaderDesc>
+      <a routerLink="/surveys" class="link-inline">← Danh sách</a>
+      — trạng thái: <strong>{{ survey()?.status }}</strong>
+      @if (survey()?.linkedFacilityId; as fid) {
+        — đã gắn hồ sơ: <a class="link-inline" [routerLink]="['/httm', fid]">{{ fid }}</a>
+      }
+    </p>
+  </app-page-header>
+
+  @if (errorMessage(); as err) {
+    <div class="banner banner--error" role="alert">{{ err }}</div>
+  }
+
+  @if (survey(); as s) {
+    <app-section-card title="Thao tác">
+      <div class="btn-row wrap">
+        <button type="button" class="btn btn--secondary" (click)="saveNow()" [disabled]="loading()">
+          Lưu ngay
+        </button>
+        <button type="button" class="btn btn--secondary" (click)="openPreview()">Xem trước</button>
+        @if (s.status === 'draft' || s.status === 'rejected') {
+          <button type="button" class="btn btn--primary" (click)="submit()">Nộp phiếu</button>
+          <button type="button" class="btn btn--secondary" (click)="deleteDraft()">Xoá nháp</button>
+        }
+        @if (canReviewer() && s.status === 'submitted') {
+          <button type="button" class="btn btn--primary" (click)="startReview()">Nhận duyệt</button>
+        }
+        @if (canReviewer() && s.status === 'reviewing') {
+          <button type="button" class="btn btn--primary" (click)="approve()">Duyệt</button>
+          <button type="button" class="btn btn--secondary" (click)="showReject.set(true)">Trả lại</button>
+        }
+        @if (canReviewer() && s.status === 'approved' && !s.linkedFacilityId) {
+          <button type="button" class="btn btn--primary" (click)="importToHttm()">Tạo hồ sơ HTTM</button>
+        }
+      </div>
+      @if (showReject()) {
+        <div class="reject-box">
+          <label class="form-label" for="rej">Lý do trả lại</label>
+          <textarea
+            id="rej"
+            class="form-control"
+            rows="3"
+            [value]="rejectReason()"
+            (input)="rejectReason.set($any($event.target).value)"
+          ></textarea>
+          <div class="btn-row">
+            <button type="button" class="btn btn--primary" (click)="doReject()">Gửi trả lại</button>
+            <button type="button" class="btn btn--secondary" (click)="showReject.set(false)">Huỷ</button>
+          </div>
+        </div>
+      }
+    </app-section-card>
+
+    <app-section-card title="Nội dung các bước (JSON object)">
+      <form [formGroup]="form" class="tabs-wrap">
+        <mat-tab-group>
+          <mat-tab label="Bước 1">
+            <div class="pad">
+              <label class="form-label" for="st1">step1Data</label>
+              <textarea id="st1" class="form-control mono" rows="14" formControlName="step1Data"></textarea>
+            </div>
+          </mat-tab>
+          <mat-tab label="Bước 2">
+            <div class="pad">
+              <label class="form-label" for="st2">step2Data</label>
+              <textarea id="st2" class="form-control mono" rows="14" formControlName="step2Data"></textarea>
+            </div>
+          </mat-tab>
+          <mat-tab label="Bước 3">
+            <div class="pad">
+              <label class="form-label" for="st3">step3Data</label>
+              <textarea id="st3" class="form-control mono" rows="14" formControlName="step3Data"></textarea>
+            </div>
+          </mat-tab>
+          <mat-tab label="Bước 4">
+            <div class="pad">
+              <label class="form-label" for="st4">step4Data</label>
+              <textarea id="st4" class="form-control mono" rows="14" formControlName="step4Data"></textarea>
+            </div>
+          </mat-tab>
+          <mat-tab label="Bước 5">
+            <div class="pad">
+              <label class="form-label" for="st5">step5Data</label>
+              <textarea id="st5" class="form-control mono" rows="14" formControlName="step5Data"></textarea>
+            </div>
+          </mat-tab>
+          <mat-tab label="Bước 6">
+            <div class="pad">
+              <label class="form-label" for="st6">step6Data</label>
+              <textarea id="st6" class="form-control mono" rows="14" formControlName="step6Data"></textarea>
+            </div>
+          </mat-tab>
+          <mat-tab label="Bước 7">
+            <div class="pad">
+              <label class="form-label" for="st7">step7Data</label>
+              <textarea id="st7" class="form-control mono" rows="14" formControlName="step7Data"></textarea>
+            </div>
+          </mat-tab>
+          <mat-tab label="Người xác nhận">
+            <div class="pad">
+              <label class="form-label" for="cf">confirmerData</label>
+              <textarea id="cf" class="form-control mono" rows="10" formControlName="confirmerData"></textarea>
+            </div>
+          </mat-tab>
+        </mat-tab-group>
+        <div class="pad meta-row">
+          <label class="form-label" for="cs">currentStep (1–7)</label>
+          <input id="cs" class="form-control narrow" type="number" min="1" max="7" formControlName="currentStep" />
+        </div>
+      </form>
+    </app-section-card>
+
+    <app-section-card title="Lịch sử / timeline">
+      <ul class="timeline">
+        @for (h of history(); track h.id) {
+          <li>
+            <span class="muted">{{ h.performedAt | date: 'short' }}</span>
+            — <strong>{{ h.action }}</strong>
+            {{ h.fromStatus ? '(' + h.fromStatus + ' → ' + h.toStatus + ')' : '→ ' + h.toStatus }}
+            @if (h.notes) {
+              <div class="notes">{{ h.notes }}</div>
+            }
+            <div class="muted small">bởi {{ h.performedBy }}</div>
+          </li>
+        } @empty {
+          <li class="muted">Chưa có lịch sử.</li>
+        }
+      </ul>
+    </app-section-card>
+  }
+</div>

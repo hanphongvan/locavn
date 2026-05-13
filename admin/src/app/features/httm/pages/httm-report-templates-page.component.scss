@@ -1,0 +1,50 @@
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.form-grid--full {
+  grid-column: 1 / -1;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.data-table th,
+.data-table td {
+  padding: 0.45rem 0.5rem;
+  border-bottom: 1px solid #e8e8e8;
+  text-align: left;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  color: #1565c0;
+  cursor: pointer;
+  margin-right: 0.5rem;
+  padding: 0;
+  font: inherit;
+}
+
+.link-btn.danger {
+  color: #c62828;
+}
+
+.muted {
+  opacity: 0.75;
+}
+
+.banner--error {
+  padding: 0.75rem 1rem;
+  background: #fdecea;
+  border-radius: 8px;
+}

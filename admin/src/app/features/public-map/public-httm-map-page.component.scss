@@ -1,0 +1,53 @@
+.public-map {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: #fafafa;
+}
+
+.topbar {
+  padding: 1rem 1.25rem;
+  background: #fff;
+  border-bottom: 1px solid #e8e8e8;
+}
+
+.topbar h1 {
+  margin: 0 0 0.35rem;
+  font-size: 1.25rem;
+}
+
+.sub {
+  margin: 0 0 0.75rem;
+  color: #555;
+  font-size: 0.9rem;
+}
+
+.map-host {
+  flex: 1;
+  min-height: 420px;
+}
+
+.loading {
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+}
+
+.banner--error {
+  padding: 0.75rem 1rem;
+  background: #fdecea;
+  color: #611a15;
+}
+
+.btn {
+  display: inline-block;
+  padding: 0.4rem 0.9rem;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  background: #fff;
+  cursor: pointer;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

@@ -32,3 +32,6 @@ export const STORE_PORTAL_ROLES_ONLY: readonly PortalRole[] = ['STORE'];
 
 /** HTTM hồ sơ cơ sở — Admin hệ thống + các vai trò HTTM (khớp `CanUseHttmModule` backend). */
 export const HTTM_PORTAL_ROLES: readonly PortalRole[] = ['ADMIN', 'HTTM_ADMIN', 'BCT_STAFF', 'SO_STAFF'];
+
+/** Phiếu khảo sát — cùng tập vai trò HTTM trên SPA (backend `CanUseSurveyModule` còn mở cho `Loai` đơn vị khảo sát). */
+export const SURVEY_PORTAL_ROLES: readonly PortalRole[] = ['ADMIN', 'HTTM_ADMIN', 'BCT_STAFF', 'SO_STAFF'];

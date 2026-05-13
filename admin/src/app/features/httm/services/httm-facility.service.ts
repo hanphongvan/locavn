@@ -72,6 +72,10 @@ export class HttmFacilityService {
     return this.api.delete<void>(`/api/httm/${id}`).pipe(handleApiError());
   }
 
+  createFromApprovedSurvey(surveyId: string) {
+    return this.api.post<{ id: string }>(`/api/httm/from-survey/${surveyId}`, {}).pipe(handleApiError());
+  }
+
   getMapData(args: {
     west: number;
     south: number;

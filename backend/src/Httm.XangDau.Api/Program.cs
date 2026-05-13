@@ -96,6 +96,18 @@ builder.Services.AddRateLimiter(options =>
                 Window = TimeSpan.FromMinutes(15),
                 QueueLimit = 0,
             }));
+
+    // Bản đồ HTTM công khai — tránh scrape hàng loạt.
+    options.AddPolicy(
+        "public-httm",
+        httpContext => RateLimitPartition.GetFixedWindowLimiter(
+            PartitionKey(httpContext),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 120,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+            }));
 });
 
 var corsOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];

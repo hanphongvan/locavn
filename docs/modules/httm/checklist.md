@@ -270,26 +270,27 @@ Tuân theo pattern `Features/{Domain}/{Contracts,Controllers,Persistence,Service
 - [x] `POST /api/httm/from-survey/{id}` — map JSON bước 1–2 + `LinkSourceSurvey` · 2026-05-13
 
 ### 2.3 Admin Angular
-- [ ] Module `features/surveys/`
-- [ ] Form 6-bước (Reactive Forms, `FormArray` cho members/sub_units)
-- [ ] Auto-save 60s (RxJS `debounceTime`)
-- [ ] Preview modal trước submit
-- [ ] Timeline duyệt phiếu
-- [ ] Import wizard 5-step
+- [~] Module `features/surveys/` — list + chi tiết (7 bước JSON + confirmer), chưa FormArray wizard đầy đủ · 2026-05-14
+- [~] Form 6-bước — dùng tab + JSON từng bước (thay thế tạm cho FormArray phức tạp) · 2026-05-14
+- [x] Auto-save 60s (`debounceTime(60000)` trên `valueChanges`) · 2026-05-14
+- [x] Preview modal (Material Dialog) trước khi thao tác nộp/duyệt (xem JSON) · 2026-05-14
+- [x] Timeline duyệt (`GET .../history`) · 2026-05-14
+- [-] Import wizard 5-step — chưa · 2026-05-14
 
 ### 2.4 Public Map Portal
-- [ ] `Controllers/PublicHttmController.cs` — no-auth, filter sensitive
-- [ ] Angular route `/public/map` — public layout (không sidebar admin)
-- [ ] Rate limiting cho endpoint public (chống scrape)
+- [x] `PublicHttmController` — `GET /api/public/httm/map-data`, `[AllowAnonymous]`, rate limit · 2026-05-14
+- [x] Angular route `/public/map` — không shell admin, Leaflet + API công khai · 2026-05-14
+- [x] Rate limiting policy `public-httm` (`Program.cs`) · 2026-05-14
 
 ### 2.5 Analytics
-- [ ] `Features/Analytics/` — 6 endpoint chart
-- [ ] Export PDF (QuestPDF) + Excel
-- [ ] Page `/analytics` với recharts hoặc ng2-charts
+- [x] `Features/Analytics/` — 6 endpoint chart + `summary` · 2026-05-14
+- [x] Export CSV tổng hợp (`GET .../export/summary.csv`) · 2026-05-14
+- [-] Export PDF (QuestPDF) + Excel — chưa · 2026-05-14
+- [x] Trang `/httm/analytics` (Chart.js) · 2026-05-14
 
 ### 2.6 Report Templates (S5.2)
-- [ ] CRUD report templates
-- [ ] Cron job nhắc nộp báo cáo (Quartz.NET hoặc Hangfire)
+- [x] CRUD report templates (`/api/httm-report-templates` + trang `/httm/report-templates`) · 2026-05-14
+- [~] Nhắc nộp báo cáo — `ReportTemplateReminderWorker` (HostedService 12h + chạy lúc khởi động), log + `TouchReminder`; không dùng Quartz/Hangfire · 2026-05-14
 
 ---
 
@@ -323,4 +324,4 @@ Tuân theo pattern `Features/{Domain}/{Contracts,Controllers,Persistence,Service
 | 2026-05-13 | Agent | §1.2.2 Contracts HTTM (`Features/Httm/Contracts/*.cs`) |
 | 2026-05-13 | Agent | Git commit `ae06a82`: Phase 1 backend API HTTM (controllers, SP, DI) |
 | 2026-05-13 | Agent | Git commit `cbc80f0`: Admin Angular HTTM §1.3 + portal Loai 10–12 |
-| 2026-05-13 | Agent | Phase 2 (MVP backend): migrations `2026051315*`, `Features/Surveys`, `POST /api/httm/from-survey`, `AdminPortalLoaiRoleMapper.CanUseSurveyModule` — `git log` nhánh làm việc |
+| 2026-05-14 | Agent | Phase 2 tiếp: `public-httm` rate limit, `HttmPhase2Features` (analytics + report templates + worker), Angular surveys/public map/analytics/report-templates + nav |

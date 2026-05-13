@@ -3,6 +3,7 @@ import {
   ALL_PORTAL_ROLES,
   HTTM_PORTAL_ROLES,
   RETAIL_PORTAL_ROLES,
+  SURVEY_PORTAL_ROLES,
 } from '../core/auth/portal-route-roles.config';
 import type { PortalRole } from '../core/auth/portal-loai-role';
 
@@ -41,6 +42,7 @@ export const SHELL_NAV_MENU_GROUPS: readonly ShellNavMenuGroup[] = [
     roles: ALL_PORTAL_ROLES,
     items: [
       { path: '/dashboard', label: 'Tổng quan', icon: 'dashboard', roles: ALL_PORTAL_ROLES },
+      { path: '/public/map', label: 'Bản đồ HTTM (công khai)', icon: 'public', roles: ALL_PORTAL_ROLES },
     ],
   },
   {
@@ -62,6 +64,9 @@ export const SHELL_NAV_MENU_GROUPS: readonly ShellNavMenuGroup[] = [
     items: [
       { path: '/httm', label: 'Hồ sơ HTTM', icon: 'store_mall_directory', roles: HTTM_PORTAL_ROLES },
       { path: '/httm/map', label: 'Bản đồ HTTM', icon: 'map', roles: HTTM_PORTAL_ROLES },
+      { path: '/surveys', label: 'Phiếu khảo sát', icon: 'assignment', roles: SURVEY_PORTAL_ROLES },
+      { path: '/httm/analytics', label: 'Thống kê HTTM', icon: 'bar_chart', roles: HTTM_PORTAL_ROLES },
+      { path: '/httm/report-templates', label: 'Mẫu báo cáo', icon: 'description', roles: HTTM_PORTAL_ROLES },
     ],
   },
   {

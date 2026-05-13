@@ -1,0 +1,14 @@
+<div class="public-map">
+  <header class="topbar">
+    <h1>Bản đồ HTTM (công khai)</h1>
+    <p class="sub">Vị trí cơ sở — không cần đăng nhập. Dữ liệu có giới hạn theo vùng nhìn thấy.</p>
+    <button type="button" class="btn btn--secondary" (click)="reloadMarkers()" [disabled]="loading()">Tải lại điểm</button>
+  </header>
+  @if (errorMessage(); as err) {
+    <div class="banner banner--error" role="alert">{{ err }}</div>
+  }
+  <div #mapHost class="map-host"></div>
+  @if (loading()) {
+    <div class="loading">Đang tải…</div>
+  }
+</div>
