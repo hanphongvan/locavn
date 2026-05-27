@@ -15,14 +15,15 @@ public sealed class HttmSurveyRepository(IConfiguration configuration) : IHttmSu
 
     public async Task<(Guid Id, string SurveyCode)> InsertAsync(
         string provinceCode,
-        string httmType,
+        string? httmType,
         string createdBy,
         CancellationToken cancellationToken = default)
     {
         await using var conn = new SqlConnection(_connectionString);
         var p = new DynamicParameters();
         p.Add("ProvinceCode", provinceCode);
-        p.Add("HttmType", httmType);
+        // SP đã normalize chuỗi rỗng → NULL; truyền null cũng OK.
+        p.Add("HttmType", string.IsNullOrWhiteSpace(httmType) ? null : httmType);
         p.Add("CreatedBy", createdBy);
         p.Add("Id", dbType: DbType.Guid, direction: ParameterDirection.Output);
         p.Add("SurveyCode", dbType: DbType.String, size: 50, direction: ParameterDirection.Output);
@@ -93,8 +94,8 @@ public sealed class HttmSurveyRepository(IConfiguration configuration) : IHttmSu
             ProvinceCode = r.ProvinceCode,
             HttmType = r.HttmType,
             CreatedBy = r.CreatedBy,
-            CreatedAt = ToOffset(r.CreatedAt),
-            UpdatedAt = ToOffset(r.UpdatedAt),
+            CreatedAt = r.CreatedAt,
+            UpdatedAt = r.UpdatedAt,
         }).ToList();
 
         return new HttmSurveySearchPageDto { TotalCount = total, Items = items };
@@ -198,7 +199,8 @@ public sealed class HttmSurveyRepository(IConfiguration configuration) : IHttmSu
                 Action = h.Action,
                 Notes = h.Notes,
                 PerformedBy = h.PerformedBy,
-                PerformedAt = ToOffset(h.PerformedAt),
+                PerformedByName = string.IsNullOrWhiteSpace(h.PerformedByName) ? h.PerformedBy : h.PerformedByName,
+                PerformedAt = h.PerformedAt,
             })
             .ToList();
     }
@@ -234,15 +236,12 @@ public sealed class HttmSurveyRepository(IConfiguration configuration) : IHttmSu
             HttmType = r.HttmType,
             LinkedFacilityId = r.LinkedFacilityId,
             CreatedBy = r.CreatedBy,
-            SubmittedAt = r.SubmittedAt is null ? null : ToOffset(r.SubmittedAt.Value),
+            SubmittedAt = r.SubmittedAt,
             ReviewedBy = r.ReviewedBy,
-            ReviewedAt = r.ReviewedAt is null ? null : ToOffset(r.ReviewedAt.Value),
-            CreatedAt = ToOffset(r.CreatedAt),
-            UpdatedAt = ToOffset(r.UpdatedAt),
+            ReviewedAt = r.ReviewedAt,
+            CreatedAt = r.CreatedAt,
+            UpdatedAt = r.UpdatedAt,
         };
-
-    private static DateTimeOffset ToOffset(DateTime dt) =>
-        new(DateTime.SpecifyKind(dt, DateTimeKind.Utc), TimeSpan.Zero);
 
     private sealed class SpOk
     {
@@ -257,10 +256,10 @@ public sealed class HttmSurveyRepository(IConfiguration configuration) : IHttmSu
         public string SurveyCode { get; init; } = string.Empty;
         public string Status { get; init; } = string.Empty;
         public string ProvinceCode { get; init; } = string.Empty;
-        public string HttmType { get; init; } = string.Empty;
+        public string? HttmType { get; init; }
         public string CreatedBy { get; init; } = string.Empty;
-        public DateTime CreatedAt { get; init; }
-        public DateTime UpdatedAt { get; init; }
+        public DateTimeOffset CreatedAt { get; init; }
+        public DateTimeOffset UpdatedAt { get; init; }
     }
 
     private sealed class SurveyDetailRow
@@ -278,14 +277,14 @@ public sealed class HttmSurveyRepository(IConfiguration configuration) : IHttmSu
         public string Step7Data { get; init; } = "{}";
         public string ConfirmerData { get; init; } = "{}";
         public string ProvinceCode { get; init; } = string.Empty;
-        public string HttmType { get; init; } = string.Empty;
+        public string? HttmType { get; init; }
         public Guid? LinkedFacilityId { get; init; }
         public string CreatedBy { get; init; } = string.Empty;
-        public DateTime? SubmittedAt { get; init; }
+        public DateTimeOffset? SubmittedAt { get; init; }
         public string? ReviewedBy { get; init; }
-        public DateTime? ReviewedAt { get; init; }
-        public DateTime CreatedAt { get; init; }
-        public DateTime UpdatedAt { get; init; }
+        public DateTimeOffset? ReviewedAt { get; init; }
+        public DateTimeOffset CreatedAt { get; init; }
+        public DateTimeOffset UpdatedAt { get; init; }
     }
 
     private sealed class HistoryRow
@@ -297,6 +296,7 @@ public sealed class HttmSurveyRepository(IConfiguration configuration) : IHttmSu
         public string Action { get; init; } = string.Empty;
         public string? Notes { get; init; }
         public string PerformedBy { get; init; } = string.Empty;
-        public DateTime PerformedAt { get; init; }
+        public string? PerformedByName { get; init; }
+        public DateTimeOffset PerformedAt { get; init; }
     }
 }

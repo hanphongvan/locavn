@@ -5,7 +5,7 @@ GO
 CREATE OR ALTER PROCEDURE dbo.sp_Httm_Survey_Insert
     @ProvinceCode VARCHAR(10),
     @HttmType VARCHAR(50),
-    @CreatedBy NVARCHAR(450),
+    @CreatedBy NVARCHAR(128),
     @Id UNIQUEIDENTIFIER OUTPUT,
     @SurveyCode VARCHAR(50) OUTPUT
 AS
@@ -220,7 +220,7 @@ GO
 
 CREATE OR ALTER PROCEDURE dbo.sp_Httm_Survey_Submit
     @Id UNIQUEIDENTIFIER,
-    @PerformedBy NVARCHAR(450)
+    @PerformedBy NVARCHAR(128)
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -259,7 +259,7 @@ GO
 
 CREATE OR ALTER PROCEDURE dbo.sp_Httm_Survey_Approve
     @Id UNIQUEIDENTIFIER,
-    @PerformedBy NVARCHAR(450),
+    @PerformedBy NVARCHAR(128),
     @Notes NVARCHAR(MAX) = NULL
 AS
 BEGIN
@@ -300,7 +300,7 @@ GO
 
 CREATE OR ALTER PROCEDURE dbo.sp_Httm_Survey_Reject
     @Id UNIQUEIDENTIFIER,
-    @PerformedBy NVARCHAR(450),
+    @PerformedBy NVARCHAR(128),
     @Reason NVARCHAR(MAX)
 AS
 BEGIN
@@ -347,7 +347,7 @@ GO
 
 CREATE OR ALTER PROCEDURE dbo.sp_Httm_Survey_EnterReviewing
     @Id UNIQUEIDENTIFIER,
-    @PerformedBy NVARCHAR(450)
+    @PerformedBy NVARCHAR(128)
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -385,14 +385,14 @@ GO
 
 CREATE OR ALTER PROCEDURE dbo.sp_Httm_Survey_Delete
     @Id UNIQUEIDENTIFIER,
-    @PerformedBy NVARCHAR(450),
+    @PerformedBy NVARCHAR(128),
     @ForceAdmin BIT = 0
 AS
 BEGIN
     SET NOCOUNT ON;
 
     DECLARE @st VARCHAR(20);
-    DECLARE @cb NVARCHAR(450);
+    DECLARE @cb NVARCHAR(128);
 
     SELECT @st = Status, @cb = CreatedBy
     FROM dbo.HttmSurveys WITH (UPDLOCK, HOLDLOCK)

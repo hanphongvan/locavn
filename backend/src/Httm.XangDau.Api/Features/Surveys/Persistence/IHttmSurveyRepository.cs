@@ -6,7 +6,7 @@ public interface IHttmSurveyRepository
 {
     Task<(Guid Id, string SurveyCode)> InsertAsync(
         string provinceCode,
-        string httmType,
+        string? httmType,
         string createdBy,
         CancellationToken cancellationToken = default);
 

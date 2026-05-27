@@ -8,7 +8,8 @@ BEGIN
         ToStatus VARCHAR(20) NOT NULL,
         Action VARCHAR(50) NOT NULL,
         Notes NVARCHAR(MAX) NULL,
-        PerformedBy NVARCHAR(450) NOT NULL,
+        -- FK đến AspNetUsers.Id (NVARCHAR(128) trên legacy DMPPortal).
+        PerformedBy NVARCHAR(128) NOT NULL,
         PerformedAt DATETIMEOFFSET(7) NOT NULL CONSTRAINT DF_HttmSurveyHistories_At DEFAULT (SYSDATETIMEOFFSET()),
 
         CONSTRAINT PK_HttmSurveyHistories PRIMARY KEY CLUSTERED (Id),

@@ -21,9 +21,10 @@ BEGIN
         HttmType VARCHAR(50) NOT NULL CONSTRAINT DF_HttmSurveys_HttmType DEFAULT ('other'),
         LinkedFacilityId UNIQUEIDENTIFIER NULL,
 
-        CreatedBy NVARCHAR(450) NOT NULL,
+        -- AspNetUsers.Id của legacy DMPPortal = NVARCHAR(128), không phải 450 (Identity 3.x default).
+        CreatedBy NVARCHAR(128) NOT NULL,
         SubmittedAt DATETIMEOFFSET(7) NULL,
-        ReviewedBy NVARCHAR(450) NULL,
+        ReviewedBy NVARCHAR(128) NULL,
         ReviewedAt DATETIMEOFFSET(7) NULL,
         CreatedAt DATETIMEOFFSET(7) NOT NULL CONSTRAINT DF_HttmSurveys_CreatedAt DEFAULT (SYSDATETIMEOFFSET()),
         UpdatedAt DATETIMEOFFSET(7) NOT NULL CONSTRAINT DF_HttmSurveys_UpdatedAt DEFAULT (SYSDATETIMEOFFSET()),

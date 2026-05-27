@@ -133,21 +133,38 @@ public sealed class HttmSurveyService(
         if (!vr.IsValid)
             return (null, FormatValidation(vr), StatusCodes.Status400BadRequest);
 
-        if (!HttmGeoScopeService.CanAccessProvince(
-                portal.IsMachineFullAccess,
-                portal.Loai,
-                user,
-                request.ProvinceCode))
-            return (null, "SCOPE_VIOLATION", StatusCodes.Status403Forbidden);
+        // Tài khoản quản trị / phạm vi toàn quốc KHÔNG được tạo phiếu — phiếu khảo sát
+        // phải thuộc một tỉnh cụ thể, do cán bộ Sở / đơn vị thực hiện.
+        if (portal.IsMachineFullAccess
+            || HttmGeoScopeService.IsNationalOrMachine(portal.IsMachineFullAccess, portal.Loai))
+        {
+            return (null,
+                "Tài khoản quản trị (Bộ / HTTM Admin / BCT) không tạo phiếu khảo sát. Cần tài khoản cán bộ Sở hoặc đơn vị thuộc tỉnh.",
+                StatusCodes.Status403Forbidden);
+        }
+
+        // Auto-derive tỉnh từ claim httm_province_codes — cán bộ Sở/đơn vị phải có claim này.
+        var codes = HttmGeoScopeService.ParseProvinceCodes(user);
+        if (codes.Count == 0)
+        {
+            return (null,
+                "Tài khoản chưa được gán tỉnh. Liên hệ quản trị để cập nhật đơn vị / tỉnh trước khi tạo phiếu.",
+                StatusCodes.Status403Forbidden);
+        }
 
         var userId = portal.UserId ?? user.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrEmpty(userId))
             return (null, "UNAUTHORIZED", StatusCodes.Status401Unauthorized);
 
+        // Nếu user có nhiều tỉnh (rare), tạm chọn tỉnh đầu tiên. Cải tiến sau:
+        // bổ sung ô chọn tỉnh trên FE khi codes.Count > 1.
+        var provinceCode = codes[0];
+        var httmType = string.IsNullOrWhiteSpace(request.HttmType) ? null : request.HttmType.Trim();
+
         var (id, code) = await surveys
-            .InsertAsync(request.ProvinceCode, request.HttmType, userId, cancellationToken)
+            .InsertAsync(provinceCode, httmType, userId, cancellationToken)
             .ConfigureAwait(false);
-        return (new { id, surveyCode = code }, null, StatusCodes.Status201Created);
+        return (new { id, surveyCode = code, provinceCode }, null, StatusCodes.Status201Created);
     }
 
     public async Task<(HttmSurveyDto? Data, string? Error, int Status)> GetByIdAsync(
@@ -495,7 +512,8 @@ internal static class SurveyToFacilityMapper
         return new HttmFacilityCreateRequest
         {
             Name = name,
-            HttmType = s.HttmType,
+            // Khi tạo facility từ phiếu chưa gắn loại HTTM (khảo sát chung), fallback "other".
+            HttmType = string.IsNullOrWhiteSpace(s.HttmType) ? "other" : s.HttmType!,
             Status = "active",
             ProvinceCode = s.ProvinceCode,
             AddressDetail = addr,
