@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Httm.XangDau.Api.Features.Admin.Auth.Services;
 using Httm.XangDau.Api.Features.Auth.Registration;
+using Httm.XangDau.Api.Features.Httm;
 using Httm.XangDau.Api.Shared.Persistence;
 using Httm.XangDau.Api.Shared.Persistence.Entities;
 using Microsoft.AspNetCore.Identity;
@@ -232,6 +233,33 @@ public sealed class ApplicationOAuthProvider(
 
         foreach (var c in extra)
             claims.Add(new Claim(c.ClaimType!, c.ClaimValue!));
+
+        // Auto-derive HTTM province claim cho cán bộ Sở (Loai=12) và đơn vị (Loai=13).
+        // Tạo phiếu khảo sát yêu cầu tỉnh — cả 2 nhóm này thuộc một DM_DonVi → DM_Tinh nên auto-derive được.
+        // National-scope (Loai=1 admin, 10 HttmAdmin, BCT_STAFF) KHÔNG nhận claim này → không thể tạo phiếu.
+        if (user.DonViId.HasValue
+            && (user.Loai == AdminPortalLoaiRoleMapper.LoaiSoStaff
+                || user.Loai == AdminPortalLoaiRoleMapper.LoaiUnitUser)
+            && !claims.Any(c => string.Equals(c.Type, HttmClaims.ProvinceCodes, StringComparison.Ordinal)))
+        {
+            var tinhId = await db.DmDonVis.AsNoTracking()
+                .Where(d => d.Id == user.DonViId.Value)
+                .Select(d => d.Tinh)
+                .FirstOrDefaultAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            if (tinhId is int tid)
+            {
+                var tinhMa = await db.DmTinhs.AsNoTracking()
+                    .Where(t => t.Id == tid)
+                    .Select(t => t.Ma)
+                    .FirstOrDefaultAsync(cancellationToken)
+                    .ConfigureAwait(false);
+
+                if (!string.IsNullOrEmpty(tinhMa))
+                    claims.Add(new Claim(HttmClaims.ProvinceCodes, tinhMa));
+            }
+        }
 
         return claims;
     }
