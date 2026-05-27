@@ -28,6 +28,13 @@ export const routes: Routes = [
       import('./features/public-map/public-httm-map-page.component').then((m) => m.PublicHttmMapPageComponent),
   },
   {
+    path: 'public/facility-update',
+    loadComponent: () =>
+      import('./features/public-facility-update/public-facility-update-page.component').then(
+        (m) => m.PublicFacilityUpdatePageComponent,
+      ),
+  },
+  {
     path: '',
     component: AdminShellComponent,
     canActivate: [storeAdminAuthGuard],

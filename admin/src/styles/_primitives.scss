@@ -79,9 +79,9 @@
 }
 
 .banner--error {
-  background: #fef2f2;
-  color: #991b1b;
-  border-color: #fecaca;
+  background: var(--app-danger-surface);
+  color: var(--app-danger-text);
+  border-color: var(--app-danger-border);
 }
 
 /* —— Cards —— */

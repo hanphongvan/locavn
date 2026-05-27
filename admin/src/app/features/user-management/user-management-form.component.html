@@ -31,9 +31,12 @@
               <mat-label>Loai (nhóm)</mat-label>
               <mat-select formControlName="loai">
                 <mat-option [value]="null">—</mat-option>
-                <mat-option [value]="1">1 — Admin</mat-option>
+                <mat-option [value]="1">1 — Admin (toàn hệ thống Fuel + HTTM)</mat-option>
                 <mat-option [value]="3">3 — Trader</mat-option>
                 <mat-option [value]="4">4 — Store</mat-option>
+                <mat-option [value]="10">10 — HTTM Admin (quản trị riêng Hạ tầng thương mại)</mat-option>
+                <mat-option [value]="11">11 — BCT Staff (cán bộ Bộ Công Thương, toàn quốc)</mat-option>
+                <mat-option [value]="12">12 — Sở Staff (cán bộ Sở, phạm vi theo tỉnh)</mat-option>
               </mat-select>
             </mat-form-field>
             @if (isFormLoaiForDonVi(form.controls.loai.value)) {
@@ -60,7 +63,7 @@
                 }
               </mat-select>
               @if (!isFormLoaiForDonVi(form.controls.loai.value)) {
-                <mat-hint>Chọn Loại (1, 3 hoặc 4) để tải danh sách đơn vị.</mat-hint>
+                <mat-hint>Chọn Loại trước.</mat-hint>
               }
             </mat-form-field>
           </div>
@@ -136,9 +139,6 @@
                   <mat-option [value]="d.id">{{ d.ma }} — {{ d.ten }}</mat-option>
                 }
               </mat-select>
-              @if (isFormLoaiForDonVi(form.controls.loai.value)) {
-                <mat-hint>Cùng nguồn dữ liệu với đơn vị chính; dùng ô tìm kiếm phía trên để lọc.</mat-hint>
-              }
             </mat-form-field>
           </div>
         </section>

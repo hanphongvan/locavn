@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, ViewChild, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -56,6 +56,8 @@ export class HttmDetailPageComponent {
   readonly errorMessage = signal<string | null>(null);
   readonly savingGeneral = signal(false);
   readonly savingLicense = signal(false);
+
+  @ViewChild(HttmImageGalleryComponent) private imageGallery?: HttmImageGalleryComponent;
 
   readonly provinces = signal<ProvinceOptionDto[]>([]);
   readonly typeItems = signal<HttmCatalogItemDto[]>([]);
@@ -246,6 +248,7 @@ export class HttmDetailPageComponent {
         next: () => {
           this.snack.open('Đã tải ảnh lên.', 'Đóng', { duration: 4000 });
           input.value = '';
+          this.imageGallery?.reload();
         },
         error: (err: unknown) => {
           this.snack.open(
@@ -270,7 +273,7 @@ export class HttmDetailPageComponent {
       .pipe(take(1))
       .subscribe({
         next: () => {
-          void this.router.navigate(['/httm']);
+          void this.router.navigate(['/httm/hoso']);
         },
         error: (err: unknown) => {
           this.snack.open(

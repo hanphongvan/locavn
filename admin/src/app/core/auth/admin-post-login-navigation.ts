@@ -10,7 +10,7 @@ export function buildRoleLandingPathFromPortalRole(role: PortalRole | null): str
     return '/access-denied';
   }
   if (isHttmPortalRole(role)) {
-    return '/httm';
+    return '/httm/dashboard';
   }
   const seg = portalRoleToDashboardSegment(role);
   if (!seg) {

@@ -1,18 +1,12 @@
-$brand: #1f3c93;
-$brand-mid: #2747a8;
-$brand-dark: #152a6a;
-$muted: #5c6578;
-$surface: #eef1f8;
-$card: #fff;
-$border: #d1d9e8;
 $mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
 :host {
+  font-family: var(--app-font-display);
   display: block;
   min-height: 100vh;
-  background: $surface;
+  background: var(--app-surface-muted);
   background-image: radial-gradient(ellipse 120% 80% at 50% -20%, rgb(31 60 147 / 12%), transparent),
-    linear-gradient(180deg, #f8f9fc 0%, $surface 40%, #e4e9f4 100%);
+    linear-gradient(180deg, #f8f9fc 0%, var(--app-surface-muted) 40%, #e4e9f4 100%);
 }
 
 .access-denied-page {
@@ -24,7 +18,7 @@ $mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 .access-denied-page__brand-bar {
   height: 4px;
   flex-shrink: 0;
-  background: linear-gradient(90deg, $brand-dark 0%, $brand 40%, $brand-mid 100%);
+  background: linear-gradient(90deg, var(--app-brand-dark) 0%, var(--app-brand) 40%, var(--app-brand-hover) 100%);
 }
 
 .access-denied-page__wrap {
@@ -38,10 +32,10 @@ $mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 .access-denied-page__panel {
   width: 100%;
   max-width: 32rem;
-  background: $card;
+  background: var(--app-surface);
   border-radius: 14px;
   box-shadow: 0 12px 28px rgb(15 23 42 / 9%);
-  border: 1px solid $border;
+  border: 1px solid var(--app-border);
   padding: 2.25rem 2rem 1.5rem;
 }
 
@@ -60,7 +54,7 @@ $mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(145deg, $brand 0%, $brand-dark 100%);
+  background: linear-gradient(145deg, var(--app-brand) 0%, var(--app-brand-dark) 100%);
   box-shadow: 0 6px 16px rgb(31 60 147 / 38%);
 }
 
@@ -88,7 +82,7 @@ $mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   margin: 0.4rem 0 0;
   font-size: 0.875rem;
   line-height: 1.45;
-  color: $muted;
+  color: var(--app-text-muted);
 }
 
 .access-denied-page__notice {
@@ -152,7 +146,7 @@ $mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   background: #fff;
   padding: 0.45rem 0.55rem;
   border-radius: 6px;
-  border: 1px solid $border;
+  border: 1px solid var(--app-border);
 }
 
 .access-denied-page__roles {
@@ -190,7 +184,7 @@ $mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-weight: 700;
   font-size: 0.75rem;
   letter-spacing: 0.02em;
-  color: $brand-dark;
+  color: var(--app-brand-dark);
   background: rgb(31 60 147 / 10%);
   border: 1px solid rgb(31 60 147 / 22%);
   padding: 0.12rem 0.45rem;
@@ -215,13 +209,13 @@ $mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   &--primary {
     border: none;
     color: #fff;
-    background: linear-gradient(180deg, $brand 0%, $brand-dark 100%);
+    background: linear-gradient(180deg, var(--app-brand) 0%, var(--app-brand-dark) 100%);
     box-shadow: 0 4px 12px rgb(31 60 147 / 28%);
   }
 
   &--secondary {
     border: 1px solid rgb(31 60 147 / 45%);
-    color: $brand;
+    color: var(--app-brand);
     background: #fff;
   }
 }
@@ -242,7 +236,7 @@ $mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 .access-denied-page__link {
-  color: $brand;
+  color: var(--app-brand);
   font-weight: 600;
   text-decoration: none;
 

@@ -66,6 +66,13 @@ export class HttmAnalyticsService {
     return this.api.get<AnalyticsSummaryRow>('/api/httm-analytics/summary').pipe(handleApiError());
   }
 
+  /** Đếm số cơ sở HTTM chưa có bản ghi đề xuất (HttmFacilitySubmissions). Scope tỉnh tự động theo claim. */
+  facilitiesNotUpdated() {
+    return this.api
+      .get<{ count: number }>('/api/httm-analytics/facilities-not-updated')
+      .pipe(handleApiError());
+  }
+
   downloadSummaryCsv(): void {
     const token = this.session.getAccessToken();
     const url = `${this.baseUrl}/api/httm-analytics/export/summary.csv`;

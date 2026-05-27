@@ -1,14 +1,62 @@
-<div class="public-map">
-  <header class="topbar">
-    <h1>Bản đồ HTTM (công khai)</h1>
-    <p class="sub">Vị trí cơ sở — không cần đăng nhập. Dữ liệu có giới hạn theo vùng nhìn thấy.</p>
-    <button type="button" class="btn btn--secondary" (click)="reloadMarkers()" [disabled]="loading()">Tải lại điểm</button>
-  </header>
-  @if (errorMessage(); as err) {
-    <div class="banner banner--error" role="alert">{{ err }}</div>
-  }
-  <div #mapHost class="map-host"></div>
-  @if (loading()) {
-    <div class="loading">Đang tải…</div>
-  }
+<div class="public-portal public-map-portal">
+  <div class="public-portal__bg" aria-hidden="true">
+    <div class="public-portal__grid-lines"></div>
+    <div class="public-portal__glow public-portal__glow--tl"></div>
+    <div class="public-portal__glow public-portal__glow--br"></div>
+  </div>
+
+  <div class="public-portal__shell public-map-portal__shell">
+    <header class="public-portal__header">
+      <div class="public-portal__brand">
+        <app-dms-logo [size]="48" />
+        <div class="public-portal__brand-text">
+          <p class="public-portal__eyebrow">BỘ CÔNG THƯƠNG</p>
+          <p class="public-portal__org">CỤC QUẢN LÝ VÀ PHÁT TRIỂN THỊ TRƯỜNG TRONG NƯỚC</p>
+        </div>
+      </div>
+      <nav class="public-portal__nav" aria-label="Điều hướng">
+        <a class="public-portal__nav-link" routerLink="/public/facility-update">
+          <span class="material-icons" aria-hidden="true">edit_location_alt</span>
+          Cập nhật HTTM
+        </a>
+        <a class="public-portal__nav-link" routerLink="/login">
+          <span class="material-icons" aria-hidden="true">login</span>
+          Đăng nhập
+        </a>
+      </nav>
+    </header>
+
+    <section class="public-portal__hero">
+      <h1 class="public-portal__title">Bản đồ HTTM công khai</h1>
+      <p class="public-portal__lead">
+        Vị trí cơ sở hạ tầng thương mại — không cần đăng nhập. Dữ liệu tải theo vùng bản đồ đang xem.
+      </p>
+      <span class="public-portal__badge">
+        <span class="material-icons" aria-hidden="true">public</span>
+        Dữ liệu công khai
+      </span>
+    </section>
+
+    @if (errorMessage(); as err) {
+      <div class="banner banner--error public-map-portal__banner" role="alert">{{ err }}</div>
+    }
+
+    <mat-card class="public-portal__card public-map-portal__map-card">
+      <div class="public-map-portal__toolbar">
+        <button mat-stroked-button type="button" (click)="reloadMarkers()" [disabled]="loading()">
+          @if (loading()) {
+            <mat-spinner diameter="18" />
+          } @else {
+            <mat-icon>refresh</mat-icon>
+          }
+          Tải lại điểm
+        </button>
+      </div>
+      <div #mapHost class="public-map-portal__map-host"></div>
+    </mat-card>
+
+    <footer class="public-portal__footer">
+      <p>© 2026 — Cục Quản lý và Phát triển thị trường trong nước — Bộ Công Thương</p>
+    </footer>
+  </div>
 </div>

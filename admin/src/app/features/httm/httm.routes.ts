@@ -10,7 +10,17 @@ export const HTTM_ROUTES: Routes = [
     children: [
       {
         path: '',
+        pathMatch: 'full',
+        redirectTo: 'dashboard',
+      },
+      {
+        path: 'hoso',
         loadComponent: () => import('./pages/httm-list-page.component').then((m) => m.HttmListPageComponent),
+      },
+      {
+        path: 'dashboard',
+        loadComponent: () =>
+          import('./pages/httm-dashboard-page.component').then((m) => m.HttmDashboardPageComponent),
       },
       {
         path: 'map',
@@ -29,6 +39,21 @@ export const HTTM_ROUTES: Routes = [
       {
         path: 'new',
         loadComponent: () => import('./pages/httm-create-page.component').then((m) => m.HttmCreatePageComponent),
+      },
+      {
+        path: 'import',
+        loadComponent: () =>
+          import('./pages/httm-import-page.component').then((m) => m.HttmImportPageComponent),
+      },
+      {
+        path: 'submissions',
+        loadComponent: () =>
+          import('./pages/httm-submissions-list-page.component').then((m) => m.HttmSubmissionsListPageComponent),
+      },
+      {
+        path: 'submissions/:id',
+        loadComponent: () =>
+          import('./pages/httm-submission-detail-page.component').then((m) => m.HttmSubmissionDetailPageComponent),
       },
       {
         path: ':id',

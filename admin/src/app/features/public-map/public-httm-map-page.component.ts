@@ -10,10 +10,16 @@ import {
   signal,
 } from '@angular/core';
 import { take } from 'rxjs';
+import { RouterLink } from '@angular/router';
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
+import { MatIconModule } from '@angular/material/icon';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 
 import * as L from 'leaflet';
 
 import { API_BASE_URL } from '../../core/tokens/api-base-url.token';
+import { DmsLogoComponent } from '../auth/components/dms-logo.component';
 import type { HttmMapFeatureDto } from '../httm/models/httm-map.model';
 import { HttmMapService } from '../httm/services/httm-map.service';
 import { mountSeaIslandGeoLabels } from '../inventory-map/inventory-map-geo-labels';
@@ -29,7 +35,15 @@ function appendParams(params: HttpParams, key: string, value: string | number | 
 @Component({
   selector: 'app-public-httm-map-page',
   standalone: true,
-  imports: [CommonModule],
+  imports: [
+    CommonModule,
+    RouterLink,
+    MatCardModule,
+    MatButtonModule,
+    MatIconModule,
+    MatProgressSpinnerModule,
+    DmsLogoComponent,
+  ],
   templateUrl: './public-httm-map-page.component.html',
   styleUrl: './public-httm-map-page.component.scss',
 })
@@ -45,6 +59,16 @@ export class PublicHttmMapPageComponent implements AfterViewInit, OnDestroy {
 
   private map: L.Map | null = null;
   private markers: L.LayerGroup | null = null;
+
+  /**
+   * Cạnh đông 116°E — đủ thấy overlay tiếng Việt "Quần đảo Hoàng Sa" (tâm 111.95°E) và
+   * "Quần đảo Trường Sa" (tâm 114.25°E) trọn vẹn ở zoom mặc định (6) và cao hơn; ở minZoom
+   * (5.5) nhãn Trường Sa có thể bị xén nhẹ ~3-10px bên phải, không đáng kể. Ba cạnh còn lại
+   * đặt ở biên giới toạ độ tối đa (-180°W kinh, ±85° vĩ Web Mercator) → mở hoàn toàn về phía
+   * tây/bắc/nam. Trade-off: tile Carto trong vùng Hoàng Sa/Trường Sa vẫn có thể hiện nhãn
+   * tiếng Trung ở zoom ≥ 7 — muốn chặn hẳn phải đổi tile provider (xem compliance memo).
+   */
+  private readonly MAP_BOUNDS = L.latLngBounds([-85, -180], [85, 116.0]);
 
   ngAfterViewInit(): void {
     queueMicrotask(() => this.initMap());
@@ -66,11 +90,19 @@ export class PublicHttmMapPageComponent implements AfterViewInit, OnDestroy {
       return;
     }
     const spec = this.mapService.getTileSpec();
-    this.map = L.map(el, { preferCanvas: true }).setView(
+    this.map = L.map(el, {
+      preferCanvas: true,
+      maxBounds: this.MAP_BOUNDS,
+      maxBoundsViscosity: 1.0,
+      minZoom: 5.5,
+    }).setView(
       [this.mapService.defaultCenterLat, this.mapService.defaultCenterLng],
       this.mapService.defaultZoom,
     );
-    L.tileLayer(spec.url, { attribution: spec.attribution, maxZoom: spec.maxZoom }).addTo(this.map);
+    L.tileLayer(spec.url, {
+      attribution: spec.attribution,
+      maxZoom: spec.maxZoom,
+    }).addTo(this.map);
     mountSeaIslandGeoLabels(this.map);
     this.markers = L.layerGroup().addTo(this.map);
     this.map.whenReady(() => {
@@ -121,10 +153,10 @@ export class PublicHttmMapPageComponent implements AfterViewInit, OnDestroy {
       return;
     }
     const [lng, lat] = f.geometry.coordinates;
-    const m = L.circleMarker([lat, lng], { radius: 6, color: '#1565c0', weight: 2, fillOpacity: 0.85 });
+    const m = L.circleMarker([lat, lng], { radius: 6, color: '#162a66', weight: 2, fillOpacity: 0.85 });
     m.bindPopup(
       `<strong>${escapeHtml(f.properties.name)}</strong><br/>` +
-        `${escapeHtml(f.properties.httmType)} · ${escapeHtml(f.properties.status)}`,
+      `${escapeHtml(f.properties.httmType)} · ${escapeHtml(f.properties.status)}`,
     );
     m.addTo(this.markers);
   }

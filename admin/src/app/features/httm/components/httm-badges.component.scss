@@ -5,15 +5,15 @@
 .httm-badge {
   display: inline-block;
   padding: 0.1rem 0.45rem;
-  border-radius: 4px;
-  font-size: 0.8125rem;
-  background: #e3f2fd;
-  color: #0d47a1;
+  border-radius: var(--app-radius-sm);
+  font-size: var(--app-text-sm);
+  background: var(--app-brand-muted-bg);
+  color: var(--app-brand-dark);
 }
 
 .httm-badge--type {
-  background: #e8f5e9;
-  color: #1b5e20;
+  background: var(--app-success-surface);
+  color: var(--app-success-text);
 }
 
 .httm-badge--status {

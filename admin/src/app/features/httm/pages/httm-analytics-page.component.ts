@@ -116,7 +116,7 @@ export class HttmAnalyticsPageComponent implements AfterViewInit, OnDestroy {
         type: 'bar',
         data: {
           labels,
-          datasets: [{ label: title, data, backgroundColor: '#1976d2aa' }],
+          datasets: [{ label: title, data, backgroundColor: 'var(--app-brand-chart)' }],
         },
         options: {
           responsive: true,

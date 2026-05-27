@@ -131,7 +131,7 @@ export class HttmMapPageComponent implements AfterViewInit, OnDestroy {
       return;
     }
     const [lng, lat] = f.geometry.coordinates;
-    const m = L.circleMarker([lat, lng], { radius: 6, color: '#1565c0', weight: 2, fillOpacity: 0.85 });
+    const m = L.circleMarker([lat, lng], { radius: 6, color: '#162a66', weight: 2, fillOpacity: 0.85 });
     m.bindPopup(
       `<strong>${escapeHtml(f.properties.name)}</strong><br/>` +
         `${escapeHtml(f.properties.httmType)} · ${escapeHtml(f.properties.status)}<br/>` +

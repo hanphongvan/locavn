@@ -26,8 +26,8 @@
 
 .banner--error {
   padding: 0.75rem 1rem;
-  background: #fdecea;
-  color: #611a15;
+  background: var(--app-danger-surface);
+  color: var(--app-danger-text);
   border-radius: 8px;
 }
 

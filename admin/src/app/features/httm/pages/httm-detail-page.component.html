@@ -9,7 +9,7 @@
         <app-page-header [title]="fac.name">
           <p appPageHeaderDesc>
             Mã: <code>{{ fac.id }}</code> —
-            <a routerLink="/httm" class="link-inline">← Danh sách</a>
+            <a routerLink="/httm/hoso" class="link-inline">← Danh sách</a>
             @if (canDelete()) {
               <button type="button" class="btn btn--secondary" style="margin-left: 1rem" (click)="deleteFacility()">Xoá hồ sơ</button>
             }
@@ -68,7 +68,6 @@
           <mat-tab label="Vị trí địa lý">
             <div class="tab-pad">
               <p>Kinh độ: <strong>{{ fac.lng ?? '—' }}</strong> — Vĩ độ: <strong>{{ fac.lat ?? '—' }}</strong></p>
-              <p class="muted">Chỉnh sửa tọa độ chi tiết sẽ bổ sung ở bản sau (cùng bản đồ nền).</p>
             </div>
           </mat-tab>
 
@@ -179,9 +178,8 @@
 
           <mat-tab label="Hình ảnh">
             <div class="tab-pad">
-              <p>Tải ảnh (jpg/png/webp, tối đa 10MB). Loại ảnh gửi lên server: <code>exterior</code>.</p>
               <input type="file" accept="image/jpeg,image/png,image/webp" (change)="onImageSelected($event)" />
-              <app-httm-image-gallery />
+              <app-httm-image-gallery [facilityId]="fac.id" />
             </div>
           </mat-tab>
 
@@ -206,7 +204,7 @@
                         <tr>
                           <td>{{ a.performedAt | date: 'short' }}</td>
                           <td>{{ a.action }}</td>
-                          <td>{{ a.performedBy }}</td>
+                          <td>{{ a.performedByName || a.performedBy }}</td>
                           <td><code class="wrap">{{ a.changedFields ?? '—' }}</code></td>
                         </tr>
                       }

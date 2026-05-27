@@ -33,7 +33,7 @@ import type { HttmFacilityLicenseDto } from '../models/httm-facility.model';
       }
       .lic__row {
         font-size: 0.9rem;
-        color: #555;
+        color: var(--app-text-muted);
       }
       .lic__warn {
         color: #c62828;

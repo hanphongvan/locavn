@@ -28,7 +28,7 @@
 .link-btn {
   background: none;
   border: none;
-  color: #1565c0;
+  color: var(--app-brand-dark);
   cursor: pointer;
   margin-right: 0.5rem;
   padding: 0;
@@ -45,6 +45,6 @@
 
 .banner--error {
   padding: 0.75rem 1rem;
-  background: #fdecea;
+  background: var(--app-danger-surface);
   border-radius: 8px;
 }

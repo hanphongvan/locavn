@@ -62,11 +62,11 @@ export const SHELL_NAV_MENU_GROUPS: readonly ShellNavMenuGroup[] = [
     title: 'Hạ tầng thương mại',
     roles: HTTM_PORTAL_ROLES,
     items: [
-      { path: '/httm', label: 'Hồ sơ HTTM', icon: 'store_mall_directory', roles: HTTM_PORTAL_ROLES },
+      { path: '/httm/hoso', label: 'Hồ sơ HTTM', icon: 'store_mall_directory', roles: HTTM_PORTAL_ROLES },
+      { path: '/httm/submissions', label: 'Đề xuất cập nhật HTTM', icon: 'edit_note', roles: HTTM_PORTAL_ROLES },
       { path: '/httm/map', label: 'Bản đồ HTTM', icon: 'map', roles: HTTM_PORTAL_ROLES },
       { path: '/surveys', label: 'Phiếu khảo sát', icon: 'assignment', roles: SURVEY_PORTAL_ROLES },
       { path: '/httm/analytics', label: 'Thống kê HTTM', icon: 'bar_chart', roles: HTTM_PORTAL_ROLES },
-      { path: '/httm/report-templates', label: 'Mẫu báo cáo', icon: 'description', roles: HTTM_PORTAL_ROLES },
     ],
   },
   {

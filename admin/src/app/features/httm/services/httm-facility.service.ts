@@ -8,6 +8,7 @@ import type {
   HttmAuditLogsPageDto,
   HttmFacilityCreateRequest,
   HttmFacilityDto,
+  HttmFacilityImageDto,
   HttmFacilityLicenseDto,
   HttmFacilityLicenseUpsertRequest,
   HttmFacilitySearchPageDto,
@@ -99,6 +100,10 @@ export class HttmFacilityService {
   getAuditLogs(facilityId: string, page = 1, pageSize = 20) {
     const p = new HttpParams().set('page', String(page)).set('pageSize', String(pageSize));
     return this.api.get<HttmAuditLogsPageDto>(`/api/httm/${facilityId}/audit-logs`, p).pipe(handleApiError());
+  }
+
+  listImages(facilityId: string) {
+    return this.api.get<HttmFacilityImageDto[]>(`/api/httm/${facilityId}/images`).pipe(handleApiError());
   }
 
   listLicenses(facilityId: string) {

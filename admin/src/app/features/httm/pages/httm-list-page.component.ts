@@ -53,6 +53,7 @@ export class HttmListPageComponent {
   readonly provinces = signal<ProvinceOptionDto[]>([]);
   readonly typeItems = signal<HttmCatalogItemDto[]>([]);
   readonly statusItems = signal<HttmCatalogItemDto[]>([]);
+  readonly filtersExpanded = signal(false);
 
   readonly filterForm = this.fb.nonNullable.group({
     q: [''],
@@ -124,6 +125,15 @@ export class HttmListPageComponent {
     this.filterForm.reset({ q: '', httmType: '', provinceCode: '', status: '' });
     this.page.set(1);
     this.refresh$.next();
+  }
+
+  toggleFiltersExpanded(): void {
+    this.filtersExpanded.update((v) => !v);
+  }
+
+  onCompactSearchEnter(event: Event): void {
+    event.preventDefault();
+    this.applyFilters();
   }
 
   setPage(n: number): void {

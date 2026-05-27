@@ -113,6 +113,18 @@ export type HttmFacilityUpdateRequest = Partial<HttmFacilityCreateRequest> & {
   clearLocation?: boolean;
 };
 
+export interface HttmFacilityImageDto {
+  id: string;
+  facilityId: string;
+  imageUrl: string;
+  imageType: string;
+  caption?: string | null;
+  takenDate?: string | null;
+  sortOrder: number;
+  uploadedBy?: string | null;
+  createdAt: string;
+}
+
 export interface HttmFacilityLicenseDto {
   id: string;
   facilityId: string;
@@ -143,7 +155,10 @@ export interface HttmAuditLogDto {
   facilityId: string;
   action: string;
   changedFields?: string | null;
+  /** AspNetUsers.Id — chỉ dùng cho debug/audit. UI hiển thị {@link performedByName}. */
   performedBy: string;
+  /** DisplayName / UserName từ AspNetUsers. Fallback về `performedBy` nếu không join được. */
+  performedByName: string;
   performedAt: string;
   ipAddress?: string | null;
   userAgent?: string | null;

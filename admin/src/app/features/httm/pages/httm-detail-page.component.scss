@@ -19,11 +19,11 @@
   justify-content: space-between;
   gap: 1rem;
   padding: 0.35rem 0;
-  border-bottom: 1px solid var(--border-subtle, #eee);
+  border-bottom: 1px solid var(--app-border);
 }
 
 .kv span {
-  color: var(--text-muted, #666);
+  color: var(--app-text-muted);
 }
 
 .link-inline {
@@ -43,7 +43,7 @@
 .data-table th,
 .data-table td {
   padding: 0.45rem 0.6rem;
-  border-bottom: 1px solid var(--border-subtle, #e0e0e0);
+  border-bottom: 1px solid var(--app-border);
   text-align: left;
   vertical-align: top;
 }
