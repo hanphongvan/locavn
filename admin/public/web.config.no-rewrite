@@ -1,13 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Yêu cầu server IIS đã cài "URL Rewrite Module":
-    https://www.iis.net/downloads/microsoft/url-rewrite
-  Nếu CHƯA cài, IIS sẽ trả 500.19 khi đọc section <rewrite>.
-  Lúc đó dùng tạm file `web.config.no-rewrite` (ghi đè lên `web.config`),
-  user sẽ không F5 sâu được vào route con.
+  Bản tối thiểu: KHÔNG có <rewrite> → không yêu cầu cài "URL Rewrite Module" trên IIS.
+  Hệ quả: F5 trên route con (`/login`, `/httm/...`) sẽ trả 404 do IIS không biết
+  fallback về `index.html`.
 
-  SPA fallback: mọi request không trùng file/folder vật lý đều rewrite về
-  `index.html` để Angular Router xử lý.
+  Chỉ dùng file này khi server không thể cài URL Rewrite Module. Đổi tên thành
+  `web.config` (ghi đè) trước khi deploy.
 -->
 <configuration>
   <system.webServer>
@@ -17,18 +15,6 @@
         <add value="index.html" />
       </files>
     </defaultDocument>
-    <rewrite>
-      <rules>
-        <rule name="AngularSpaFallback" stopProcessing="true">
-          <match url=".*" />
-          <conditions logicalGrouping="MatchAll">
-            <add input="{REQUEST_FILENAME}" matchType="IsFile" negate="true" />
-            <add input="{REQUEST_FILENAME}" matchType="IsDirectory" negate="true" />
-          </conditions>
-          <action type="Rewrite" url="index.html" />
-        </rule>
-      </rules>
-    </rewrite>
   </system.webServer>
 
   <!--
@@ -53,7 +39,6 @@
   <!--
     `index.html` KHÔNG có hash trong tên (Angular chỉ hash chunks/main/styles).
     Browser cache `index.html` cũ → tiếp tục yêu cầu chunk cũ → màn hình trắng.
-    Disable cache cho mỗi `index.html` (và `/` rewrite về index.html).
     Chunk/main/styles có hash nên CÓ THỂ cache lâu — KHÔNG đặt no-cache cho cả site.
   -->
   <location path="index.html">

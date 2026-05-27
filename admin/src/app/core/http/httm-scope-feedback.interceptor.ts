@@ -4,14 +4,14 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 
-import { environment } from '../../../environments/environment';
+import { API_BASE_URL } from '../tokens/api-base-url.token';
 import { isRequestToApiBase } from './api-origin-matches.util';
 
 /**
  * 403 từ API HTTM khi vượt phạm vi tỉnh — hiển thị toast tiếng Việt (backend trả ProblemDetails.detail).
  */
 export const httmScopeFeedbackInterceptor: HttpInterceptorFn = (req, next) => {
-  const base = environment.apiBaseUrl.replace(/\/$/, '').trim();
+  const base = inject(API_BASE_URL);
   const snack = inject(MatSnackBar);
 
   return next(req).pipe(
