@@ -1,0 +1,71 @@
+<div class="stack">
+  <app-page-header title="Mẫu báo cáo (S5.2)">
+    <p appPageHeaderDesc>CRUD mẫu báo cáo và khoảng nhắc (ngày). Worker backend ghi log nhắc định kỳ.</p>
+  </app-page-header>
+
+  @if (errorMessage(); as err) {
+    <div class="banner banner--error" role="alert">{{ err }}</div>
+  }
+
+  <app-section-card [title]="editingId() ? 'Sửa mẫu' : 'Thêm mẫu'">
+    <form [formGroup]="form" (ngSubmit)="save()" class="form-grid form-grid--2">
+      <div class="form-field">
+        <label class="form-label" for="rt-code">Mã</label>
+        <input id="rt-code" class="form-control" formControlName="code" [readonly]="!!editingId()" />
+      </div>
+      <div class="form-field">
+        <label class="form-label" for="rt-name">Tên</label>
+        <input id="rt-name" class="form-control" formControlName="name" />
+      </div>
+      <div class="form-field form-grid--full">
+        <label class="form-label" for="rt-desc">Mô tả</label>
+        <textarea id="rt-desc" class="form-control" rows="2" formControlName="description"></textarea>
+      </div>
+      <div class="form-field">
+        <label class="form-label" for="rt-days">Nhắc mỗi (ngày)</label>
+        <input id="rt-days" class="form-control" type="number" formControlName="reminderIntervalDays" />
+      </div>
+      <div class="form-field">
+        <label class="form-label"><input type="checkbox" formControlName="isActive" /> Đang hoạt động</label>
+      </div>
+      <div class="btn-row form-grid--full">
+        <button type="submit" class="btn btn--primary" [disabled]="loading() || form.invalid">Lưu</button>
+        <button type="button" class="btn btn--secondary" (click)="newTemplate()">Làm mới form</button>
+      </div>
+    </form>
+  </app-section-card>
+
+  <app-section-card title="Danh sách">
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Mã</th>
+            <th>Tên</th>
+            <th>Ngày nhắc</th>
+            <th>Hoạt động</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (r of rows(); track r.id) {
+            <tr>
+              <td>{{ r.code }}</td>
+              <td>{{ r.name }}</td>
+              <td>{{ r.reminderIntervalDays }}</td>
+              <td>{{ r.isActive ? 'Có' : 'Không' }}</td>
+              <td>
+                <button type="button" class="link-btn" (click)="edit(r)">Sửa</button>
+                <button type="button" class="link-btn danger" (click)="remove(r)">Xoá</button>
+              </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="5" class="muted">Chưa có mẫu.</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </app-section-card>
+</div>

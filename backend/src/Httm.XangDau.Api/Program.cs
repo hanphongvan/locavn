@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text.Json;
 using System.Threading.RateLimiting;
 using Httm.XangDau.Api.Features;
@@ -49,6 +50,12 @@ builder.Services.AddSwaggerGen(options =>
         BearerFormat = "JWT",
     });
     options.OperationFilter<AdminApiKeyOperationFilter>();
+    var xml = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xml);
+    if (File.Exists(xmlPath))
+    {
+        options.IncludeXmlComments(xmlPath, includeControllerXmlComments: true);
+    }
 });
 
 builder.Services.AddInfrastructure(builder.Configuration);
@@ -87,6 +94,18 @@ builder.Services.AddRateLimiter(options =>
             {
                 PermitLimit = 10,
                 Window = TimeSpan.FromMinutes(15),
+                QueueLimit = 0,
+            }));
+
+    // Bản đồ HTTM công khai — tránh scrape hàng loạt.
+    options.AddPolicy(
+        "public-httm",
+        httpContext => RateLimitPartition.GetFixedWindowLimiter(
+            PartitionKey(httpContext),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 120,
+                Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0,
             }));
 });

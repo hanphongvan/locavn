@@ -36,4 +36,31 @@ public sealed class GeographyRepository(DmpPortalDbContext db) : IGeographyRepos
             .OrderBy(x => x.Ma).ThenBy(x => x.Ten)
             .Select(x => new WardRowDto(x.Ma, x.Ten, x.TinhId, x.QuanHuyenId))
             .ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<WardRowDto>> ListWardsByTinhIdAsync(
+        int tinhId,
+        CancellationToken cancellationToken = default) =>
+        await db.DmXaPhuongs.AsNoTracking()
+            .Where(x => x.TinhId == tinhId)
+            .OrderBy(x => x.Ten).ThenBy(x => x.Ma)
+            .Select(x => new WardRowDto(x.Ma, x.Ten, x.TinhId, x.QuanHuyenId))
+            .ToListAsync(cancellationToken);
+
+    public async Task<string?> GetProvinceCodeByDonViIdAsync(
+        int donViId,
+        CancellationToken cancellationToken = default)
+    {
+        // DM_DonVi.Tinh = TinhId (nullable). Tra ngược DM_Tinh để lấy Ma.
+        var tinhId = await db.DmDonVis.AsNoTracking()
+            .Where(d => d.Id == donViId)
+            .Select(d => d.Tinh)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (tinhId is null)
+            return null;
+
+        return await db.DmTinhs.AsNoTracking()
+            .Where(t => t.Id == tinhId.Value)
+            .Select(t => t.Ma)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
 }

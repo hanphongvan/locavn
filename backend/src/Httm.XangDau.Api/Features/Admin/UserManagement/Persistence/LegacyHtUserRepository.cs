@@ -142,6 +142,21 @@ public sealed class LegacyHtUserRepository(IConfiguration configuration, IAdminP
         return MapDetail(d, roles, donVis);
     }
 
+    /// <summary>
+    /// Ghi vào <c>AspNetUsers</c> (Identity table) qua <c>sp_HT_Users_AddOrUpdate</c>.
+    /// Lưu ý: <c>sp_HT_Users_AddOrUpdatePass</c> ghi vào bảng legacy <c>HT_Users</c>, KHÔNG liên quan đến
+    /// đăng nhập Bearer/Identity — không dùng ở đây.
+    /// </summary>
+    /// <remarks>
+    /// SP mapping (theo source thực tế):
+    /// <list type="bullet">
+    ///   <item><description>INSERT path: <c>AspNetUsers.PasswordHash = @Password</c>, <c>SecurityStamp = @PasswordSalt</c>;
+    ///     <c>LockoutEnabled = 0</c> (SP hardcode).</description></item>
+    ///   <item><description>UPDATE path: chỉ ghi PasswordHash/SecurityStamp khi <c>@Password</c>/<c>@PasswordSalt</c> không rỗng.</description></item>
+    /// </list>
+    /// Caller phải hash password bằng <c>LegacyAspNetIdentityV2PasswordHasher.HashPassword</c> và truyền vào
+    /// <paramref name="passwordHash"/> (recommended) hoặc <paramref name="passwordPlain"/> (SP sẽ lưu nguyên — không verify được).
+    /// </remarks>
     public async Task<string?> AddOrUpdateUserAsync(
         string? id,
         string userName,
@@ -157,102 +172,53 @@ public sealed class LegacyHtUserRepository(IConfiguration configuration, IAdminP
         string? passwordHash,
         CancellationToken cancellationToken = default)
     {
-        await using var conn = new SqlConnection(_connectionString);
-        await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
+        if (string.IsNullOrEmpty(id))
+            throw new InvalidOperationException("Id is required for sp_HT_Users_AddOrUpdate.");
 
-        if (!string.IsNullOrEmpty(passwordPlain))
-        {
-            await ExecuteAddOrUpdatePassAsync(
-                    conn,
-                    id,
-                    userName,
-                    displayName,
-                    fullName,
-                    email,
-                    phone,
-                    address,
-                    description,
-                    donViId,
-                    loai,
-                    passwordPlain,
-                    cancellationToken)
-                .ConfigureAwait(false);
-            return id;
-        }
+        var passwordForSp = !string.IsNullOrEmpty(passwordHash) ? passwordHash
+                            : !string.IsNullOrEmpty(passwordPlain) ? passwordPlain
+                            : string.Empty;
 
-        var p = new DynamicParameters();
-        p.Add("Id", id);
-        p.Add("UserName", userName);
-        p.Add("DisplayName", displayName);
-        p.Add("FullName", fullName);
-        p.Add("Email", email);
-        p.Add("Phone", phone);
-        p.Add("Address", address);
-        p.Add("Description", description);
-        p.Add("DonViId", donViId);
-        p.Add("Loai", loai);
-        if (!string.IsNullOrEmpty(passwordHash))
-        {
-            p.Add("PasswordHash", passwordHash);
-        }
+        // SecurityStamp = NEWID() khi caller gửi password mới (INSERT hoặc UPDATE password);
+        // empty khi UPDATE giữ nguyên password (SP UPDATE path bỏ qua nếu @PasswordSalt = '').
+        var securityStampForSp = passwordForSp.Length == 0 ? string.Empty : Guid.NewGuid().ToString("D");
 
-        await conn
-            .ExecuteAsync("sp_HT_Users_AddOrUpdate", p, commandType: CommandType.StoredProcedure)
-            .ConfigureAwait(false);
-        return id;
-    }
-
-    /// <summary>Aligns with legacy DMPPortal <c>AddOrUpdatePass(UsersEntity)</c> parameter set.</summary>
-    private async Task ExecuteAddOrUpdatePassAsync(
-        SqlConnection conn,
-        string? id,
-        string userName,
-        string? displayName,
-        string? fullName,
-        string? email,
-        string? phone,
-        string? address,
-        string? description,
-        int? donViId,
-        int? loai,
-        string? passwordPlain,
-        CancellationToken cancellationToken)
-    {
         var now = DateTime.Now;
         var actor = string.IsNullOrWhiteSpace(portal.UserName) ? "API" : portal.UserName.Trim();
 
-        object idArg = id ?? throw new InvalidOperationException("Id is required for sp_HT_Users_AddOrUpdatePass.");
-        if (Guid.TryParse(id!, out var idGuid))
-        {
+        object idArg = id;
+        if (Guid.TryParse(id, out var idGuid))
             idArg = idGuid;
-        }
 
         var p = new DynamicParameters();
         p.Add("Id", idArg);
         p.Add("UserName", userName);
         p.Add("FullName", fullName);
-        p.Add("Password", string.IsNullOrEmpty(passwordPlain) ? string.Empty : passwordPlain);
-        p.Add("PasswordSalt", string.Empty);
+        p.Add("Password", passwordForSp);
+        p.Add("PasswordSalt", securityStampForSp);
         p.Add("DisplayName", displayName);
         p.Add("Description", description);
         p.Add("Phone", phone);
-        p.Add("Ma_Ao", (string?)null);
         p.Add("Address", address);
-        // Legacy UI used uniqueidentifier; current AspNetUsers.DonViId is int — match INT SP parameter if yours differs, adjust in SQL.
-        p.Add("Don_Vi_Id", donViId);
-        p.Add("Quan_Ly_Id", (Guid?)null);
         p.Add("Email", email);
-        p.Add("Loai", loai);
         p.Add("IsActived", true);
         p.Add("IsDefault", false);
+        p.Add("Ma_Ao", (string?)null);
+        p.Add("Don_Vi_Id", donViId);
+        p.Add("Quan_Ly_Id", (Guid?)null);
+        p.Add("Loai", loai);
         p.Add("Created", now);
         p.Add("CreatedBy", actor);
         p.Add("Modified", now);
         p.Add("ModifiedBy", actor);
 
+        await using var conn = new SqlConnection(_connectionString);
+        await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
         await conn
-            .ExecuteAsync("sp_HT_Users_AddOrUpdatePass", p, commandType: CommandType.StoredProcedure)
+            .ExecuteAsync("sp_HT_Users_AddOrUpdate", p, commandType: CommandType.StoredProcedure)
             .ConfigureAwait(false);
+
+        return id;
     }
 
     public async Task<bool> DeleteUserAsync(string id, CancellationToken cancellationToken = default)
@@ -265,6 +231,41 @@ public sealed class LegacyHtUserRepository(IConfiguration configuration, IAdminP
                 commandType: CommandType.StoredProcedure)
             .ConfigureAwait(false);
         return n > 0;
+    }
+
+    /// <inheritdoc />
+    public async Task<int> SetPasswordHashAsync(
+        string userId,
+        string passwordHash,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+            throw new ArgumentException("userId required.", nameof(userId));
+        if (string.IsNullOrWhiteSpace(passwordHash))
+            throw new ArgumentException("passwordHash required.", nameof(passwordHash));
+
+        await using var conn = new SqlConnection(_connectionString);
+        await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+        const string sql = """
+            UPDATE dbo.AspNetUsers
+            SET PasswordHash = @PasswordHash,
+                SecurityStamp = @SecurityStamp
+            WHERE Id = @Id
+            """;
+
+        return await conn
+            .ExecuteAsync(
+                new CommandDefinition(
+                    sql,
+                    new
+                    {
+                        PasswordHash = passwordHash,
+                        SecurityStamp = Guid.NewGuid().ToString("D"),
+                        Id = userId,
+                    },
+                    cancellationToken: cancellationToken))
+            .ConfigureAwait(false);
     }
 
     public async Task<int> SetLockoutEnabledAsync(
@@ -405,6 +406,29 @@ public sealed class LegacyHtUserRepository(IConfiguration configuration, IAdminP
                 .QueryAsync<DonViOptionDto>(
                     sql,
                     new { CapDonViId = PetrolRetailConstants.CapDonViId },
+                    commandType: CommandType.Text)
+                .ConfigureAwait(false))
+            .ToList();
+        return list;
+    }
+
+    public async Task<IReadOnlyList<DonViOptionDto>> GetDonViSoStaffAsync(
+        CancellationToken cancellationToken = default)
+    {
+        await using var conn = new SqlConnection(_connectionString);
+        await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
+        const string sql = """
+            SELECT dv.Id,
+                   ISNULL(dv.Ma, N'') AS Ma,
+                   ISNULL(dv.Ten, N'') AS Ten
+            FROM dbo.DM_DonVi AS dv
+            WHERE dv.CapDonViId = @CapDonViId
+            ORDER BY dv.Ma;
+            """;
+        var list = (await conn
+                .QueryAsync<DonViOptionDto>(
+                    sql,
+                    new { CapDonViId = SoStaffUnitConstants.CapDonViId },
                     commandType: CommandType.Text)
                 .ConfigureAwait(false))
             .ToList();

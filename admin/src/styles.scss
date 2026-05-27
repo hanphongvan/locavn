@@ -1,6 +1,7 @@
 @use './styles/tokens';
 @use './styles/primitives';
 @use './styles/forms';
+@use './styles/list-filters';
 @use './styles/material-overrides';
 
 /* Leaflet base styles (map panes, controls, tiles). Loaded globally so dynamic map DOM is styled. */
@@ -19,10 +20,18 @@ body {
 
 body {
   margin: 0;
-  font-family: var(--app-font-sans);
+  font-family: var(--app-font-display);
   font-size: var(--app-text-base);
   line-height: var(--app-leading-normal);
   color: var(--app-text);
   background: var(--app-surface-muted);
   -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--app-brand);
+
+  &:hover {
+    color: var(--app-brand-hover);
+  }
 }

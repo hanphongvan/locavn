@@ -1,0 +1,188 @@
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.muted {
+  opacity: 0.7;
+}
+
+.banner--error {
+  padding: 0.75rem 1rem;
+  background: var(--app-danger-surface);
+  color: var(--app-danger-text);
+  border-radius: 8px;
+}
+
+/* ============ Vùng 1: Hero CTA ============ */
+.hero-cta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.hero-cta__btn {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.25rem 1.5rem;
+  min-height: 110px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: progress;
+  }
+}
+
+.hero-cta__btn--primary {
+  background: linear-gradient(135deg, var(--app-brand) 0%, var(--app-brand-dark) 100%);
+  color: #fff;
+}
+
+.hero-cta__btn--secondary {
+  background: #fff;
+  border-color: #c7d4e0;
+  color: #1f2d3d;
+
+  &:hover {
+    border-color: var(--app-brand);
+  }
+}
+
+.hero-cta__icon {
+  font-size: 2.25rem;
+  line-height: 1;
+}
+
+.hero-cta__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.hero-cta__title {
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+
+.hero-cta__hint {
+  font-size: 0.875rem;
+  opacity: 0.85;
+}
+
+/* ============ Vùng 2: KPI ============ */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.kpi-value {
+  font-size: 1.875rem;
+  font-weight: 700;
+}
+
+/* ============ Vùng 3: Chart ============ */
+.chart-box {
+  max-width: 900px;
+}
+
+/* ============ Vùng 4: Mini map ============ */
+.mini-map {
+  height: 280px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--app-border);
+}
+
+/* ============ Vùng 5: Hoạt động gần đây ============ */
+.recent-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.recent-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.recent-item {
+  padding: 0.625rem 0;
+  border-bottom: 1px solid var(--app-border);
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.recent-item__name {
+  display: block;
+  font-weight: 600;
+  color: var(--app-brand-dark);
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.recent-item__meta {
+  display: block;
+  font-size: 0.8125rem;
+  color: var(--app-text-muted);
+  margin-top: 0.125rem;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: #eceff1;
+  color: #37474f;
+}
+
+.badge--pending {
+  background: #fff8e1;
+  color: #8a6d3b;
+}
+
+.badge--approved {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.badge--rejected {
+  background: var(--app-danger-surface);
+  color: var(--app-danger-text);
+}
+
+/* ============ Vùng 6: Báo cáo nhanh ============ */
+.quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}

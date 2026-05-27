@@ -1,0 +1,145 @@
+<div class="sub-detail">
+  <a routerLink="/httm/submissions" class="sub-detail__back">← Danh sách đề xuất</a>
+
+  @if (loading()) {
+    <p>Đang tải…</p>
+  }
+  @if (!loading() && detail(); as d) {
+    <header class="sub-detail__header">
+      <h1>{{ d.proposed.name || d.submitter.name }}</h1>
+      <div class="sub-detail__meta">
+        <span class="chip" [class.chip--new]="d.submissionType === 'create_new'">
+          {{ d.submissionType === 'create_new' ? 'Tạo mới' : 'Cập nhật' }}
+        </span>
+        <span class="chip" [ngClass]="'chip--' + d.status">
+          {{ d.status === 'pending' ? 'Chờ duyệt' : d.status === 'approved' ? 'Đã duyệt' : 'Từ chối' }}
+        </span>
+        <span class="muted">Gửi {{ d.submittedAt | date: 'dd/MM/yyyy HH:mm' }}</span>
+      </div>
+    </header>
+
+    <mat-card class="sub-detail__submitter">
+      <h2>Người gửi</h2>
+      <div class="grid grid--3">
+        <div><strong>Họ tên:</strong> {{ d.submitter.name }}</div>
+        <div><strong>SĐT:</strong> {{ d.submitter.phone }}</div>
+        <div><strong>Email:</strong> {{ d.submitter.email || '—' }}</div>
+        @if (d.submitter.notes) {
+          <div class="full"><strong>Ghi chú gửi cán bộ:</strong><br />{{ d.submitter.notes }}</div>
+        }
+        <div class="muted small"><strong>IP:</strong> {{ d.submitterIp || '—' }}</div>
+      </div>
+    </mat-card>
+
+    <mat-card class="sub-detail__diff">
+      <h2>So sánh dữ liệu (highlight vàng = đã thay đổi)</h2>
+      <table class="diff-table">
+        <thead>
+          <tr>
+            <th>Trường</th>
+            <th>Hiện tại</th>
+            <th>Đề xuất</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (f of diffFields(); track f.key) {
+            <tr [class.diff-row--changed]="f.changed">
+              <td class="diff-table__label">{{ f.label }}</td>
+              <td>{{ f.currentValue || '—' }}</td>
+              <td>{{ f.proposedValue || '—' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </mat-card>
+
+    <!-- Giấy phép đề xuất -->
+    @if (d.proposedLicenses?.length) {
+      <mat-card class="sub-detail__attachments">
+        <h2>Giấy phép pháp lý đề xuất ({{ d.proposedLicenses.length }})</h2>
+        <div class="license-list">
+          @for (lic of d.proposedLicenses; track $index) {
+            <div class="license-row">
+              <div class="license-row__head">
+                <strong>{{ licenseTypeLabel(lic.licenseType) }}</strong>
+                @if (lic.licenseNumber) { — <span>{{ lic.licenseNumber }}</span> }
+              </div>
+              <div class="license-row__meta">
+                @if (lic.issuedBy) { <span><strong>Cấp bởi:</strong> {{ lic.issuedBy }}</span> }
+                @if (lic.issuedDate) { <span><strong>Ngày cấp:</strong> {{ lic.issuedDate | date: 'dd/MM/yyyy' }}</span> }
+                @if (lic.expiryDate) { <span><strong>Hết hạn:</strong> {{ lic.expiryDate | date: 'dd/MM/yyyy' }}</span> }
+              </div>
+              @if (lic.notes) {
+                <div class="license-row__notes">{{ lic.notes }}</div>
+              }
+              @if (lic.fileUrl) {
+                <a [href]="absoluteUrl(lic.fileUrl)" target="_blank" class="license-row__file">
+                  <mat-icon>attach_file</mat-icon>
+                  Mở tệp đính kèm
+                </a>
+              }
+            </div>
+          }
+        </div>
+      </mat-card>
+    }
+
+    <!-- Hình ảnh đề xuất -->
+    @if (d.proposedImages?.length) {
+      <mat-card class="sub-detail__attachments">
+        <h2>Hình ảnh đề xuất ({{ d.proposedImages.length }})</h2>
+        <div class="image-gallery">
+          @for (img of d.proposedImages; track $index) {
+            <a [href]="absoluteUrl(img.url)" target="_blank" class="image-thumb"
+               [title]="img.caption || imageTypeLabel(img.imageType)">
+              <img [src]="absoluteUrl(img.url)" [alt]="img.caption || 'Ảnh ' + ($index + 1)" />
+              <span class="image-thumb__type">{{ imageTypeLabel(img.imageType) }}</span>
+              @if (img.caption) {
+                <span class="image-thumb__caption">{{ img.caption }}</span>
+              }
+            </a>
+          }
+        </div>
+      </mat-card>
+    }
+
+    @if (d.status === 'pending') {
+      <div class="sub-detail__actions">
+        <mat-card class="sub-detail__action">
+          <h3>Phê duyệt</h3>
+          <mat-form-field appearance="outline" class="full">
+            <mat-label>Ghi chú (tùy chọn)</mat-label>
+            <textarea matInput rows="2" [(ngModel)]="approveNotes"></textarea>
+          </mat-form-field>
+          <button mat-flat-button color="primary" (click)="approve()" [disabled]="working()">
+            <mat-icon>check_circle</mat-icon> Duyệt & Merge
+          </button>
+        </mat-card>
+
+        <mat-card class="sub-detail__action sub-detail__action--reject">
+          <h3>Từ chối</h3>
+          <mat-form-field appearance="outline" class="full">
+            <mat-label>Lý do từ chối *</mat-label>
+            <textarea matInput rows="2" [(ngModel)]="rejectReason" required></textarea>
+          </mat-form-field>
+          <button mat-flat-button color="warn" (click)="reject()" [disabled]="working() || !rejectReason()">
+            <mat-icon>cancel</mat-icon> Từ chối
+          </button>
+        </mat-card>
+      </div>
+    }
+    @if (d.status !== 'pending') {
+      <mat-card class="sub-detail__reviewed">
+        <h3>Đã review</h3>
+        <p><strong>Người review:</strong> {{ d.reviewedBy || '—' }}</p>
+        <p><strong>Lúc:</strong> {{ d.reviewedAt | date: 'dd/MM/yyyy HH:mm' }}</p>
+        @if (d.reviewNotes) {
+          <p><strong>Ghi chú:</strong> {{ d.reviewNotes }}</p>
+        }
+        @if (d.mergedFacilityId) {
+          <p><strong>Facility:</strong> <a [routerLink]="['/httm', d.mergedFacilityId]">{{ d.mergedFacilityId }}</a></p>
+        }
+      </mat-card>
+    }
+  }
+</div>

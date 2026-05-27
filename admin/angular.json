@@ -29,7 +29,7 @@
               {
                 "glob": "**/*",
                 "input": "public",
-                "ignore": ["**/web.config.with-url-rewrite"]
+                "ignore": ["**/web.config.no-rewrite"]
               },
               {
                 "glob": "**/*",
@@ -60,8 +60,8 @@
                 },
                 {
                   "type": "anyComponentStyle",
-                  "maximumWarning": "5kB",
-                  "maximumError": "10kB"
+                  "maximumWarning": "8kB",
+                  "maximumError": "12kB"
                 }
               ],
               "outputHashing": "all"

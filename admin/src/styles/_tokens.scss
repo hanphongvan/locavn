@@ -1,14 +1,39 @@
-/* Design system — primary brand #1F3C93, enterprise admin (light, restrained blue) */
+/* Design system — HTTM / Bộ Công Thương (#1F3C93 brand, portal #06152B) */
 :root {
+  /* —— Brand (authenticated shell, forms, HTTM admin) —— */
   --app-brand: #1f3c93;
   --app-brand-hover: #2a4aad;
   --app-brand-dark: #162a66;
+  --app-brand-mid: #243d95;
   --app-brand-soft: rgba(31, 60, 147, 0.1);
   --app-brand-border: rgba(31, 60, 147, 0.22);
   --app-brand-ghost: rgba(31, 60, 147, 0.06);
+  --app-brand-muted-bg: #e8edf8;
+  --app-brand-chart: rgba(31, 60, 147, 0.67);
   --app-focus-ring: 0 0 0 3px rgba(31, 60, 147, 0.18);
 
-  /* Sidebar — light surface, brand only for active / focus */
+  /* —— Portal (login, public pages) —— */
+  --app-portal-bg: #06152b;
+  --app-portal-fg: #e2e8f0;
+  --app-portal-fg-muted: rgba(226, 232, 240, 0.82);
+  --app-portal-accent: #0ea5e9;
+  --app-portal-accent-light: #38bdf8;
+  --app-portal-accent-muted: #7dd3fc;
+  --app-portal-grid-line: rgba(56, 189, 248, 0.07);
+  --app-portal-glass-border: rgba(56, 189, 248, 0.25);
+  --app-portal-glass-bg: rgba(8, 22, 48, 0.45);
+
+  /* —— CTA accents —— */
+  --app-cta-login-start: #0284c7;
+  --app-cta-login-mid: #0ea5e9;
+  --app-cta-login-end: #38bdf8;
+  --app-cta-accent-start: #ea580c;
+  --app-cta-accent-mid: #f97316;
+  --app-cta-accent-end: #fb923c;
+  --app-cta-accent-border: rgba(251, 146, 60, 0.4);
+  --app-cta-accent-bg: rgba(249, 115, 22, 0.12);
+
+  /* —— Sidebar —— */
   --app-sidebar-bg: #ffffff;
   --app-sidebar-fg: #0f172a;
   --app-sidebar-border: #e8ecf4;
@@ -19,6 +44,7 @@
   --app-sidebar-active-border: var(--app-brand);
   --app-sidebar-brand-border: rgba(31, 60, 147, 0.12);
 
+  /* —— Surfaces —— */
   --app-surface: #ffffff;
   --app-surface-muted: #f5f7fb;
   --app-surface-elevated: #ffffff;
@@ -33,12 +59,26 @@
   --app-text-secondary: #334155;
   --app-text-muted: #64748b;
 
-  --app-danger: #b91c1c;
-  --app-success: #0f766e;
-  --app-warning: #b45309;
-  --app-info: #0369a1;
+  /* Legacy aliases (HTTM pages) */
+  --border-subtle: var(--app-border);
+  --text-muted: var(--app-text-muted);
 
-  /* Spacing scale (rem) */
+  /* —— Semantic —— */
+  --app-danger: #b91c1c;
+  --app-danger-surface: #fef2f2;
+  --app-danger-border: #fecaca;
+  --app-danger-text: #991b1b;
+  --app-success: #0f766e;
+  --app-success-surface: #ecfdf5;
+  --app-success-text: #047857;
+  --app-warning: #b45309;
+  --app-warning-surface: #fffbeb;
+  --app-warning-text: #92400e;
+  --app-info: #0369a1;
+  --app-info-surface: var(--app-brand-muted-bg);
+  --app-info-text: var(--app-brand-dark);
+
+  /* —— Spacing —— */
   --app-space-1: 0.25rem;
   --app-space-2: 0.5rem;
   --app-space-3: 0.75rem;
@@ -48,13 +88,12 @@
   --app-space-8: 2rem;
   --app-space-10: 2.5rem;
 
-  /* Form controls — shared native + alignment with Material */
+  /* —— Form controls —— */
   --app-radius-control: 10px;
   --app-control-min-height: 2.625rem;
   --app-control-padding-x: 12px;
   --app-control-padding-y: 0.625rem;
 
-  /* Data-entry form layout (cards, sections, grid rhythm) */
   --app-form-card-radius: 14px;
   --app-form-card-border: 1px solid var(--app-border);
   --app-form-card-shadow: var(--app-shadow-card);
@@ -70,14 +109,14 @@
   --app-form-footer-gap: var(--app-space-3);
   --app-placeholder-color: #94a3b8;
 
-  /* Radius */
+  /* —— Radius —— */
   --app-radius-sm: 6px;
   --app-radius-md: 10px;
   --app-radius-lg: 14px;
   --app-radius-xl: 18px;
   --app-radius-pill: 999px;
 
-  /* Layered shadows — subtle depth, no heavy drops */
+  /* —— Shadows —— */
   --app-shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.05), 0 1px 1px rgba(15, 23, 42, 0.03);
   --app-shadow-sm: 0 2px 4px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
   --app-shadow-md: 0 4px 12px rgba(15, 23, 42, 0.07), 0 2px 4px rgba(15, 23, 42, 0.04);
@@ -86,8 +125,9 @@
   --app-shadow-primary: 0 1px 2px rgba(31, 60, 147, 0.14), 0 2px 8px rgba(31, 60, 147, 0.12);
   --app-shadow-primary-hover: 0 2px 6px rgba(31, 60, 147, 0.18), 0 6px 16px rgba(31, 60, 147, 0.12);
   --app-shadow-inset-press: inset 0 2px 4px rgba(15, 23, 42, 0.1);
+  --app-shadow-portal-card: 0 12px 32px rgba(0, 0, 0, 0.28);
 
-  /* Typography */
+  /* —— Typography —— */
   --app-text-xs: 0.6875rem;
   --app-text-sm: 0.8125rem;
   --app-text-base: 0.9375rem;
@@ -106,6 +146,7 @@
   --app-sidebar-width-sm: 15rem;
 
   --app-font-sans:
+    'Plus Jakarta Sans',
     'Segoe UI',
     system-ui,
     -apple-system,
@@ -114,5 +155,13 @@
     Arial,
     sans-serif;
 
+  --app-font-display: var(--app-font-sans);
+
   --app-content-max: 76rem;
+
+  /* Angular Material — align prebuilt theme with brand */
+  --mat-sys-primary: var(--app-brand);
+  --mat-sys-on-primary: #ffffff;
+  --mat-sys-primary-container: var(--app-brand-muted-bg);
+  --mat-sys-on-primary-container: var(--app-brand-dark);
 }

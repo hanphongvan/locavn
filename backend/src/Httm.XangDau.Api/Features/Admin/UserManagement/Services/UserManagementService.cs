@@ -1,6 +1,7 @@
 using Httm.XangDau.Api.Features.Admin.Auth.Services;
 using Httm.XangDau.Api.Features.Admin.UserManagement.Contracts;
 using Httm.XangDau.Api.Features.Admin.UserManagement.Persistence;
+using Httm.XangDau.Api.Features.Auth.Registration;
 using Httm.XangDau.Api.Shared.Security.Portal;
 using Microsoft.Extensions.Configuration;
 
@@ -101,7 +102,12 @@ public sealed class UserManagementService(
         var newId = Guid.NewGuid().ToString("D");
         try
         {
-            // Legacy SP typically hashes inside SQL; if your DB expects ASP.NET Identity hash, set PasswordHash via SP param instead (TODO).
+            // Hash mật khẩu bằng Identity v2 format (PBKDF2-SHA1, 1000 iter) — đồng bộ với flow Flutter LocaVN
+            // (UserRegistrationService.RegisterAsync) và ApplicationOAuthProvider verify khi đăng nhập.
+            // SP sp_HT_Users_AddOrUpdate (INSERT path) sẽ ghi: AspNetUsers.PasswordHash = @Password,
+            // SecurityStamp = @PasswordSalt — caller hash trước rồi truyền vào passwordHash.
+            var passwordHash = LegacyAspNetIdentityV2PasswordHasher.HashPassword(request.Password);
+
             _ = await legacy
                 .AddOrUpdateUserAsync(
                     newId,
@@ -114,8 +120,8 @@ public sealed class UserManagementService(
                     request.Description,
                     request.DonViId,
                     request.Loai,
-                    passwordPlain: request.Password,
-                    passwordHash: null,
+                    passwordPlain: null,
+                    passwordHash: passwordHash,
                     cancellationToken)
                 .ConfigureAwait(false);
 
@@ -163,6 +169,11 @@ public sealed class UserManagementService(
                 return (false, "User not found.");
             }
 
+            // Chỉ hash khi caller có gửi password mới (UpdateRequest.Password rỗng = giữ nguyên).
+            var passwordHash = string.IsNullOrEmpty(request.Password)
+                ? null
+                : LegacyAspNetIdentityV2PasswordHasher.HashPassword(request.Password);
+
             _ = await legacy
                 .AddOrUpdateUserAsync(
                     id.Trim(),
@@ -175,8 +186,8 @@ public sealed class UserManagementService(
                     request.Description,
                     request.DonViId,
                     request.Loai,
-                    passwordPlain: string.IsNullOrEmpty(request.Password) ? null : request.Password,
-                    passwordHash: null,
+                    passwordPlain: null,
+                    passwordHash: passwordHash,
                     cancellationToken)
                 .ConfigureAwait(false);
 
@@ -344,6 +355,12 @@ public sealed class UserManagementService(
             {
                 var stores = await legacy.GetDonViPetrolRetailStoresAsync(cancellationToken).ConfigureAwait(false);
                 return (stores, null);
+            }
+
+            if (forLoai == AdminPortalLoaiRoleMapper.LoaiSoStaff)
+            {
+                var soUnits = await legacy.GetDonViSoStaffAsync(cancellationToken).ConfigureAwait(false);
+                return (soUnits, null);
             }
 
             return (Array.Empty<DonViOptionDto>(), null);

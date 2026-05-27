@@ -1,0 +1,107 @@
+<div class="stack">
+  <app-page-header [title]="survey()?.surveyCode ?? 'Phiếu khảo sát'">
+    <p appPageHeaderDesc>
+      <a routerLink="/surveys" class="link-inline">← Danh sách</a>
+      — trạng thái: <strong>{{ survey()?.status }}</strong>
+      @if (survey()?.linkedFacilityId; as fid) {
+        — đã gắn hồ sơ: <a class="link-inline" [routerLink]="['/httm', fid]">{{ fid }}</a>
+      }
+      @if (!isEditable() && survey()) {
+        — <span class="muted">(chỉ xem)</span>
+      }
+    </p>
+  </app-page-header>
+
+  @if (errorMessage(); as err) {
+    <div class="banner banner--error" role="alert">{{ err }}</div>
+  }
+
+  @if (survey(); as s) {
+    <app-section-card title="Thao tác">
+      <div class="btn-row wrap">
+        @if (isEditable()) {
+          <button type="button" class="btn btn--secondary" (click)="saveNow()" [disabled]="loading()">
+            Lưu ngay
+          </button>
+        }
+        <button type="button" class="btn btn--secondary" (click)="openPreview()">Xem trước</button>
+        @if (s.status === 'draft' || s.status === 'rejected') {
+          <button type="button" class="btn btn--primary" (click)="submit()">Nộp phiếu</button>
+          <button type="button" class="btn btn--secondary" (click)="deleteDraft()">Xoá nháp</button>
+        }
+        @if (canReviewer() && s.status === 'submitted') {
+          <button type="button" class="btn btn--primary" (click)="startReview()">Nhận duyệt</button>
+        }
+        @if (canReviewer() && s.status === 'reviewing') {
+          <button type="button" class="btn btn--primary" (click)="approve()">Duyệt</button>
+          <button type="button" class="btn btn--secondary" (click)="showReject.set(true)">Trả lại</button>
+        }
+        @if (canReviewer() && s.status === 'approved' && !s.linkedFacilityId) {
+          <button type="button" class="btn btn--primary" (click)="importToHttm()">Tạo hồ sơ HTTM</button>
+        }
+      </div>
+      @if (showReject()) {
+        <div class="reject-box">
+          <label class="form-label" for="rej">Lý do trả lại</label>
+          <textarea
+            id="rej"
+            class="form-control"
+            rows="3"
+            [value]="rejectReason()"
+            (input)="rejectReason.set($any($event.target).value)"
+          ></textarea>
+          <div class="btn-row">
+            <button type="button" class="btn btn--primary" (click)="doReject()">Gửi trả lại</button>
+            <button type="button" class="btn btn--secondary" (click)="showReject.set(false)">Huỷ</button>
+          </div>
+        </div>
+      }
+    </app-section-card>
+
+    <app-section-card title="Nội dung phiếu khảo sát">
+      <form [formGroup]="form" class="survey-form">
+        <mat-stepper linear="false" labelPosition="bottom" #stepper>
+          <mat-step label="1. Đơn vị KS">
+            <app-survey-step2-surveyed [form]="step2" />
+          </mat-step>
+          <mat-step label="2. Hiện trạng">
+            <app-survey-step3-general [form]="step3" />
+          </mat-step>
+          <mat-step label="3. Hạ tầng CNTT">
+            <app-survey-step4-it [form]="step4" />
+          </mat-step>
+          <mat-step label="4. Nhu cầu">
+            <app-survey-step5-requirements [form]="step5" />
+          </mat-step>
+          <mat-step label="5. Phần mềm">
+            <app-survey-step6-software [form]="step6" />
+          </mat-step>
+          <mat-step label="6. Ý kiến">
+            <app-survey-step7-opinions [form]="step7" />
+          </mat-step>
+          <mat-step label="7. Xác nhận">
+            <app-survey-confirmer [form]="confirmer" />
+          </mat-step>
+        </mat-stepper>
+      </form>
+    </app-section-card>
+
+    <app-section-card title="Lịch sử / timeline">
+      <ul class="timeline">
+        @for (h of history(); track h.id) {
+          <li>
+            <span class="muted">{{ h.performedAt | date: 'short' }}</span>
+            — <strong>{{ h.action }}</strong>
+            {{ h.fromStatus ? '(' + h.fromStatus + ' → ' + h.toStatus + ')' : '→ ' + h.toStatus }}
+            @if (h.notes) {
+              <div class="notes">{{ h.notes }}</div>
+            }
+            <div class="muted small">bởi {{ h.performedByName || h.performedBy }}</div>
+          </li>
+        } @empty {
+          <li class="muted">Chưa có lịch sử.</li>
+        }
+      </ul>
+    </app-section-card>
+  }
+</div>

@@ -1,0 +1,137 @@
+<div class="stack">
+  <app-page-header title="Phiếu khảo sát HTTM">
+    <p appPageHeaderDesc>
+      Danh sách phiếu — lọc theo trạng thái, tỉnh, loại cơ sở. Phiếu nháp tự lưu sau 60 giây ở màn hình chi tiết.
+    </p>
+  </app-page-header>
+
+  @if (errorMessage(); as err) {
+    <div class="banner banner--error" role="alert">{{ err }}</div>
+  }
+
+  <app-section-card title="Bộ lọc">
+    <form class="list-filters" [formGroup]="filterForm" (ngSubmit)="applyFilters()">
+      <div class="list-filters__compact">
+        <div class="list-filters__search">
+          <span class="material-icons list-filters__search-icon" aria-hidden="true">search</span>
+          <input
+            id="sv-q"
+            class="form-control list-filters__search-input"
+            type="search"
+            formControlName="q"
+            autocomplete="off"
+            placeholder="Tìm mã phiếu, từ khóa…"
+            (keydown.enter)="onCompactSearchEnter($event)"
+          />
+        </div>
+        <div class="list-filters__compact-actions">
+          <button
+            type="button"
+            class="btn btn--secondary list-filters__expand-btn"
+            (click)="toggleFiltersExpanded()"
+            [attr.aria-expanded]="filtersExpanded()"
+            aria-controls="list-filters-advanced"
+            [attr.aria-label]="filtersExpanded() ? 'Thu gọn bộ lọc' : 'Mở rộng bộ lọc'"
+          >
+            <span class="material-icons" aria-hidden="true">{{ filtersExpanded() ? 'expand_less' : 'tune' }}</span>
+            <span class="list-filters__expand-label">{{ filtersExpanded() ? 'Thu gọn' : 'Bộ lọc' }}</span>
+          </button>
+          <button type="button" class="btn btn--primary list-filters__primary-btn" (click)="openCreate()">
+            <span class="material-icons" aria-hidden="true">add</span>
+            Tạo phiếu nháp
+          </button>
+        </div>
+      </div>
+
+      @if (filtersExpanded()) {
+        <div id="list-filters-advanced" class="list-filters__advanced">
+          <div class="form-grid form-grid--2">
+            <div class="form-field">
+              <label class="form-label" for="sv-st">Trạng thái</label>
+              <select id="sv-st" class="form-control" formControlName="status">
+                <option value="">Tất cả</option>
+                <option value="draft">Nháp</option>
+                <option value="submitted">Đã nộp</option>
+                <option value="reviewing">Đang duyệt</option>
+                <option value="approved">Đã duyệt</option>
+                <option value="rejected">Trả lại</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <label class="form-label" for="sv-prov">Tỉnh / TP</label>
+              <select id="sv-prov" class="form-control" formControlName="provinceCode">
+                <option value="">Tất cả</option>
+                @for (p of provinces(); track p.code) {
+                  <option [value]="p.code">{{ p.name }}</option>
+                }
+              </select>
+            </div>
+            <div class="form-field">
+              <label class="form-label" for="sv-type">Loại cơ sở</label>
+              <select id="sv-type" class="form-control" formControlName="httmType">
+                <option value="">Tất cả</option>
+                @for (t of typeItems(); track t.id) {
+                  <option [value]="t.code">{{ t.name }}</option>
+                }
+              </select>
+            </div>
+          </div>
+          <div class="btn-row list-filters__advanced-actions">
+            <button type="submit" class="btn btn--primary" [disabled]="loading()">Áp dụng</button>
+            <button type="button" class="btn btn--secondary" (click)="clearFilters()">Xóa lọc</button>
+          </div>
+        </div>
+      }
+    </form>
+  </app-section-card>
+
+  <app-section-card title="Danh sách">
+    <div appSectionCardActions class="list-header__meta">
+      <span class="muted">Tổng {{ totalCount() }} — trang {{ page() }} / {{ totalPages() }}</span>
+      <div class="btn-row">
+        <button type="button" class="btn btn--secondary" [disabled]="loading() || page() <= 1" (click)="prevPage()">
+          Trước
+        </button>
+        <button
+          type="button"
+          class="btn btn--secondary"
+          [disabled]="loading() || page() >= totalPages()"
+          (click)="nextPage()"
+        >
+          Sau
+        </button>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Mã phiếu</th>
+            <th>Trạng thái</th>
+            <th>Tỉnh</th>
+            <th>Loại</th>
+            <th>Cập nhật</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (r of rows(); track r.id) {
+            <tr>
+              <td>{{ r.surveyCode }}</td>
+              <td><span class="pill">{{ r.status }}</span></td>
+              <td>{{ r.provinceCode }}</td>
+              <td>{{ r.httmType }}</td>
+              <td>{{ r.updatedAt | date: 'short' }}</td>
+              <td><a class="link-inline" [routerLink]="['/surveys', r.id]">Mở</a></td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="6" class="muted">Không có dữ liệu.</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </app-section-card>
+</div>

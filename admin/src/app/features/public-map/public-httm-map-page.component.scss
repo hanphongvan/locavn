@@ -1,0 +1,33 @@
+@use '../public/shared/public-portal-shell' as portal;
+
+@include portal.public-portal-host;
+@include portal.public-portal-page;
+@include portal.public-portal-card;
+
+.public-map-portal__shell {
+  max-width: 88rem;
+}
+
+.public-map-portal__banner {
+  margin-bottom: 1rem;
+}
+
+.public-map-portal__map-card {
+  padding: 0 !important;
+  overflow: hidden;
+}
+
+.public-map-portal__toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.public-map-portal__map-host {
+  width: 100%;
+  min-height: min(72vh, 720px);
+  // Khớp với màu mặt nước của tile Carto Light để vùng ngoài bounds (đông 110.5°E,
+  // hoặc khu vực tile chưa load) liền mạch với biển trên tile — không bị viền xám.
+  background: #d4dadc;
+}

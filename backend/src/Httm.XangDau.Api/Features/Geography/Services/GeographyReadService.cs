@@ -48,4 +48,24 @@ public sealed class GeographyReadService(IGeographyRepository geography) : IGeog
 
         return (list, null);
     }
+
+    public async Task<(IReadOnlyList<WardResponseDto>? Data, string? Error)> ListWardsByProvinceAsync(
+        string provinceCode,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(provinceCode))
+            return (null, "provinceCode is required.");
+
+        var pc = provinceCode.Trim();
+        var province = await geography.GetProvinceByMaAsync(pc, cancellationToken);
+        if (province is null)
+            return (null, $"Province with Ma '{pc}' was not found in DM_Tinh.");
+
+        var rows = await geography.ListWardsByTinhIdAsync(province.Id, cancellationToken);
+        var list = rows.Select(x => new WardResponseDto(x.Ma, x.Ten, x.TinhId, x.QuanHuyenId)).ToList();
+        return (list, null);
+    }
+
+    public Task<string?> GetProvinceCodeByDonViIdAsync(int donViId, CancellationToken cancellationToken = default) =>
+        geography.GetProvinceCodeByDonViIdAsync(donViId, cancellationToken);
 }
