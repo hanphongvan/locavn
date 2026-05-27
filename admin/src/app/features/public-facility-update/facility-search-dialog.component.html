@@ -1,0 +1,71 @@
+<h2 mat-dialog-title class="search-dialog__title">Chọn hạ tầng cần cập nhật</h2>
+
+<mat-dialog-content class="search-dialog" style="padding-top: 5px;">
+  <div class="search-dialog__filters">
+    <mat-form-field appearance="outline" class="grow">
+      <mat-label>Tên hạ tầng</mat-label>
+      <input matInput [ngModel]="q()" (ngModelChange)="q.set($event)" (keyup.enter)="search()" placeholder="Ví dụ: Chợ Đồng Xuân" />
+    </mat-form-field>
+    <mat-form-field appearance="outline">
+      <mat-label>Tỉnh</mat-label>
+      <mat-select [ngModel]="provinceCode()" (ngModelChange)="onProvinceChange($event)">
+        <mat-option [value]="''">— Tất cả tỉnh —</mat-option>
+        @for (p of provinces(); track p.code) {
+          <mat-option [value]="p.code">{{ p.name }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+    <mat-form-field appearance="outline">
+      <mat-label>Xã/phường</mat-label>
+      <mat-select [ngModel]="wardCode()" (ngModelChange)="wardCode.set($event)" [disabled]="!provinceCode() || loadingWards()">
+        <mat-option [value]="''">— Tất cả xã —</mat-option>
+        @for (w of wards(); track w.code) {
+          <mat-option [value]="w.code">{{ w.name }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+    <button mat-flat-button color="primary" (click)="search()" [disabled]="loading()">
+      @if (loading()) {
+        <mat-spinner diameter="16" />
+      } @else {
+        <mat-icon>search</mat-icon>
+      }
+      Tìm
+    </button>
+  </div>
+
+  @if (results().length > 0) {
+    <table mat-table [dataSource]="results()" class="search-dialog__table">
+      <ng-container matColumnDef="name">
+        <th mat-header-cell *matHeaderCellDef>Tên</th>
+        <td mat-cell *matCellDef="let row">
+          <a (click)="pick(row)" class="search-dialog__pick">{{ row.name }}</a>
+        </td>
+      </ng-container>
+      <ng-container matColumnDef="httmType">
+        <th mat-header-cell *matHeaderCellDef>Loại</th>
+        <td mat-cell *matCellDef="let row">{{ row.httmType }}</td>
+      </ng-container>
+      <ng-container matColumnDef="provinceCode">
+        <th mat-header-cell *matHeaderCellDef>Tỉnh</th>
+        <td mat-cell *matCellDef="let row">{{ row.provinceCode }}</td>
+      </ng-container>
+      <ng-container matColumnDef="wardCode">
+        <th mat-header-cell *matHeaderCellDef>Xã</th>
+        <td mat-cell *matCellDef="let row">{{ row.wardCode || '—' }}</td>
+      </ng-container>
+      <ng-container matColumnDef="addressDetail">
+        <th mat-header-cell *matHeaderCellDef>Địa chỉ</th>
+        <td mat-cell *matCellDef="let row">{{ row.addressDetail || '—' }}</td>
+      </ng-container>
+      <tr mat-header-row *matHeaderRowDef="columns"></tr>
+      <tr mat-row *matRowDef="let row; columns: columns"></tr>
+    </table>
+  } @else if (!loading()) {
+    <p class="search-dialog__empty">Chưa có kết quả. Nhập từ khóa rồi bấm "Tìm".</p>
+  }
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-stroked-button (click)="close()">Đóng</button>
+</mat-dialog-actions>

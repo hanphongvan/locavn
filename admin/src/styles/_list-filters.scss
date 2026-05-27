@@ -1,0 +1,89 @@
+/* Bộ lọc danh sách — hàng gọn + panel mở rộng (surveys, httm/hoso, …) */
+
+.list-filters__compact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.list-filters__search {
+  position: relative;
+  flex: 1 1 16rem;
+  min-width: 12rem;
+}
+
+.list-filters__search-icon {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 1.25rem !important;
+  color: var(--app-text-muted);
+  pointer-events: none;
+}
+
+.list-filters__search-input {
+  width: 100%;
+  padding-left: 2.5rem !important;
+}
+
+.list-filters__compact-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.list-filters__expand-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.list-filters__expand-label {
+  font-size: var(--app-text-sm);
+  font-weight: 600;
+}
+
+.list-filters__primary-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+
+  .material-icons {
+    font-size: 1.125rem !important;
+  }
+}
+
+.list-filters__advanced {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--app-border);
+}
+
+.list-filters__advanced-actions {
+  margin-top: 0.75rem;
+}
+
+@media (max-width: 640px) {
+  .list-filters__compact {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .list-filters__compact-actions {
+    width: 100%;
+
+    .btn {
+      flex: 1 1 auto;
+      justify-content: center;
+    }
+  }
+
+  .list-filters__expand-label {
+    display: none;
+  }
+}

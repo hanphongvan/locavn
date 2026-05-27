@@ -1,0 +1,467 @@
+<div class="public-portal">
+  <div class="public-portal__bg" aria-hidden="true">
+    <div class="public-portal__grid-lines"></div>
+    <div class="public-portal__glow public-portal__glow--tl"></div>
+    <div class="public-portal__glow public-portal__glow--br"></div>
+  </div>
+
+  <div class="public-portal__shell">
+    <header class="public-portal__header">
+      <div class="public-portal__brand">
+        <app-dms-logo [size]="48" />
+        <div class="public-portal__brand-text">
+          <p class="public-portal__eyebrow">BỘ CÔNG THƯƠNG</p>
+          <p class="public-portal__org">CỤC QUẢN LÝ VÀ PHÁT TRIỂN THỊ TRƯỜNG TRONG NƯỚC</p>
+        </div>
+      </div>
+      <nav class="public-portal__nav" aria-label="Điều hướng">
+        <a class="public-portal__nav-link" routerLink="/public/map">
+          <span class="material-icons" aria-hidden="true">map</span>
+          Bản đồ HTTM
+        </a>
+        <a class="public-portal__nav-link" routerLink="/login">
+          <span class="material-icons" aria-hidden="true">login</span>
+          Đăng nhập
+        </a>
+      </nav>
+    </header>
+
+    <section class="public-portal__hero">
+      <h1 class="public-portal__title">Cập nhật thông tin hạ tầng thương mại</h1>
+      <p class="public-portal__lead">
+        Gửi đề xuất cập nhật hoặc bổ sung thông tin chợ, siêu thị, trung tâm thương mại và các loại hình hạ tầng
+        thương mại khác. Cán bộ phụ trách sẽ xem xét trước khi áp dụng vào hệ thống.
+      </p>
+      <span class="public-portal__badge">
+        <span class="material-icons" aria-hidden="true">verified</span>
+        Không yêu cầu đăng nhập
+      </span>
+    </section>
+
+    @if (submittedId(); as sid) {
+      <mat-card class="public-portal__card public-fu__success">
+        <div class="public-fu__success-inner">
+          <span class="material-icons public-fu__success-icon" aria-hidden="true">check_circle</span>
+          <h2>Đã gửi đề xuất thành công</h2>
+          <p class="public-fu__success-code">
+            Mã theo dõi: <strong>{{ sid.substring(0, 8).toUpperCase() }}</strong>
+          </p>
+          <p class="public-fu__success-note">Cán bộ phụ trách sẽ xem xét trong vòng <strong>1–2 ngày làm việc</strong>.</p>
+          <div class="public-fu__success-actions">
+            <button mat-flat-button color="primary" type="button" (click)="resetForm()">Gửi đề xuất mới</button>
+            <a mat-stroked-button routerLink="/public/map">Xem bản đồ HTTM</a>
+          </div>
+        </div>
+      </mat-card>
+    } @else {
+      <mat-card class="public-portal__card">
+        <h2 class="public-portal__step-title">
+          <span class="public-portal__step-num">1</span>
+          Chọn hạ tầng
+        </h2>
+        <p class="public-portal__hint">Tìm cơ sở hiện có để cập nhật, hoặc tạo mới nếu chưa có trong danh mục.</p>
+
+        <div class="public-fu__select-row">
+          <mat-form-field appearance="outline" class="public-fu__grow">
+            <mat-label>Hạ tầng đã chọn</mat-label>
+            <input
+              matInput
+              readonly
+              [value]="selectedFacility()?.name ?? (mode() === 'create_new' ? '— Tạo mới hạ tầng —' : 'Chưa chọn')"
+            />
+          </mat-form-field>
+          <button mat-flat-button color="primary" type="button" (click)="openSearch()" [disabled]="loadingSnapshot()">
+            <mat-icon>search</mat-icon>
+            Chọn từ danh sách
+          </button>
+          <button mat-stroked-button type="button" (click)="startCreateNew()" [disabled]="loadingSnapshot()">
+            <mat-icon>add</mat-icon>
+            Tạo mới hạ tầng
+          </button>
+        </div>
+        @if (loadingSnapshot()) {
+          <p class="public-fu__loading">
+            <mat-spinner diameter="18" />
+            Đang tải dữ liệu hiện tại…
+          </p>
+        }
+      </mat-card>
+
+      @if (mode()) {
+        <form [formGroup]="form" (ngSubmit)="submit()">
+          <mat-card class="public-portal__card">
+            <h2 class="public-portal__step-title">
+              <span class="public-portal__step-num">2</span>
+              Thông tin hạ tầng
+            </h2>
+            <p class="public-portal__hint">
+              Các ô có dấu <strong>*</strong> bắt buộc. Điền đầy đủ các tab bên dưới.
+            </p>
+
+            <mat-tab-group mat-stretch-tabs="false" animationDuration="200ms" class="public-fu__tabs">
+              <mat-tab label="Thông tin chung">
+                <div class="public-fu__tab-body">
+                  <div class="public-fu__grid">
+                    <mat-form-field appearance="outline" class="public-fu__full">
+                      <mat-label>Tên cơ sở *</mat-label>
+                      <input matInput formControlName="name" maxlength="500" />
+                      @if (form.controls.name.touched && form.controls.name.invalid) {
+                        <mat-error>Bắt buộc, tối đa 500 ký tự.</mat-error>
+                      }
+                    </mat-form-field>
+
+                    <mat-form-field appearance="outline">
+                      <mat-label>Loại hình *</mat-label>
+                      <mat-select formControlName="httmType">
+                        <mat-option value="market_grade1">Chợ hạng I</mat-option>
+                        <mat-option value="market_grade2">Chợ hạng II</mat-option>
+                        <mat-option value="market_grade3">Chợ hạng III</mat-option>
+                        <mat-option value="supermarket_1">Siêu thị hạng I</mat-option>
+                        <mat-option value="supermarket_2">Siêu thị hạng II</mat-option>
+                        <mat-option value="supermarket_3">Siêu thị hạng III</mat-option>
+                        <mat-option value="mall">Trung tâm thương mại</mat-option>
+                        <mat-option value="wholesale_market">Chợ đầu mối</mat-option>
+                        <mat-option value="convenience_store">Cửa hàng tiện lợi</mat-option>
+                        <mat-option value="other">Loại hình khác</mat-option>
+                      </mat-select>
+                    </mat-form-field>
+
+                    <mat-form-field appearance="outline">
+                      <mat-label>Trạng thái</mat-label>
+                      <mat-select formControlName="status">
+                        <mat-option value="active">Đang hoạt động</mat-option>
+                        <mat-option value="suspended">Tạm ngừng</mat-option>
+                        <mat-option value="under_construction">Đang xây dựng / cải tạo</mat-option>
+                        <mat-option value="closed">Đã đóng cửa</mat-option>
+                      </mat-select>
+                    </mat-form-field>
+
+                    <mat-form-field appearance="outline">
+                      <mat-label>Tỉnh *</mat-label>
+                      <mat-select formControlName="provinceCode">
+                        <mat-option [value]="''">— Chọn tỉnh —</mat-option>
+                        @for (p of provinces(); track p.code) {
+                          <mat-option [value]="p.code">{{ p.name }}</mat-option>
+                        }
+                      </mat-select>
+                    </mat-form-field>
+
+                    <mat-form-field appearance="outline">
+                      <mat-label>Xã/phường</mat-label>
+                      <mat-select formControlName="wardCode" [disabled]="!form.controls.provinceCode.value || loadingWards()">
+                        <mat-option [value]="null">— Chọn xã —</mat-option>
+                        @for (w of wards(); track w.code) {
+                          <mat-option [value]="w.code">{{ w.name }}</mat-option>
+                        }
+                      </mat-select>
+                      @if (loadingWards()) {
+                        <mat-hint>Đang tải danh sách xã…</mat-hint>
+                      } @else if (!form.controls.provinceCode.value) {
+                        <mat-hint>Chọn tỉnh trước</mat-hint>
+                      }
+                    </mat-form-field>
+
+                    <mat-form-field appearance="outline" class="public-fu__full">
+                      <mat-label>Địa chỉ chi tiết</mat-label>
+                      <input matInput formControlName="addressDetail" />
+                    </mat-form-field>
+
+                    <mat-form-field appearance="outline" class="public-fu__full">
+                      <mat-label>Ghi chú</mat-label>
+                      <textarea matInput rows="3" formControlName="notes"></textarea>
+                    </mat-form-field>
+                  </div>
+                </div>
+              </mat-tab>
+
+              <mat-tab label="Vị trí địa lý">
+                <div class="public-fu__tab-body">
+                  <div class="public-fu__grid">
+                    <mat-form-field appearance="outline">
+                      <mat-label>Vĩ độ (Lat)</mat-label>
+                      <input matInput type="number" step="0.000001" formControlName="lat" placeholder="VD: 21.0379" />
+                      <mat-hint>-90 đến 90</mat-hint>
+                    </mat-form-field>
+                    <mat-form-field appearance="outline">
+                      <mat-label>Kinh độ (Lng)</mat-label>
+                      <input matInput type="number" step="0.000001" formControlName="lng" placeholder="VD: 105.8466" />
+                      <mat-hint>-180 đến 180</mat-hint>
+                    </mat-form-field>
+                    <mat-form-field appearance="outline" class="public-fu__full">
+                      <mat-label>Độ chính xác GPS</mat-label>
+                      <mat-select formControlName="gpsAccuracy">
+                        <mat-option [value]="null">— Chưa xác định —</mat-option>
+                        <mat-option value="exact">Chính xác</mat-option>
+                        <mat-option value="approximate">Xấp xỉ</mat-option>
+                        <mat-option value="none">Không có</mat-option>
+                      </mat-select>
+                    </mat-form-field>
+                  </div>
+                </div>
+              </mat-tab>
+
+              <mat-tab label="Hạ tầng & quy mô">
+                <div class="public-fu__tab-body">
+                  <div class="public-fu__grid">
+                    <mat-form-field appearance="outline">
+                      <mat-label>Diện tích đất (m²)</mat-label>
+                      <input matInput type="number" min="0" formControlName="landArea" />
+                    </mat-form-field>
+                    <mat-form-field appearance="outline">
+                      <mat-label>Diện tích sàn KD (m²)</mat-label>
+                      <input matInput type="number" min="0" formControlName="floorArea" />
+                    </mat-form-field>
+                    <mat-form-field appearance="outline">
+                      <mat-label>Số tầng</mat-label>
+                      <input matInput type="number" min="0" formControlName="floors" />
+                    </mat-form-field>
+                    <mat-form-field appearance="outline">
+                      <mat-label>Số gian hàng</mat-label>
+                      <input matInput type="number" min="0" formControlName="stallCount" />
+                    </mat-form-field>
+                    <mat-form-field appearance="outline">
+                      <mat-label>DT TB mỗi gian hàng (m²)</mat-label>
+                      <input matInput type="number" min="0" formControlName="avgStallArea" />
+                    </mat-form-field>
+                    <mat-form-field appearance="outline">
+                      <mat-label>Số chỗ đậu xe</mat-label>
+                      <input matInput type="number" min="0" formControlName="parkingSlots" />
+                    </mat-form-field>
+                    <mat-form-field appearance="outline">
+                      <mat-label>Năm đưa vào hoạt động</mat-label>
+                      <input matInput type="number" min="1900" max="2100" formControlName="yearEstablished" />
+                    </mat-form-field>
+                    <mat-form-field appearance="outline">
+                      <mat-label>Năm cải tạo gần nhất</mat-label>
+                      <input matInput type="number" min="1900" max="2100" formControlName="yearRenovated" />
+                    </mat-form-field>
+                    <mat-form-field appearance="outline">
+                      <mat-label>Chất lượng công trình</mat-label>
+                      <mat-select formControlName="buildingQuality">
+                        <mat-option [value]="null">— Chưa xác định —</mat-option>
+                        <mat-option value="good">Tốt</mat-option>
+                        <mat-option value="average">Trung bình</mat-option>
+                        <mat-option value="degraded">Xuống cấp</mat-option>
+                        <mat-option value="needs_renovation">Cần cải tạo</mat-option>
+                      </mat-select>
+                    </mat-form-field>
+                    <div class="public-fu__toggles public-fu__full">
+                      <mat-slide-toggle formControlName="hasBackupPower">Có hệ thống điện dự phòng</mat-slide-toggle>
+                      <mat-slide-toggle formControlName="hasFireProtection">Có hệ thống PCCC đạt chuẩn</mat-slide-toggle>
+                    </div>
+                  </div>
+                </div>
+              </mat-tab>
+
+              <mat-tab label="Kinh doanh">
+                <div class="public-fu__tab-body">
+                  <div class="public-fu__grid">
+                    <mat-form-field appearance="outline">
+                      <mat-label>Chủ đầu tư</mat-label>
+                      <input matInput formControlName="ownerName" maxlength="500" />
+                    </mat-form-field>
+                    <mat-form-field appearance="outline">
+                      <mat-label>Đơn vị quản lý</mat-label>
+                      <input matInput formControlName="operatorName" maxlength="500" />
+                    </mat-form-field>
+                    <mat-form-field appearance="outline">
+                      <mat-label>Tỷ lệ lấp đầy (%)</mat-label>
+                      <input matInput type="number" min="0" max="100" formControlName="fillRate" />
+                    </mat-form-field>
+                    <mat-form-field appearance="outline">
+                      <mat-label>Số tiểu thương / hộ KD</mat-label>
+                      <input matInput type="number" min="0" formControlName="vendorCount" />
+                    </mat-form-field>
+                    <mat-form-field appearance="outline">
+                      <mat-label>Giá thuê TB (tr/m²/tháng)</mat-label>
+                      <input matInput type="number" min="0" step="0.01" formControlName="avgRentPrice" />
+                    </mat-form-field>
+                    <mat-form-field appearance="outline">
+                      <mat-label>Doanh thu năm (tỷ VND)</mat-label>
+                      <input matInput type="number" min="0" step="0.01" formControlName="annualRevenue" />
+                    </mat-form-field>
+                  </div>
+                </div>
+              </mat-tab>
+
+              <mat-tab label="Pháp lý & giấy phép">
+                <div class="public-fu__tab-body">
+                  <div formArrayName="licenses" class="public-fu__cards-list">
+                    @for (lic of licensesArr.controls; track $index) {
+                      <div class="public-fu__attachment" [formGroupName]="$index">
+                        <div class="public-fu__attachment-head">
+                          <span>Giấy phép #{{ $index + 1 }}</span>
+                          <button mat-icon-button type="button" (click)="removeLicense($index)" aria-label="Xoá">
+                            <mat-icon>delete</mat-icon>
+                          </button>
+                        </div>
+                        <div class="public-fu__grid">
+                          <mat-form-field appearance="outline">
+                            <mat-label>Loại giấy phép</mat-label>
+                            <mat-select formControlName="licenseType">
+                              <mat-option value="business">Giấy phép kinh doanh</mat-option>
+                              <mat-option value="fire_protection">Giấy chứng nhận PCCC</mat-option>
+                              <mat-option value="food_safety">Giấy chứng nhận ATVSTP</mat-option>
+                              <mat-option value="other">Khác</mat-option>
+                            </mat-select>
+                          </mat-form-field>
+                          <mat-form-field appearance="outline">
+                            <mat-label>Số giấy phép</mat-label>
+                            <input matInput formControlName="licenseNumber" maxlength="200" />
+                          </mat-form-field>
+                          <mat-form-field appearance="outline">
+                            <mat-label>Ngày cấp</mat-label>
+                            <input matInput type="date" formControlName="issuedDate" />
+                          </mat-form-field>
+                          <mat-form-field appearance="outline">
+                            <mat-label>Ngày hết hạn</mat-label>
+                            <input matInput type="date" formControlName="expiryDate" />
+                          </mat-form-field>
+                          <mat-form-field appearance="outline" class="public-fu__full">
+                            <mat-label>Cơ quan cấp</mat-label>
+                            <input matInput formControlName="issuedBy" maxlength="500" />
+                          </mat-form-field>
+                          <mat-form-field appearance="outline" class="public-fu__full">
+                            <mat-label>Ghi chú</mat-label>
+                            <input matInput formControlName="notes" />
+                          </mat-form-field>
+                        </div>
+                        @if (lic.get('fileUrl')?.value) {
+                          <div class="public-fu__file-link">
+                            <mat-icon>attach_file</mat-icon>
+                            <a [href]="documentUrl(lic.get('fileUrl')?.value)" target="_blank" rel="noopener">
+                              {{ lic.get('fileName')?.value || 'Xem tệp đính kèm' }}
+                            </a>
+                          </div>
+                        }
+                      </div>
+                    }
+                  </div>
+                  <div class="public-fu__upload-actions">
+                    <input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" (change)="onPickDocument($event)" hidden #docInput />
+                    <button mat-flat-button color="primary" type="button" (click)="docInput.click()" [disabled]="uploadingDocument()">
+                      @if (uploadingDocument()) {
+                        <mat-spinner diameter="18" />
+                      } @else {
+                        <mat-icon>upload_file</mat-icon>
+                      }
+                      Tải giấy tờ + thêm dòng
+                    </button>
+                    <button mat-stroked-button type="button" (click)="addEmptyLicense()">
+                      <mat-icon>add</mat-icon>
+                      Thêm dòng (chưa có file)
+                    </button>
+                  </div>
+                </div>
+              </mat-tab>
+
+              <mat-tab label="Hình ảnh">
+                <div class="public-fu__tab-body">
+                  <div formArrayName="images" class="public-fu__images-grid">
+                    @for (img of imagesArr.controls; track $index) {
+                      <div class="public-fu__image-card" [formGroupName]="$index">
+                        <img
+                          [src]="imageUrl($index)"
+                          [alt]="img.get('caption')?.value || 'Ảnh ' + ($index + 1)"
+                          class="public-fu__image-thumb"
+                        />
+                        <div class="public-fu__image-fields">
+                          <mat-form-field appearance="outline">
+                            <mat-label>Loại ảnh</mat-label>
+                            <mat-select formControlName="imageType">
+                              <mat-option value="exterior">Mặt ngoài</mat-option>
+                              <mat-option value="interior">Bên trong</mat-option>
+                              <mat-option value="infrastructure">Hạ tầng kỹ thuật</mat-option>
+                              <mat-option value="other">Khác</mat-option>
+                            </mat-select>
+                          </mat-form-field>
+                          <mat-form-field appearance="outline">
+                            <mat-label>Mô tả ngắn</mat-label>
+                            <input matInput formControlName="caption" maxlength="500" />
+                          </mat-form-field>
+                          <mat-form-field appearance="outline">
+                            <mat-label>Ngày chụp</mat-label>
+                            <input matInput type="date" formControlName="takenDate" />
+                          </mat-form-field>
+                        </div>
+                        <button mat-icon-button type="button" (click)="removeImage($index)" class="public-fu__image-del" aria-label="Xoá">
+                          <mat-icon>delete</mat-icon>
+                        </button>
+                      </div>
+                    }
+                  </div>
+                  <div class="public-fu__upload-actions">
+                    <input type="file" accept=".jpg,.jpeg,.png,.webp" (change)="onPickImage($event)" hidden #imgInput />
+                    <button mat-flat-button color="primary" type="button" (click)="imgInput.click()" [disabled]="uploadingImage()">
+                      @if (uploadingImage()) {
+                        <mat-spinner diameter="18" />
+                      } @else {
+                        <mat-icon>add_photo_alternate</mat-icon>
+                      }
+                      Tải ảnh lên
+                    </button>
+                  </div>
+                </div>
+              </mat-tab>
+            </mat-tab-group>
+          </mat-card>
+
+          <mat-card class="public-portal__card">
+            <h2 class="public-portal__step-title">
+              <span class="public-portal__step-num">3</span>
+              Thông tin người gửi
+            </h2>
+            <p class="public-portal__hint">Thông tin liên hệ để cán bộ phụ trách xác minh khi cần.</p>
+
+            <div class="public-fu__grid">
+              <mat-form-field appearance="outline">
+                <mat-label>Họ tên *</mat-label>
+                <input matInput formControlName="submitterName" maxlength="200" />
+                @if (form.controls.submitterName.touched && form.controls.submitterName.invalid) {
+                  <mat-error>Bắt buộc.</mat-error>
+                }
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Số điện thoại *</mat-label>
+                <input matInput formControlName="submitterPhone" placeholder="0xx... hoặc +84xx..." maxlength="50" />
+                @if (form.controls.submitterPhone.touched && form.controls.submitterPhone.invalid) {
+                  <mat-error>Số điện thoại VN không hợp lệ.</mat-error>
+                }
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="public-fu__full">
+                <mat-label>Email (tùy chọn)</mat-label>
+                <input matInput type="email" formControlName="submitterEmail" />
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="public-fu__full">
+                <mat-label>Ghi chú gửi cán bộ (tùy chọn)</mat-label>
+                <textarea
+                  matInput
+                  rows="3"
+                  formControlName="submitterNotes"
+                  maxlength="2000"
+                  placeholder="Ghi rõ thông tin pháp lý, link hình ảnh, hoặc đề nghị bổ sung khác…"
+                ></textarea>
+              </mat-form-field>
+            </div>
+
+            <div class="public-fu__actions">
+              <button mat-stroked-button type="button" (click)="resetForm()">Hủy</button>
+              <button mat-flat-button color="primary" type="submit" [disabled]="submitting()">
+                @if (submitting()) {
+                  <mat-spinner diameter="18" />
+                } @else {
+                  <mat-icon>send</mat-icon>
+                }
+                Gửi đề xuất
+              </button>
+            </div>
+          </mat-card>
+        </form>
+      }
+    }
+
+    <footer class="public-portal__footer">
+      <p>© 2026 — Cục Quản lý và Phát triển thị trường trong nước — Bộ Công Thương</p>
+    </footer>
+  </div>
+</div>
