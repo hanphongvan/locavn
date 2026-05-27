@@ -1,0 +1,92 @@
+<div class="submissions-list">
+  <header class="submissions-list__header">
+    <h1>Đề xuất cập nhật hạ tầng</h1>
+  </header>
+
+  <div class="submissions-list__filters">
+    <mat-form-field appearance="outline">
+      <mat-label>Trạng thái</mat-label>
+      <mat-select [(ngModel)]="status">
+        <mat-option value="pending">Chờ duyệt</mat-option>
+        <mat-option value="approved">Đã duyệt</mat-option>
+        <mat-option value="rejected">Từ chối</mat-option>
+        <mat-option value="">Tất cả</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Loại</mat-label>
+      <mat-select [(ngModel)]="submissionType">
+        <mat-option value="">Tất cả</mat-option>
+        <mat-option value="update">Cập nhật</mat-option>
+        <mat-option value="create_new">Tạo mới</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>Mã tỉnh</mat-label>
+      <input matInput [(ngModel)]="provinceCode" maxlength="10" />
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="grow">
+      <mat-label>Tên hạ tầng</mat-label>
+      <input matInput [(ngModel)]="q" (keyup.enter)="applyFilter()" />
+    </mat-form-field>
+
+    <button mat-flat-button color="primary" (click)="applyFilter()" [disabled]="loading()">
+      <mat-icon>search</mat-icon> Lọc
+    </button>
+  </div>
+
+  <table mat-table [dataSource]="items()" class="submissions-list__table">
+    <ng-container matColumnDef="submittedAt">
+      <th mat-header-cell *matHeaderCellDef>Gửi lúc</th>
+      <td mat-cell *matCellDef="let r">{{ r.submittedAt | date: 'dd/MM/yyyy HH:mm' }}</td>
+    </ng-container>
+    <ng-container matColumnDef="type">
+      <th mat-header-cell *matHeaderCellDef>Loại</th>
+      <td mat-cell *matCellDef="let r">
+        <span class="chip" [class.chip--new]="r.submissionType === 'create_new'">
+          {{ r.submissionType === 'create_new' ? 'Tạo mới' : 'Cập nhật' }}
+        </span>
+      </td>
+    </ng-container>
+    <ng-container matColumnDef="name">
+      <th mat-header-cell *matHeaderCellDef>Tên</th>
+      <td mat-cell *matCellDef="let r">{{ r.name }}</td>
+    </ng-container>
+    <ng-container matColumnDef="province">
+      <th mat-header-cell *matHeaderCellDef>Tỉnh / Xã</th>
+      <td mat-cell *matCellDef="let r">{{ r.provinceCode }} / {{ r.wardCode || '—' }}</td>
+    </ng-container>
+    <ng-container matColumnDef="submitter">
+      <th mat-header-cell *matHeaderCellDef>Người gửi</th>
+      <td mat-cell *matCellDef="let r">
+        {{ r.submitterName }}<br />
+        <small class="muted">{{ r.submitterPhone }}</small>
+      </td>
+    </ng-container>
+    <ng-container matColumnDef="status">
+      <th mat-header-cell *matHeaderCellDef>Trạng thái</th>
+      <td mat-cell *matCellDef="let r">
+        <span class="chip" [ngClass]="'chip--' + r.status">
+          {{ r.status === 'pending' ? 'Chờ duyệt' : r.status === 'approved' ? 'Đã duyệt' : 'Từ chối' }}
+        </span>
+      </td>
+    </ng-container>
+    <ng-container matColumnDef="action">
+      <th mat-header-cell *matHeaderCellDef></th>
+      <td mat-cell *matCellDef="let r">
+        <a [routerLink]="['/httm/submissions', r.id]" mat-stroked-button>Xem</a>
+      </td>
+    </ng-container>
+    <tr mat-header-row *matHeaderRowDef="columns"></tr>
+    <tr mat-row *matRowDef="let row; columns: columns"></tr>
+  </table>
+
+  <div class="submissions-list__pager">
+    <span class="muted">Tổng {{ totalCount() }} — trang {{ page() }} / {{ totalPages() }}</span>
+    <button mat-stroked-button (click)="prevPage()" [disabled]="page() <= 1 || loading()">← Trước</button>
+    <button mat-stroked-button (click)="nextPage()" [disabled]="page() >= totalPages() || loading()">Sau →</button>
+  </div>
+</div>
