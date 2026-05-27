@@ -250,6 +250,24 @@ Tuân theo pattern `Features/{Domain}/{Contracts,Controllers,Persistence,Service
 - [x] Swagger mô tả XML cho HTTM (`IncludeXmlComments`) · 2026-05-13
 - [~] Ghi hash PR — cập nhật khi merge (mục Lịch sử) · 2026-05-13
 
+### 1.8 EF migration auto-apply (2026-05-14)
+
+- [x] Embed `database/migrations/*Httm*.sql` (20 file) làm `<EmbeddedResource>` trong `Httm.XangDau.Api.csproj` · 2026-05-14
+- [x] Helper `HttmSqlMigrations.ReadBatches(fileName)` đọc resource + split theo `GO` separator · 2026-05-14
+- [x] Generate 20 EF migration wrapper `.cs` cho Phase 1 + Phase 2 SQL (đặt trong `Shared/Persistence/Migrations/`, pattern không Designer.cs giống các migration mới) · 2026-05-14
+- [x] `dotnet ef migrations list` xác nhận 20 migrations Pending; `dotnet ef migrations script` verify resource load đúng · 2026-05-14
+- [x] App startup giờ tự apply qua `app.ApplyDmpPortalMigrations()` ở `Program.cs:123` — không cần chạy `sqlcmd` thủ công nữa · 2026-05-14
+
+### 1.7 Bug fix post-review (Code review 2026-05-14)
+
+- [x] Bug #1: SO_STAFF nhiều tỉnh chỉ thấy tỉnh đầu — SP `sp_Httm_Facility_Search` + `sp_Httm_Facility_GetMapData` nhận thêm `@ProvinceCodes` (CSV); service truyền full list khi caller không chỉ định tỉnh · 2026-05-14
+- [x] Bug #2: Sensitive field bị wipe-by-null qua PUT/PATCH — `GuardSensitiveOverwrite` ép giá trị cũ vào patch khi `!CanViewSensitive()` · 2026-05-14
+- [x] Bug #3: File rác khi DB lỗi sau upload — `IHttmImageStorage.DeleteAsync` + try/catch rollback trong `UploadImageAsync` · 2026-05-14
+- [x] Bug #4: Audit `update` thiếu `changedFields` — `BuildChangedFieldsJson` diff `existing` vs `patch`, serialize `{ field: { old, new } }` · 2026-05-14
+- [x] Bug #5: License upsert/delete (và image delete) không ghi audit — thêm `auditLogs.InsertAsync` với action `license_change` / `license_delete` / `image_delete` · 2026-05-14
+- [x] Bug #7: Verify JWT claim `httm_province_codes` — `ApplicationOAuthProvider.BuildClaimsAsync` đã đọc toàn bộ `AspNetUserClaims` vào JWT; thêm `sp_Httm_SoStaff_SetProvinceClaim` / `sp_Httm_SoStaff_GetProvinceClaim` cho admin gán/gỡ phạm vi tỉnh · 2026-05-14
+- [x] Build pass (0 errors) + 119/119 unit tests pass · 2026-05-14
+
 ---
 
 ## Phase 2 — Phiếu Khảo Sát + Public Map + Analytics
@@ -325,3 +343,5 @@ Tuân theo pattern `Features/{Domain}/{Contracts,Controllers,Persistence,Service
 | 2026-05-13 | Agent | Git commit `ae06a82`: Phase 1 backend API HTTM (controllers, SP, DI) |
 | 2026-05-13 | Agent | Git commit `cbc80f0`: Admin Angular HTTM §1.3 + portal Loai 10–12 |
 | 2026-05-14 | Agent | Phase 2 tiếp: `public-httm` rate limit, `HttmPhase2Features` (analytics + report templates + worker), Angular surveys/public map/analytics/report-templates + nav |
+| 2026-05-14 | Claude | Code review Phase 1 + fix bugs #1, #2, #3, #4, #5, #7 (xem §1.7) — build pass, 119 tests pass |
+| 2026-05-14 | Claude | Convert 20 SQL HTTM Phase 1+2 thành EF migration wrappers (xem §1.8) — `dotnet run` tự apply, không còn cần `sqlcmd` |
