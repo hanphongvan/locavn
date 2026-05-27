@@ -9,6 +9,15 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- HTTM SQL migrations: embed *.sql under backend/database/migrations as assembly resource
+         so EF Core migration wrappers can load them at runtime without external files. -->
+    <EmbeddedResource Include="..\..\database\migrations\*Httm*.sql">
+      <LogicalName>HttmSqlMigrations.%(Filename).sql</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ClosedXML" Version="0.105.0" />
     <PackageReference Include="Dapper" Version="2.1.66" />
     <PackageReference Include="FluentValidation" Version="11.11.0" />
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="11.11.0" />
