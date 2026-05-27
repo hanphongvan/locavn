@@ -1,5 +1,6 @@
 using System.Text;
 using Httm.XangDau.Api.Features.Admin.Auth.Services;
+using Httm.XangDau.Api.Features.Httm.Services;
 using Httm.XangDau.Api.Shared.Security;
 using Httm.XangDau.Api.Shared.Security.Portal;
 using Microsoft.AspNetCore.Authorization;
@@ -62,6 +63,33 @@ public sealed class HttmAnalyticsController(IHttmAnalyticsRepository analytics, 
             return deny;
         var s = await analytics.SummaryAsync(cancellationToken).ConfigureAwait(false);
         return Ok(s ?? new AnalyticsSummaryRow());
+    }
+
+    /// <summary>Đếm số cơ sở HTTM chưa có bản ghi đề xuất nào trong <c>HttmFacilitySubmissions</c>.</summary>
+    /// <remarks>
+    /// SO_STAFF: scope tự động theo claim <c>httm_province_codes</c> (CSV mã tỉnh). SO_STAFF không có claim → 0.
+    /// HTTM_ADMIN / BCT_STAFF / machine: toàn quốc.
+    /// </remarks>
+    [HttpGet("facilities-not-updated")]
+    public async Task<IActionResult> FacilitiesNotUpdated(CancellationToken cancellationToken)
+    {
+        if (!EnsureHttm(out var deny))
+            return deny;
+
+        string? provinceCodesCsv = null;
+        if (portal.Loai == AdminPortalLoaiRoleMapper.LoaiSoStaff && !portal.IsMachineFullAccess)
+        {
+            var codes = HttmGeoScopeService.ParseProvinceCodes(User);
+            if (codes.Count == 0)
+                return Ok(new { count = 0L });
+
+            provinceCodesCsv = string.Join(",", codes);
+        }
+
+        var count = await analytics
+            .FacilitiesNotUpdatedCountAsync(provinceCodesCsv, cancellationToken)
+            .ConfigureAwait(false);
+        return Ok(new { count });
     }
 
     /// <summary>Xuất CSV (mở bằng Excel) — tổng hợp nhanh.</summary>

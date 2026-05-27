@@ -113,7 +113,8 @@ BEGIN
         RETURN;
     END;
 
-    SET @OutId = NEWSEQUENTIALID();
+    -- NEWSEQUENTIALID() chỉ dùng được trong DEFAULT của CREATE/ALTER TABLE; dùng NEWID() trong SP body.
+    SET @OutId = NEWID();
     INSERT INTO dbo.HttmReportTemplates (Id, Code, Name, Description, ReminderIntervalDays, IsActive)
     VALUES (@OutId, @Code, @Name, @Description, @ReminderIntervalDays, @IsActive);
 END;

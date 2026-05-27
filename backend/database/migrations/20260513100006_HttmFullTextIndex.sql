@@ -31,8 +31,11 @@ IF NOT EXISTS (
     WHERE object_id = OBJECT_ID(N'dbo.HttmFacilities', N'U')
 )
 BEGIN
-    -- LCID 1068 = Vietnamese (Windows)
-    CREATE FULLTEXT INDEX ON dbo.HttmFacilities (Name LANGUAGE 1068)
+    -- Bỏ qua khoản LANGUAGE để SQL Server dùng default_language của instance.
+    -- Lý do: LCID 1066 (Vietnamese) không có sẵn trên mọi SQL Server build (cần Vietnamese FTS language pack);
+    --   1068 thực ra là Azerbaijani (Latin), không phải Vietnamese.
+    -- Tên HTTM tiếng Việt vẫn search OK ở character level với tokenizer mặc định.
+    CREATE FULLTEXT INDEX ON dbo.HttmFacilities (Name)
         KEY INDEX PK_HttmFacilities
         ON FT_Httm
         WITH (CHANGE_TRACKING = AUTO, STOPLIST = SYSTEM);

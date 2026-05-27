@@ -87,13 +87,18 @@ public sealed class HttmFacilityServiceTests
     }
 
     [Fact]
-    public async Task SearchAsync_SO_staff_without_province_forces_first_assigned_province()
+    public async Task SearchAsync_SO_staff_without_province_passes_all_assigned_provinces_csv()
     {
-        HttmFacilitySearchQuery? captured = null;
+        HttmFacilitySearchQuery? capturedQuery = null;
+        string? capturedCsv = null;
         var facilities = new Mock<IHttmFacilityRepository>();
         facilities
-            .Setup(r => r.SearchAsync(It.IsAny<HttmFacilitySearchQuery>(), It.IsAny<CancellationToken>()))
-            .Callback<HttmFacilitySearchQuery, CancellationToken>((q, _) => captured = q)
+            .Setup(r => r.SearchAsync(It.IsAny<HttmFacilitySearchQuery>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+            .Callback<HttmFacilitySearchQuery, string?, CancellationToken>((q, csv, _) =>
+            {
+                capturedQuery = q;
+                capturedCsv = csv;
+            })
             .ReturnsAsync(new HttmFacilitySearchPageDto { TotalCount = 0, Items = [] });
 
         var svc = CreateService(facilities, portalLoai: AdminPortalLoaiRoleMapper.LoaiSoStaff);
@@ -101,8 +106,9 @@ public sealed class HttmFacilityServiceTests
 
         await svc.SearchAsync(new HttmFacilitySearchQuery { Page = 1, PageSize = 20 }, user, CancellationToken.None);
 
-        captured.Should().NotBeNull();
-        captured!.ProvinceCode.Should().Be("79");
+        capturedQuery.Should().NotBeNull();
+        capturedQuery!.ProvinceCode.Should().BeNull("repo nhận CSV qua tham số riêng, không qua query.ProvinceCode");
+        capturedCsv.Should().Be("79,01");
     }
 
     [Fact]
@@ -119,7 +125,7 @@ public sealed class HttmFacilityServiceTests
         data!.TotalCount.Should().Be(0);
         data.Items.Should().BeEmpty();
         facilities.Verify(
-            r => r.SearchAsync(It.IsAny<HttmFacilitySearchQuery>(), It.IsAny<CancellationToken>()),
+            r => r.SearchAsync(It.IsAny<HttmFacilitySearchQuery>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 
@@ -139,7 +145,7 @@ public sealed class HttmFacilityServiceTests
         data.Should().BeNull();
         err.Should().Contain("SCOPE_VIOLATION");
         facilities.Verify(
-            r => r.SearchAsync(It.IsAny<HttmFacilitySearchQuery>(), It.IsAny<CancellationToken>()),
+            r => r.SearchAsync(It.IsAny<HttmFacilitySearchQuery>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
 

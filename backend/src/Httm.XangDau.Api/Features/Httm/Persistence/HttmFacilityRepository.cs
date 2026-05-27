@@ -16,6 +16,7 @@ public sealed class HttmFacilityRepository(IConfiguration configuration) : IHttm
 
     public async Task<HttmFacilitySearchPageDto> SearchAsync(
         HttmFacilitySearchQuery query,
+        string? provinceCodesCsv = null,
         CancellationToken cancellationToken = default)
     {
         await using var conn = new SqlConnection(_connectionString);
@@ -28,6 +29,7 @@ public sealed class HttmFacilityRepository(IConfiguration configuration) : IHttm
                             Q = query.Q,
                             HttmType = query.HttmType,
                             ProvinceCode = query.ProvinceCode,
+                            ProvinceCodes = provinceCodesCsv,
                             DistrictCode = query.DistrictCode,
                             WardCode = query.WardCode,
                             Status = query.Status,
@@ -63,7 +65,7 @@ public sealed class HttmFacilityRepository(IConfiguration configuration) : IHttm
             FloorArea = r.FloorArea,
             StallCount = r.StallCount,
             YearEstablished = r.YearEstablished,
-            UpdatedAt = ToOffset(r.UpdatedAt),
+            UpdatedAt = r.UpdatedAt,
         }).ToList();
 
         return new HttmFacilitySearchPageDto { TotalCount = total, Items = items };
@@ -208,6 +210,7 @@ public sealed class HttmFacilityRepository(IConfiguration configuration) : IHttm
         string? typesCsv,
         string? provinceCode,
         int maxRows,
+        string? provinceCodesCsv = null,
         CancellationToken cancellationToken = default)
     {
         await using var conn = new SqlConnection(_connectionString);
@@ -225,6 +228,7 @@ public sealed class HttmFacilityRepository(IConfiguration configuration) : IHttm
                                 BoundsNorth = north,
                                 Types = typesCsv,
                                 ProvinceCode = provinceCode,
+                                ProvinceCodes = provinceCodesCsv,
                                 MaxRows = maxRows,
                             },
                             commandType: CommandType.StoredProcedure,
@@ -268,7 +272,8 @@ public sealed class HttmFacilityRepository(IConfiguration configuration) : IHttm
             Action = a.Action,
             ChangedFields = a.ChangedFields,
             PerformedBy = a.PerformedBy,
-            PerformedAt = ToOffset(a.PerformedAt),
+            PerformedByName = string.IsNullOrWhiteSpace(a.PerformedByName) ? a.PerformedBy : a.PerformedByName,
+            PerformedAt = a.PerformedAt,
             IpAddress = a.IpAddress,
             UserAgent = a.UserAgent,
         }).ToList();
@@ -306,6 +311,21 @@ public sealed class HttmFacilityRepository(IConfiguration configuration) : IHttm
             .ConfigureAwait(false);
 
         return p.Get<Guid>("Id");
+    }
+
+    public async Task<IReadOnlyList<HttmFacilityImageDto>> ListImagesAsync(
+        Guid facilityId,
+        CancellationToken cancellationToken = default)
+    {
+        await using var conn = new SqlConnection(_connectionString);
+        var rows = await conn.QueryAsync<HttmFacilityImageDto>(
+                new CommandDefinition(
+                    "dbo.sp_Httm_FacilityImage_GetByFacility",
+                    new { FacilityId = facilityId },
+                    commandType: CommandType.StoredProcedure,
+                    cancellationToken: cancellationToken))
+            .ConfigureAwait(false);
+        return rows.ToList();
     }
 
     public async Task<int> DeleteImageAsync(Guid imageId, Guid facilityId, CancellationToken cancellationToken = default)
@@ -383,6 +403,29 @@ public sealed class HttmFacilityRepository(IConfiguration configuration) : IHttm
     {
         var dto = await GetByIdAsync(facilityId, canViewSensitive: true, cancellationToken).ConfigureAwait(false);
         return dto?.ProvinceCode;
+    }
+
+    public async Task<Guid?> FindIdByNaturalKeyAsync(
+        string name,
+        string provinceCode,
+        string? wardCode,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+            SELECT TOP (1) Id
+            FROM dbo.HttmFacilities
+            WHERE LOWER(Name) = LOWER(@Name)
+              AND ProvinceCode = @ProvinceCode
+              AND ((@WardCode IS NULL AND WardCode IS NULL) OR WardCode = @WardCode)
+            """;
+
+        await using var conn = new SqlConnection(_connectionString);
+        return await conn.ExecuteScalarAsync<Guid?>(
+                new CommandDefinition(
+                    sql,
+                    new { Name = name, ProvinceCode = provinceCode, WardCode = wardCode },
+                    cancellationToken: cancellationToken))
+            .ConfigureAwait(false);
     }
 
     public async Task<(bool Ok, string? Error)> LinkSourceSurveyAsync(
@@ -464,8 +507,8 @@ public sealed class HttmFacilityRepository(IConfiguration configuration) : IHttm
             Notes = r.Notes,
             CreatedBy = r.CreatedBy,
             UpdatedBy = r.UpdatedBy,
-            CreatedAt = ToOffset(r.CreatedAt),
-            UpdatedAt = ToOffset(r.UpdatedAt),
+            CreatedAt = r.CreatedAt,
+            UpdatedAt = r.UpdatedAt,
             IsSensitiveVisible = r.IsSensitiveVisible,
         };
 
@@ -482,14 +525,11 @@ public sealed class HttmFacilityRepository(IConfiguration configuration) : IHttm
             FileUrl = r.FileUrl,
             Notes = r.Notes,
             ExpiryAlert30d = r.ExpiryAlert30d,
-            CreatedAt = ToOffset(r.CreatedAt),
+            CreatedAt = r.CreatedAt,
         };
 
     private static DateOnly? ToDateOnly(DateTime? dt) =>
         dt is null ? null : DateOnly.FromDateTime(dt.Value);
-
-    private static DateTimeOffset ToOffset(DateTime dt) =>
-        new(DateTime.SpecifyKind(dt, DateTimeKind.Utc), TimeSpan.Zero);
 
     private sealed class FacilitySearchRow
     {
@@ -506,7 +546,7 @@ public sealed class HttmFacilityRepository(IConfiguration configuration) : IHttm
         public decimal? FloorArea { get; init; }
         public int? StallCount { get; init; }
         public short? YearEstablished { get; init; }
-        public DateTime UpdatedAt { get; init; }
+        public DateTimeOffset UpdatedAt { get; init; }
     }
 
     private sealed class FacilityDetailRow
@@ -544,8 +584,8 @@ public sealed class HttmFacilityRepository(IConfiguration configuration) : IHttm
         public string? Notes { get; init; }
         public string CreatedBy { get; init; } = string.Empty;
         public string? UpdatedBy { get; init; }
-        public DateTime CreatedAt { get; init; }
-        public DateTime UpdatedAt { get; init; }
+        public DateTimeOffset CreatedAt { get; init; }
+        public DateTimeOffset UpdatedAt { get; init; }
         public bool IsSensitiveVisible { get; init; }
     }
 
@@ -571,7 +611,8 @@ public sealed class HttmFacilityRepository(IConfiguration configuration) : IHttm
         public string Action { get; init; } = string.Empty;
         public string? ChangedFields { get; init; }
         public string PerformedBy { get; init; } = string.Empty;
-        public DateTime PerformedAt { get; init; }
+        public string? PerformedByName { get; init; }
+        public DateTimeOffset PerformedAt { get; init; }
         public string? IpAddress { get; init; }
         public string? UserAgent { get; init; }
     }
@@ -588,6 +629,6 @@ public sealed class HttmFacilityRepository(IConfiguration configuration) : IHttm
         public string? FileUrl { get; init; }
         public string? Notes { get; init; }
         public bool ExpiryAlert30d { get; init; }
-        public DateTime CreatedAt { get; init; }
+        public DateTimeOffset CreatedAt { get; init; }
     }
 }

@@ -19,6 +19,10 @@ public interface IHttmAnalyticsRepository
     Task<IReadOnlyList<MonthCountRow>> SurveySubmittedByMonthAsync(int months, CancellationToken cancellationToken = default);
 
     Task<AnalyticsSummaryRow?> SummaryAsync(CancellationToken cancellationToken = default);
+
+    Task<long> FacilitiesNotUpdatedCountAsync(
+        string? provinceCodesCsv,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed class HttmAnalyticsRepository(IConfiguration configuration) : IHttmAnalyticsRepository
@@ -69,6 +73,26 @@ public sealed class HttmAnalyticsRepository(IConfiguration configuration) : IHtt
                     commandType: CommandType.StoredProcedure,
                     cancellationToken: cancellationToken))
             .ConfigureAwait(false);
+    }
+
+    public async Task<long> FacilitiesNotUpdatedCountAsync(
+        string? provinceCodesCsv,
+        CancellationToken cancellationToken = default)
+    {
+        await using var conn = new SqlConnection(_connectionString);
+        var row = await conn.QuerySingleOrDefaultAsync<CountRow>(
+                new CommandDefinition(
+                    "dbo.sp_Httm_Analytics_FacilitiesNotUpdated",
+                    new { ProvinceCodes = provinceCodesCsv },
+                    commandType: CommandType.StoredProcedure,
+                    cancellationToken: cancellationToken))
+            .ConfigureAwait(false);
+        return row?.Count ?? 0;
+    }
+
+    private sealed class CountRow
+    {
+        public long Count { get; init; }
     }
 
     private async Task<IReadOnlyList<T>> QueryRows<T>(

@@ -33,7 +33,7 @@ public sealed class PublicHttmController(IHttmFacilityRepository facilities) : C
 
         var cap = Math.Clamp(maxRows ?? 600, 1, 800);
         var rows = await facilities
-            .GetMapDataAsync(west, south, east, north, types, provinceCode, cap, cancellationToken)
+            .GetMapDataAsync(west, south, east, north, types, provinceCode, cap, cancellationToken: cancellationToken)
             .ConfigureAwait(false);
         return Ok(new HttmMapFeatureCollectionResponse { Features = rows.ToList() });
     }

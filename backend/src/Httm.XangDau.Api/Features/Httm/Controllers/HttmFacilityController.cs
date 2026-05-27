@@ -174,6 +174,15 @@ public sealed class HttmFacilityController(IHttmFacilityService httm, IHttmSurve
         return NoContent();
     }
 
+    /// <summary>Danh sách ảnh theo hồ sơ (sort SortOrder ASC).</summary>
+    [HttpGet("{id:guid}/images")]
+    [ProducesResponseType(typeof(IReadOnlyList<HttmFacilityImageDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> ListImages(Guid id, CancellationToken cancellationToken)
+    {
+        var (data, err, status) = await httm.ListImagesAsync(id, User, cancellationToken).ConfigureAwait(false);
+        return ToAction(data, err, status);
+    }
+
     /// <summary>Danh sách giấy phép theo hồ sơ.</summary>
     [HttpGet("{id:guid}/licenses")]
     [ProducesResponseType(typeof(IReadOnlyList<HttmFacilityLicenseDto>), StatusCodes.Status200OK)]

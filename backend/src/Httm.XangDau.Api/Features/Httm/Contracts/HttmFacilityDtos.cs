@@ -137,8 +137,13 @@ public sealed class HttmFacilityUpdateRequest
     public string? OperatorUserId { get; init; }
     public decimal? FillRate { get; init; }
     public int? VendorCount { get; init; }
-    public decimal? AvgRentPrice { get; init; }
-    public decimal? AnnualRevenue { get; init; }
+
+    /// <summary>Giá thuê TB. Mutable để service ép giá trị cũ khi caller không có quyền xem sensitive (chống wipe-by-null).</summary>
+    public decimal? AvgRentPrice { get; set; }
+
+    /// <summary>Doanh thu hàng năm. Mutable cùng lý do với <see cref="AvgRentPrice"/>.</summary>
+    public decimal? AnnualRevenue { get; set; }
+
     public bool? HasBackupPower { get; init; }
     public bool? HasFireProtection { get; init; }
     public string? BuildingQuality { get; init; }

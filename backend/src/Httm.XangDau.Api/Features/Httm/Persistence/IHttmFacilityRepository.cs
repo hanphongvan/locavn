@@ -4,7 +4,10 @@ namespace Httm.XangDau.Api.Features.Httm.Persistence;
 
 public interface IHttmFacilityRepository
 {
-    Task<HttmFacilitySearchPageDto> SearchAsync(HttmFacilitySearchQuery query, CancellationToken cancellationToken = default);
+    Task<HttmFacilitySearchPageDto> SearchAsync(
+        HttmFacilitySearchQuery query,
+        string? provinceCodesCsv = null,
+        CancellationToken cancellationToken = default);
 
     Task<HttmFacilityDto?> GetByIdAsync(Guid id, bool canViewSensitive, CancellationToken cancellationToken = default);
 
@@ -22,6 +25,7 @@ public interface IHttmFacilityRepository
         string? typesCsv,
         string? provinceCode,
         int maxRows,
+        string? provinceCodesCsv = null,
         CancellationToken cancellationToken = default);
 
     Task<HttmAuditLogsPageDto> GetAuditLogsAsync(
@@ -42,6 +46,9 @@ public interface IHttmFacilityRepository
 
     Task<int> DeleteImageAsync(Guid imageId, Guid facilityId, CancellationToken cancellationToken = default);
 
+    /// <summary>List ảnh theo facility — sort theo SortOrder ASC, CreatedAt DESC.</summary>
+    Task<IReadOnlyList<HttmFacilityImageDto>> ListImagesAsync(Guid facilityId, CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<HttmFacilityLicenseDto>> ListLicensesAsync(Guid facilityId, CancellationToken cancellationToken = default);
 
     Task<Guid> UpsertLicenseAsync(
@@ -53,6 +60,17 @@ public interface IHttmFacilityRepository
 
     /// <summary>Chỉ để kiểm tra phạm vi tỉnh (Sở).</summary>
     Task<string?> GetProvinceCodeAsync(Guid facilityId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Tìm facility theo "khoá tự nhiên" (Name + ProvinceCode + WardCode) — dùng cho flow Import để
+    /// skip duplicate. VN sau 2025 chỉ còn tỉnh + xã nên khoá dùng WardCode thay vì DistrictCode.
+    /// Trả về <c>null</c> nếu không tìm thấy. Name so sánh không phân biệt hoa thường.
+    /// </summary>
+    Task<Guid?> FindIdByNaturalKeyAsync(
+        string name,
+        string provinceCode,
+        string? wardCode,
+        CancellationToken cancellationToken = default);
 
     /// <summary>Gán <c>SourceSurveyId</c> và <c>HttmSurveys.LinkedFacilityId</c> (SP Phase 2).</summary>
     Task<(bool Ok, string? Error)> LinkSourceSurveyAsync(

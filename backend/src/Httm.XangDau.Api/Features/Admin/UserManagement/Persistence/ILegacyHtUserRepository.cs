@@ -53,7 +53,17 @@ public interface ILegacyHtUserRepository
     /// <summary>Petrol retail stores: <c>DM_DonVi.CapDonViId</c> = <c>PetrolRetailConstants.CapDonViId</c>.</summary>
     Task<IReadOnlyList<DonViOptionDto>> GetDonViPetrolRetailStoresAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>Sở Công Thương units: <c>DM_DonVi.CapDonViId</c> = <c>SoStaffUnitConstants.CapDonViId</c>.</summary>
+    Task<IReadOnlyList<DonViOptionDto>> GetDonViSoStaffAsync(CancellationToken cancellationToken = default);
+
     Task ReplaceUserRolesAsync(string userId, IReadOnlyList<string> roleIds, CancellationToken cancellationToken = default);
 
     Task ReplaceUserDonVisAsync(string userId, IReadOnlyList<int> donViIds, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Ghi đè <c>AspNetUsers.PasswordHash</c> + <c>SecurityStamp</c> qua UPDATE trực tiếp.
+    /// Dùng để tránh phụ thuộc SP legacy <c>sp_HT_Users_AddOrUpdatePass</c> (lưu plain text / hash khác Identity v2).
+    /// Caller chịu trách nhiệm hash trước bằng <c>LegacyAspNetIdentityV2PasswordHasher.HashPassword</c>.
+    /// </summary>
+    Task<int> SetPasswordHashAsync(string userId, string passwordHash, CancellationToken cancellationToken = default);
 }

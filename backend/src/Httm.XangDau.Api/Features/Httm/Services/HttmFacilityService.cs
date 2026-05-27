@@ -78,6 +78,11 @@ public interface IHttmFacilityService
         ClaimsPrincipal user,
         CancellationToken cancellationToken = default);
 
+    Task<(IReadOnlyList<HttmFacilityImageDto>? Data, string? Error, int Status)> ListImagesAsync(
+        Guid facilityId,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken = default);
+
     Task<(IReadOnlyList<HttmFacilityLicenseDto>? Data, string? Error, int Status)> ListLicensesAsync(
         Guid facilityId,
         ClaimsPrincipal user,
@@ -114,6 +119,7 @@ public sealed class HttmFacilityService(
         if (!EnsureModuleAccess(out var deny))
             return (null, deny.message, deny.status);
 
+        string? provinceCodesCsv = null;
         if (portal.Loai == AdminPortalLoaiRoleMapper.LoaiSoStaff && !portal.IsMachineFullAccess)
         {
             var codes = HttmGeoScopeService.ParseProvinceCodes(user);
@@ -125,10 +131,10 @@ public sealed class HttmFacilityService(
                 return (null, "SCOPE_VIOLATION: không được truy vấn tỉnh ngoài phạm vi.", StatusCodes.Status403Forbidden);
 
             if (string.IsNullOrWhiteSpace(query.ProvinceCode))
-                query = CloneQuery(query, provinceCode: codes[0]);
+                provinceCodesCsv = string.Join(",", codes);
         }
 
-        var data = await facilities.SearchAsync(query, cancellationToken).ConfigureAwait(false);
+        var data = await facilities.SearchAsync(query, provinceCodesCsv, cancellationToken).ConfigureAwait(false);
         return (data, null, StatusCodes.Status200OK);
     }
 
@@ -270,8 +276,11 @@ public sealed class HttmFacilityService(
             Notes = request.Notes,
         };
 
+        GuardSensitiveOverwrite(patch, existing);
+        var changedFields = BuildChangedFieldsJson(existing, patch);
+
         await facilities.UpdateAsync(id, patch, portal.UserId, cancellationToken).ConfigureAwait(false);
-        await WriteUpdateAuditAsync(id, user, cancellationToken).ConfigureAwait(false);
+        await WriteUpdateAuditAsync(id, user, changedFields, cancellationToken).ConfigureAwait(false);
         return (true, null, StatusCodes.Status200OK);
     }
 
@@ -310,8 +319,11 @@ public sealed class HttmFacilityService(
                 request.ProvinceCode))
             return (false, "SCOPE_VIOLATION", StatusCodes.Status403Forbidden);
 
+        GuardSensitiveOverwrite(request, existing);
+        var changedFields = BuildChangedFieldsJson(existing, request);
+
         await facilities.UpdateAsync(id, request, portal.UserId, cancellationToken).ConfigureAwait(false);
-        await WriteUpdateAuditAsync(id, user, cancellationToken).ConfigureAwait(false);
+        await WriteUpdateAuditAsync(id, user, changedFields, cancellationToken).ConfigureAwait(false);
         return (true, null, StatusCodes.Status200OK);
     }
 
@@ -366,6 +378,7 @@ public sealed class HttmFacilityService(
         if (!EnsureModuleAccess(out var deny))
             return (null, deny.message, deny.status);
 
+        string? provinceCodesCsv = null;
         if (portal.Loai == AdminPortalLoaiRoleMapper.LoaiSoStaff && !portal.IsMachineFullAccess)
         {
             var codes = HttmGeoScopeService.ParseProvinceCodes(user);
@@ -377,11 +390,11 @@ public sealed class HttmFacilityService(
                 return (null, "SCOPE_VIOLATION", StatusCodes.Status403Forbidden);
 
             if (string.IsNullOrWhiteSpace(provinceCode))
-                provinceCode = codes[0];
+                provinceCodesCsv = string.Join(",", codes);
         }
 
         var rows = await facilities
-            .GetMapDataAsync(west, south, east, north, typesCsv, provinceCode, maxRows ?? 2000, cancellationToken)
+            .GetMapDataAsync(west, south, east, north, typesCsv, provinceCode, maxRows ?? 2000, provinceCodesCsv, cancellationToken)
             .ConfigureAwait(false);
         return (new HttmMapFeatureCollectionResponse { Features = rows.ToList() }, null, StatusCodes.Status200OK);
     }
@@ -439,9 +452,19 @@ public sealed class HttmFacilityService(
             return (null, err, StatusCodes.Status400BadRequest);
 
         var userId = portal.UserId ?? user.FindFirstValue(ClaimTypes.NameIdentifier);
-        var id = await facilities
-            .InsertImageAsync(facilityId, url, imageType, caption, takenDate, sortOrder, userId, cancellationToken)
-            .ConfigureAwait(false);
+        Guid id;
+        try
+        {
+            id = await facilities
+                .InsertImageAsync(facilityId, url, imageType, caption, takenDate, sortOrder, userId, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch
+        {
+            // Rollback file đã lưu để tránh rác trên disk khi DB lỗi.
+            await imageStorage.DeleteAsync(url, CancellationToken.None).ConfigureAwait(false);
+            throw;
+        }
 
         if (!string.IsNullOrEmpty(userId))
         {
@@ -479,7 +502,41 @@ public sealed class HttmFacilityService(
             return (false, "SCOPE_VIOLATION", StatusCodes.Status403Forbidden);
 
         await facilities.DeleteImageAsync(imageId, facilityId, cancellationToken).ConfigureAwait(false);
+
+        var actorId = portal.UserId ?? user.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!string.IsNullOrEmpty(actorId))
+        {
+            await auditLogs.InsertAsync(
+                    facilityId,
+                    "image_delete",
+                    JsonSerializer.Serialize(new { imageId }),
+                    actorId,
+                    GetIp(),
+                    GetUserAgent(),
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+
         return (true, null, StatusCodes.Status204NoContent);
+    }
+
+    public async Task<(IReadOnlyList<HttmFacilityImageDto>? Data, string? Error, int Status)> ListImagesAsync(
+        Guid facilityId,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken = default)
+    {
+        if (!EnsureModuleAccess(out var deny))
+            return (null, deny.message, deny.status);
+
+        var prov = await facilities.GetProvinceCodeAsync(facilityId, cancellationToken).ConfigureAwait(false);
+        if (prov is null)
+            return (null, "NOT_FOUND", StatusCodes.Status404NotFound);
+
+        if (!HttmGeoScopeService.CanAccessProvince(portal.IsMachineFullAccess, portal.Loai, user, prov))
+            return (null, "SCOPE_VIOLATION", StatusCodes.Status403Forbidden);
+
+        var list = await facilities.ListImagesAsync(facilityId, cancellationToken).ConfigureAwait(false);
+        return (list, null, StatusCodes.Status200OK);
     }
 
     public async Task<(IReadOnlyList<HttmFacilityLicenseDto>? Data, string? Error, int Status)> ListLicensesAsync(
@@ -524,6 +581,26 @@ public sealed class HttmFacilityService(
             return (null, "LicenseType required", StatusCodes.Status400BadRequest);
 
         var id = await facilities.UpsertLicenseAsync(facilityId, request, cancellationToken).ConfigureAwait(false);
+
+        var actorId = portal.UserId ?? user.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!string.IsNullOrEmpty(actorId))
+        {
+            await auditLogs.InsertAsync(
+                    facilityId,
+                    "license_change",
+                    JsonSerializer.Serialize(new
+                    {
+                        licenseId = id,
+                        licenseType = request.LicenseType,
+                        action = request.Id is null ? "insert" : "update",
+                    }),
+                    actorId,
+                    GetIp(),
+                    GetUserAgent(),
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+
         return (id, null, StatusCodes.Status200OK);
     }
 
@@ -547,6 +624,21 @@ public sealed class HttmFacilityService(
             return (false, "SCOPE_VIOLATION", StatusCodes.Status403Forbidden);
 
         await facilities.DeleteLicenseAsync(licenseId, facilityId, cancellationToken).ConfigureAwait(false);
+
+        var actorId = portal.UserId ?? user.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!string.IsNullOrEmpty(actorId))
+        {
+            await auditLogs.InsertAsync(
+                    facilityId,
+                    "license_delete",
+                    JsonSerializer.Serialize(new { licenseId }),
+                    actorId,
+                    GetIp(),
+                    GetUserAgent(),
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+
         return (true, null, StatusCodes.Status204NoContent);
     }
 
@@ -576,37 +668,88 @@ public sealed class HttmFacilityService(
         portal.IsMachineFullAccess
         || portal.Loai is AdminPortalLoaiRoleMapper.LoaiAdmin or AdminPortalLoaiRoleMapper.LoaiHttmAdmin;
 
-    private static HttmFacilitySearchQuery CloneQuery(HttmFacilitySearchQuery q, string provinceCode) =>
-        new()
-        {
-            Q = q.Q,
-            HttmType = q.HttmType,
-            ProvinceCode = provinceCode,
-            DistrictCode = q.DistrictCode,
-            WardCode = q.WardCode,
-            Status = q.Status,
-            AreaMin = q.AreaMin,
-            AreaMax = q.AreaMax,
-            StallMin = q.StallMin,
-            StallMax = q.StallMax,
-            YearFrom = q.YearFrom,
-            YearTo = q.YearTo,
-            Page = q.Page,
-            PageSize = q.PageSize,
-        };
-
-    private async Task WriteUpdateAuditAsync(Guid id, ClaimsPrincipal user, CancellationToken cancellationToken)
+    private async Task WriteUpdateAuditAsync(
+        Guid id,
+        ClaimsPrincipal user,
+        string? changedFieldsJson,
+        CancellationToken cancellationToken)
     {
         var userId = portal.UserId ?? user.FindFirstValue(ClaimTypes.NameIdentifier) ?? "unknown";
         await auditLogs.InsertAsync(
                 id,
                 "update",
-                null,
+                changedFieldsJson,
                 userId,
                 GetIp(),
                 GetUserAgent(),
                 cancellationToken)
             .ConfigureAwait(false);
+    }
+
+    /// <summary>Khi người dùng không có quyền xem sensitive (Sở), không cho phép request ghi đè giá trị —
+    /// luôn ép về giá trị hiện tại của hồ sơ.</summary>
+    private void GuardSensitiveOverwrite(HttmFacilityUpdateRequest patch, HttmFacilityDto existing)
+    {
+        if (CanViewSensitive())
+            return;
+
+        patch.AvgRentPrice = existing.AvgRentPrice;
+        patch.AnnualRevenue = existing.AnnualRevenue;
+    }
+
+    /// <summary>So sánh từng trường giữa <paramref name="existing"/> và <paramref name="patch"/>;
+    /// chỉ field nào có giá trị trong <paramref name="patch"/> (non-null) và khác hồ sơ hiện tại mới được ghi nhận.
+    /// Trả JSON dạng <c>{ "FieldName": { "old": ..., "new": ... } }</c>; trả <c>null</c> nếu không có thay đổi.</summary>
+    private static string? BuildChangedFieldsJson(HttmFacilityDto existing, HttmFacilityUpdateRequest patch)
+    {
+        var diff = new Dictionary<string, object?>(StringComparer.Ordinal);
+
+        void Track<T>(string name, T? newValue, T? oldValue) where T : class
+        {
+            if (newValue is null) return;
+            if (Equals(newValue, oldValue)) return;
+            diff[name] = new { old = oldValue, @new = newValue };
+        }
+
+        void TrackValue<T>(string name, T? newValue, T? oldValue) where T : struct
+        {
+            if (newValue is null) return;
+            if (Nullable.Equals(newValue, oldValue)) return;
+            diff[name] = new { old = oldValue, @new = newValue };
+        }
+
+        Track("Name", patch.Name, existing.Name);
+        Track("HttmType", patch.HttmType, existing.HttmType);
+        Track("Status", patch.Status, existing.Status);
+        Track("ProvinceCode", patch.ProvinceCode, existing.ProvinceCode);
+        Track("DistrictCode", patch.DistrictCode, existing.DistrictCode);
+        Track("WardCode", patch.WardCode, existing.WardCode);
+        Track("AddressDetail", patch.AddressDetail, existing.AddressDetail);
+        TrackValue("Lat", patch.Lat, existing.Lat);
+        TrackValue("Lng", patch.Lng, existing.Lng);
+        Track("GpsAccuracy", patch.GpsAccuracy, existing.GpsAccuracy);
+        TrackValue("LandArea", patch.LandArea, existing.LandArea);
+        TrackValue("FloorArea", patch.FloorArea, existing.FloorArea);
+        TrackValue("Floors", patch.Floors, existing.Floors);
+        TrackValue("StallCount", patch.StallCount, existing.StallCount);
+        TrackValue("AvgStallArea", patch.AvgStallArea, existing.AvgStallArea);
+        TrackValue("ParkingSlots", patch.ParkingSlots, existing.ParkingSlots);
+        TrackValue("YearEstablished", patch.YearEstablished, existing.YearEstablished);
+        TrackValue("YearRenovated", patch.YearRenovated, existing.YearRenovated);
+        Track("OwnerName", patch.OwnerName, existing.OwnerName);
+        Track("OperatorName", patch.OperatorName, existing.OperatorName);
+        Track("OperatorUserId", patch.OperatorUserId, existing.OperatorUserId);
+        TrackValue("FillRate", patch.FillRate, existing.FillRate);
+        TrackValue("VendorCount", patch.VendorCount, existing.VendorCount);
+        TrackValue("AvgRentPrice", patch.AvgRentPrice, existing.AvgRentPrice);
+        TrackValue("AnnualRevenue", patch.AnnualRevenue, existing.AnnualRevenue);
+        TrackValue("HasBackupPower", patch.HasBackupPower, existing.HasBackupPower);
+        TrackValue("HasFireProtection", patch.HasFireProtection, existing.HasFireProtection);
+        Track("BuildingQuality", patch.BuildingQuality, existing.BuildingQuality);
+        TrackValue("SourceSurveyId", patch.SourceSurveyId, existing.SourceSurveyId);
+        Track("Notes", patch.Notes, existing.Notes);
+
+        return diff.Count == 0 ? null : JsonSerializer.Serialize(diff);
     }
 
     private string? GetIp() => httpAccessor.HttpContext?.Connection.RemoteIpAddress?.ToString();
