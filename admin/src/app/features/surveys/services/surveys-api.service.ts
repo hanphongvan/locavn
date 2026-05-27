@@ -43,7 +43,9 @@ export class SurveysApiService {
   }
 
   create(body: HttmSurveyCreateRequest) {
-    return this.api.post<{ id: string }>('/api/surveys', body).pipe(handleApiError());
+    return this.api
+      .post<{ id: string; surveyCode: string; provinceCode: string }>('/api/surveys', body)
+      .pipe(handleApiError());
   }
 
   patch(id: string, body: HttmSurveyPatchRequest) {

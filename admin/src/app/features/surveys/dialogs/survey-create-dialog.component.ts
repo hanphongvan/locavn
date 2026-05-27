@@ -1,73 +1,80 @@
-import { CommonModule } from '@angular/common';
 import { Component, inject } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatSelectModule } from '@angular/material/select';
 
-import type { HttmCatalogItemDto, ProvinceOptionDto } from '../../httm/models/httm-facility.model';
+import type { HttmCatalogItemDto } from '../../httm/models/httm-facility.model';
 
 export interface SurveyCreateDialogData {
-  provinces: ProvinceOptionDto[];
   types: HttmCatalogItemDto[];
+}
+
+export interface SurveyCreateDialogResult {
+  httmType: string | null;
 }
 
 @Component({
   selector: 'app-survey-create-dialog',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, MatDialogModule, MatButtonModule],
+  imports: [ReactiveFormsModule, MatDialogModule, MatButtonModule, MatFormFieldModule, MatSelectModule],
   template: `
-    <h2 matDialogTitle>Tạo phiếu khảo sát</h2>
+    <h2 mat-dialog-title>Tạo phiếu khảo sát nháp</h2>
     <mat-dialog-content>
-      <form [formGroup]="form" class="dlg">
-        <div class="form-field">
-          <label class="form-label" for="dlg-prov">Tỉnh / TP</label>
-          <select id="dlg-prov" class="form-control" formControlName="provinceCode">
-            <option value="">Chọn</option>
-            @for (p of data.provinces; track p.code) {
-              <option [value]="p.code">{{ p.name }}</option>
-            }
-          </select>
-        </div>
-        <div class="form-field">
-          <label class="form-label" for="dlg-type">Loại cơ sở</label>
-          <select id="dlg-type" class="form-control" formControlName="httmType">
-            <option value="">Chọn</option>
+      <p class="survey-create-dialog__hint">
+        Tỉnh/TP được xác định theo tài khoản đăng nhập. Chọn loại cơ sở nếu phiếu gắn với một loại hình HTTM cụ thể.
+      </p>
+      <form [formGroup]="form" class="survey-create-dialog__form">
+        <mat-form-field appearance="outline" class="survey-create-dialog__field">
+          <mat-label>Loại cơ sở (tùy chọn)</mat-label>
+          <mat-select formControlName="httmType">
+            <mat-option [value]="''">— Khảo sát chung (không gắn loại) —</mat-option>
             @for (t of data.types; track t.id) {
-              <option [value]="t.code">{{ t.name }}</option>
+              <mat-option [value]="t.code">{{ t.name }}</mat-option>
             }
-          </select>
-        </div>
+          </mat-select>
+        </mat-form-field>
       </form>
     </mat-dialog-content>
     <mat-dialog-actions align="end">
-      <button mat-button type="button" (click)="ref.close()">Huỷ</button>
-      <button mat-flat-button color="primary" type="button" [disabled]="form.invalid" (click)="ok()">Tạo</button>
+      <button mat-stroked-button type="button" mat-dialog-close>Hủy</button>
+      <button mat-flat-button color="primary" type="button" (click)="submit()" [disabled]="form.invalid">
+        Tạo phiếu nháp
+      </button>
     </mat-dialog-actions>
   `,
   styles: [
     `
-      .dlg {
-        display: flex;
-        flex-direction: column;
-        gap: 1rem;
-        min-width: 260px;
-        padding-top: 0.5rem;
+      .survey-create-dialog__hint {
+        margin: 0 0 1rem;
+        font-size: 0.875rem;
+        line-height: 1.5;
+        color: var(--app-text-muted);
+      }
+
+      .survey-create-dialog__form {
+        display: block;
+        min-width: min(360px, 88vw);
+      }
+
+      .survey-create-dialog__field {
+        width: 100%;
       }
     `,
   ],
 })
 export class SurveyCreateDialogComponent {
+  private readonly ref = inject(MatDialogRef<SurveyCreateDialogComponent, SurveyCreateDialogResult | undefined>);
   readonly data = inject<SurveyCreateDialogData>(MAT_DIALOG_DATA);
-  readonly ref = inject(MatDialogRef<SurveyCreateDialogComponent, { provinceCode: string; httmType: string }>);
   private readonly fb = inject(FormBuilder);
 
   readonly form = this.fb.nonNullable.group({
-    provinceCode: ['', Validators.required],
-    httmType: ['', Validators.required],
+    httmType: [''],
   });
 
-  ok(): void {
-    const v = this.form.getRawValue();
-    this.ref.close({ provinceCode: v.provinceCode, httmType: v.httmType });
+  submit(): void {
+    const raw = this.form.getRawValue().httmType.trim();
+    this.ref.close({ httmType: raw || null });
   }
 }

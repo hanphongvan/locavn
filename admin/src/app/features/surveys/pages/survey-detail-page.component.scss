@@ -72,3 +72,9 @@
   background: #fdecea;
   color: #611a15;
 }
+
+.survey-form {
+  ::ng-deep .mat-horizontal-content-container {
+    padding-top: 10px;
+  }
+}

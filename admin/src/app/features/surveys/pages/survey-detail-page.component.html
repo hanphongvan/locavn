@@ -6,6 +6,9 @@
       @if (survey()?.linkedFacilityId; as fid) {
         — đã gắn hồ sơ: <a class="link-inline" [routerLink]="['/httm', fid]">{{ fid }}</a>
       }
+      @if (!isEditable() && survey()) {
+        — <span class="muted">(chỉ xem)</span>
+      }
     </p>
   </app-page-header>
 
@@ -16,9 +19,11 @@
   @if (survey(); as s) {
     <app-section-card title="Thao tác">
       <div class="btn-row wrap">
-        <button type="button" class="btn btn--secondary" (click)="saveNow()" [disabled]="loading()">
-          Lưu ngay
-        </button>
+        @if (isEditable()) {
+          <button type="button" class="btn btn--secondary" (click)="saveNow()" [disabled]="loading()">
+            Lưu ngay
+          </button>
+        }
         <button type="button" class="btn btn--secondary" (click)="openPreview()">Xem trước</button>
         @if (s.status === 'draft' || s.status === 'rejected') {
           <button type="button" class="btn btn--primary" (click)="submit()">Nộp phiếu</button>
@@ -53,62 +58,31 @@
       }
     </app-section-card>
 
-    <app-section-card title="Nội dung các bước (JSON object)">
-      <form [formGroup]="form" class="tabs-wrap">
-        <mat-tab-group>
-          <mat-tab label="Bước 1">
-            <div class="pad">
-              <label class="form-label" for="st1">step1Data</label>
-              <textarea id="st1" class="form-control mono" rows="14" formControlName="step1Data"></textarea>
-            </div>
-          </mat-tab>
-          <mat-tab label="Bước 2">
-            <div class="pad">
-              <label class="form-label" for="st2">step2Data</label>
-              <textarea id="st2" class="form-control mono" rows="14" formControlName="step2Data"></textarea>
-            </div>
-          </mat-tab>
-          <mat-tab label="Bước 3">
-            <div class="pad">
-              <label class="form-label" for="st3">step3Data</label>
-              <textarea id="st3" class="form-control mono" rows="14" formControlName="step3Data"></textarea>
-            </div>
-          </mat-tab>
-          <mat-tab label="Bước 4">
-            <div class="pad">
-              <label class="form-label" for="st4">step4Data</label>
-              <textarea id="st4" class="form-control mono" rows="14" formControlName="step4Data"></textarea>
-            </div>
-          </mat-tab>
-          <mat-tab label="Bước 5">
-            <div class="pad">
-              <label class="form-label" for="st5">step5Data</label>
-              <textarea id="st5" class="form-control mono" rows="14" formControlName="step5Data"></textarea>
-            </div>
-          </mat-tab>
-          <mat-tab label="Bước 6">
-            <div class="pad">
-              <label class="form-label" for="st6">step6Data</label>
-              <textarea id="st6" class="form-control mono" rows="14" formControlName="step6Data"></textarea>
-            </div>
-          </mat-tab>
-          <mat-tab label="Bước 7">
-            <div class="pad">
-              <label class="form-label" for="st7">step7Data</label>
-              <textarea id="st7" class="form-control mono" rows="14" formControlName="step7Data"></textarea>
-            </div>
-          </mat-tab>
-          <mat-tab label="Người xác nhận">
-            <div class="pad">
-              <label class="form-label" for="cf">confirmerData</label>
-              <textarea id="cf" class="form-control mono" rows="10" formControlName="confirmerData"></textarea>
-            </div>
-          </mat-tab>
-        </mat-tab-group>
-        <div class="pad meta-row">
-          <label class="form-label" for="cs">currentStep (1–7)</label>
-          <input id="cs" class="form-control narrow" type="number" min="1" max="7" formControlName="currentStep" />
-        </div>
+    <app-section-card title="Nội dung phiếu khảo sát">
+      <form [formGroup]="form" class="survey-form">
+        <mat-stepper linear="false" labelPosition="bottom" #stepper>
+          <mat-step label="1. Đơn vị KS">
+            <app-survey-step2-surveyed [form]="step2" />
+          </mat-step>
+          <mat-step label="2. Hiện trạng">
+            <app-survey-step3-general [form]="step3" />
+          </mat-step>
+          <mat-step label="3. Hạ tầng CNTT">
+            <app-survey-step4-it [form]="step4" />
+          </mat-step>
+          <mat-step label="4. Nhu cầu">
+            <app-survey-step5-requirements [form]="step5" />
+          </mat-step>
+          <mat-step label="5. Phần mềm">
+            <app-survey-step6-software [form]="step6" />
+          </mat-step>
+          <mat-step label="6. Ý kiến">
+            <app-survey-step7-opinions [form]="step7" />
+          </mat-step>
+          <mat-step label="7. Xác nhận">
+            <app-survey-confirmer [form]="confirmer" />
+          </mat-step>
+        </mat-stepper>
       </form>
     </app-section-card>
 
@@ -122,7 +96,7 @@
             @if (h.notes) {
               <div class="notes">{{ h.notes }}</div>
             }
-            <div class="muted small">bởi {{ h.performedBy }}</div>
+            <div class="muted small">bởi {{ h.performedByName || h.performedBy }}</div>
           </li>
         } @empty {
           <li class="muted">Chưa có lịch sử.</li>

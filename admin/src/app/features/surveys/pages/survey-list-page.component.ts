@@ -47,6 +47,7 @@ export class SurveyListPageComponent {
   readonly errorMessage = signal<string | null>(null);
   readonly provinces = signal<ProvinceOptionDto[]>([]);
   readonly typeItems = signal<HttmCatalogItemDto[]>([]);
+  readonly filtersExpanded = signal(false);
 
   readonly filterForm = this.fb.nonNullable.group({
     q: [''],
@@ -116,6 +117,15 @@ export class SurveyListPageComponent {
     this.refresh$.next();
   }
 
+  toggleFiltersExpanded(): void {
+    this.filtersExpanded.update((v) => !v);
+  }
+
+  onCompactSearchEnter(event: Event): void {
+    event.preventDefault();
+    this.applyFilters();
+  }
+
   prevPage(): void {
     if (this.page() <= 1) {
       return;
@@ -139,14 +149,14 @@ export class SurveyListPageComponent {
 
   openCreate(): void {
     const ref = this.dialog.open(SurveyCreateDialogComponent, {
-      width: '420px',
-      data: { provinces: this.provinces(), types: this.typeItems() },
+      width: 'min(440px, 94vw)',
+      data: { types: this.typeItems() },
     });
-    ref.afterClosed().subscribe((v: { provinceCode: string; httmType: string } | undefined) => {
+    ref.afterClosed().subscribe((v) => {
       if (!v) {
         return;
       }
-      this.api.create({ provinceCode: v.provinceCode, httmType: v.httmType }).subscribe({
+      this.api.create({ httmType: v.httmType }).subscribe({
         next: (r) => {
           this.snack.open('Đã tạo phiếu nháp', 'Đóng', { duration: 3000 });
           void this.refresh$.next();

@@ -10,47 +10,78 @@
   }
 
   <app-section-card title="Bộ lọc">
-    <form class="filters" [formGroup]="filterForm" (ngSubmit)="applyFilters()">
-      <div class="form-grid form-grid--2">
-        <div class="form-field">
-          <label class="form-label" for="sv-q">Từ khóa</label>
-          <input id="sv-q" class="form-control" type="search" formControlName="q" autocomplete="off" />
+    <form class="list-filters" [formGroup]="filterForm" (ngSubmit)="applyFilters()">
+      <div class="list-filters__compact">
+        <div class="list-filters__search">
+          <span class="material-icons list-filters__search-icon" aria-hidden="true">search</span>
+          <input
+            id="sv-q"
+            class="form-control list-filters__search-input"
+            type="search"
+            formControlName="q"
+            autocomplete="off"
+            placeholder="Tìm mã phiếu, từ khóa…"
+            (keydown.enter)="onCompactSearchEnter($event)"
+          />
         </div>
-        <div class="form-field">
-          <label class="form-label" for="sv-st">Trạng thái</label>
-          <select id="sv-st" class="form-control" formControlName="status">
-            <option value="">Tất cả</option>
-            <option value="draft">Nháp</option>
-            <option value="submitted">Đã nộp</option>
-            <option value="reviewing">Đang duyệt</option>
-            <option value="approved">Đã duyệt</option>
-            <option value="rejected">Trả lại</option>
-          </select>
-        </div>
-        <div class="form-field">
-          <label class="form-label" for="sv-prov">Tỉnh / TP</label>
-          <select id="sv-prov" class="form-control" formControlName="provinceCode">
-            <option value="">Tất cả</option>
-            @for (p of provinces(); track p.code) {
-              <option [value]="p.code">{{ p.name }}</option>
-            }
-          </select>
-        </div>
-        <div class="form-field">
-          <label class="form-label" for="sv-type">Loại cơ sở</label>
-          <select id="sv-type" class="form-control" formControlName="httmType">
-            <option value="">Tất cả</option>
-            @for (t of typeItems(); track t.id) {
-              <option [value]="t.code">{{ t.name }}</option>
-            }
-          </select>
+        <div class="list-filters__compact-actions">
+          <button
+            type="button"
+            class="btn btn--secondary list-filters__expand-btn"
+            (click)="toggleFiltersExpanded()"
+            [attr.aria-expanded]="filtersExpanded()"
+            aria-controls="list-filters-advanced"
+            [attr.aria-label]="filtersExpanded() ? 'Thu gọn bộ lọc' : 'Mở rộng bộ lọc'"
+          >
+            <span class="material-icons" aria-hidden="true">{{ filtersExpanded() ? 'expand_less' : 'tune' }}</span>
+            <span class="list-filters__expand-label">{{ filtersExpanded() ? 'Thu gọn' : 'Bộ lọc' }}</span>
+          </button>
+          <button type="button" class="btn btn--primary list-filters__primary-btn" (click)="openCreate()">
+            <span class="material-icons" aria-hidden="true">add</span>
+            Tạo phiếu nháp
+          </button>
         </div>
       </div>
-      <div class="btn-row filters__actions">
-        <button type="submit" class="btn btn--primary" [disabled]="loading()">Áp dụng</button>
-        <button type="button" class="btn btn--secondary" (click)="clearFilters()">Xóa lọc</button>
-        <button type="button" class="btn btn--primary" (click)="openCreate()">Tạo phiếu nháp</button>
-      </div>
+
+      @if (filtersExpanded()) {
+        <div id="list-filters-advanced" class="list-filters__advanced">
+          <div class="form-grid form-grid--2">
+            <div class="form-field">
+              <label class="form-label" for="sv-st">Trạng thái</label>
+              <select id="sv-st" class="form-control" formControlName="status">
+                <option value="">Tất cả</option>
+                <option value="draft">Nháp</option>
+                <option value="submitted">Đã nộp</option>
+                <option value="reviewing">Đang duyệt</option>
+                <option value="approved">Đã duyệt</option>
+                <option value="rejected">Trả lại</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <label class="form-label" for="sv-prov">Tỉnh / TP</label>
+              <select id="sv-prov" class="form-control" formControlName="provinceCode">
+                <option value="">Tất cả</option>
+                @for (p of provinces(); track p.code) {
+                  <option [value]="p.code">{{ p.name }}</option>
+                }
+              </select>
+            </div>
+            <div class="form-field">
+              <label class="form-label" for="sv-type">Loại cơ sở</label>
+              <select id="sv-type" class="form-control" formControlName="httmType">
+                <option value="">Tất cả</option>
+                @for (t of typeItems(); track t.id) {
+                  <option [value]="t.code">{{ t.name }}</option>
+                }
+              </select>
+            </div>
+          </div>
+          <div class="btn-row list-filters__advanced-actions">
+            <button type="submit" class="btn btn--primary" [disabled]="loading()">Áp dụng</button>
+            <button type="button" class="btn btn--secondary" (click)="clearFilters()">Xóa lọc</button>
+          </div>
+        </div>
+      }
     </form>
   </app-section-card>
 
