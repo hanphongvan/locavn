@@ -148,6 +148,13 @@ public sealed class StationReadService(
         if (err is not null)
             return (EmptyPage<StationMapItemDto>(skip, take), err);
 
+        // Deployed mobile (loadMapMarkersPaged) caps at 750 markers (pageSize=50 × maxPages=15);
+        // keyword intersect drops matches that sort past the cap. Serve all rows on the first
+        // page so the client's `totalCount >= items.Count` short-circuit ends pagination.
+        // Remove after mobile Phase 2 ships keyword param on /api/stations/map.
+        if (skip == 0)
+            take = 50000;
+
         int? districtQuanHuyenId = null;
         if (!string.IsNullOrWhiteSpace(districtCode))
         {
@@ -352,10 +359,24 @@ public sealed class StationReadService(
             .ToList();
 
         var ids = mapRows.Select(r => r.StationId).ToList();
-        var activeServiceRows = await db.StationStoreServices.AsNoTracking()
-            .Where(s => ids.Contains(s.DonViId) && s.IsActive)
-            .Select(s => new { s.DonViId, s.ServiceCode })
-            .ToListAsync(cancellationToken);
+
+        // Batch ids.Contains lookups: EF Core 8+ translates large `Contains` via OPENJSON
+        // ("$" JSON path), which the DMPPortal SQL Server rejects ("Incorrect syntax near '$'")
+        // when its compatibility level is < 130 (pre-SQL Server 2016).
+        // Keeping batches ≤ ~1000 forces EF to stay on the inline `IN (...)` translation.
+        const int IdContainsBatchSize = 1000;
+
+        var activeServiceRows = new List<(int DonViId, string ServiceCode)>();
+        for (var i = 0; i < ids.Count; i += IdContainsBatchSize)
+        {
+            var batch = ids.GetRange(i, Math.Min(IdContainsBatchSize, ids.Count - i));
+            var rows = await db.StationStoreServices.AsNoTracking()
+                .Where(s => batch.Contains(s.DonViId) && s.IsActive)
+                .Select(s => new { s.DonViId, s.ServiceCode })
+                .ToListAsync(cancellationToken);
+            foreach (var r in rows)
+                activeServiceRows.Add((r.DonViId, r.ServiceCode));
+        }
         var activeCodesByStation = activeServiceRows
             .GroupBy(x => x.DonViId)
             .ToDictionary(
@@ -366,9 +387,15 @@ public sealed class StationReadService(
                     .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
                     .ToList());
 
-        var hours = await db.StationOperatingHours.AsNoTracking()
-            .Where(h => ids.Contains(h.DonViId))
-            .ToListAsync(cancellationToken);
+        var hours = new List<StationOperatingHour>();
+        for (var i = 0; i < ids.Count; i += IdContainsBatchSize)
+        {
+            var batch = ids.GetRange(i, Math.Min(IdContainsBatchSize, ids.Count - i));
+            var batchHours = await db.StationOperatingHours.AsNoTracking()
+                .Where(h => batch.Contains(h.DonViId))
+                .ToListAsync(cancellationToken);
+            hours.AddRange(batchHours);
+        }
         var hoursByStation = hours.ToLookup(h => h.DonViId);
         var openMap = StationOperationalEvaluator.BuildOpenNowMap(ids, hours, dow, nowTime);
         var priceMap = await fuelReporting.GetMapPriceSnapshotsForStationsAsync(ids, cancellationToken);

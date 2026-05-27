@@ -8,6 +8,7 @@ using Httm.XangDau.Api.Shared.Persistence;
 using Httm.XangDau.Api.Shared.Security;
 using Httm.XangDau.Api.Shared.Swagger;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -21,6 +22,13 @@ builder.Services.AddControllers().AddJsonOptions(o =>
 {
     o.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
     o.JsonSerializerOptions.DictionaryKeyPolicy = JsonNamingPolicy.CamelCase;
+});
+
+builder.Services.AddResponseCompression(o =>
+{
+    o.EnableForHttps = true;
+    o.Providers.Add<BrotliCompressionProvider>();
+    o.Providers.Add<GzipCompressionProvider>();
 });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
@@ -125,6 +133,8 @@ app.SeedFuelProductCatalogIfNeeded();
 
 app.UseExceptionHandler();
 app.UseStatusCodePages();
+
+app.UseResponseCompression();
 
 if (app.Environment.IsDevelopment())
 {
