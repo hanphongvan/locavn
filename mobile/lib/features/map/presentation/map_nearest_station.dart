@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/map/app_lat_lng.dart';
+import '../../../core/map/app_map_camera.dart';
 import '../../../core/network/api_exception.dart';
 import '../../stations/data/models/station_map_item.dart';
 import '../../stations/data/stations_api.dart';
@@ -163,6 +166,23 @@ Future<void> presentNearestPetrolStation(
   }
 
   final d = resolved.distanceKm;
+
+  // Auto-frame camera: fit vị trí người dùng + trạm gần nhất trong khung nhìn
+  // ngay khi resolve xong — trước khi mở sheet. Mục đích: dù user đã pan map
+  // sang khu vực khác, ấn 'Gần nhất' vẫn kéo camera về vị trí thật + chỉ ra
+  // cửa hàng gần nhất.
+  final stationLatLng = AppLatLng(resolved.item.latitude, resolved.item.longitude);
+  final mapController = ref.read(mapAppMapControllerProvider);
+  if (mapController != null) {
+    final fitBounds = mapBoundsForPoints([user, stationLatLng]);
+    unawaited(mapController.animateCamera(
+      AppMapCameraUpdate.newLatLngBounds(bounds: fitBounds, padding: 96),
+    ));
+    // Cho camera animation chạy 1 nhịp trước khi sheet che mất bản đồ.
+    await Future<void>.delayed(const Duration(milliseconds: 350));
+    if (!context.mounted) return;
+  }
+
   await showMapDiscoveryResultsSheet(
     context: context,
     rows: [
