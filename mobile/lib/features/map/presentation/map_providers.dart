@@ -148,35 +148,22 @@ final stationMapMarkersFetchProvider = FutureProvider<StationMapMarkersLoadResul
   final key = ref.watch(mapApiFilterKeyProvider);
   final api = ref.watch(stationsApiProvider);
 
+  // Phase 2.B: keyword được forward thẳng xuống `/api/stations/map?keyword=`
+  // — SP filter LIKE 5 cột (Ten/Ma/DiaChiChiTiet/DiaChi/SoGiayPhep). Không còn
+  // intersect 2-call (Step A markers ∩ Step B IDs) như app pre-2.6.0.
+  final kw = (key.keyword == null || key.keyword!.isEmpty) ? null : key.keyword;
   final mapResult = await api.loadMapMarkersPaged(
     provinceCode: key.provinceCode,
     districtCode: key.districtCode,
     status: key.status,
-  );
-
-  final kw = key.keyword;
-  if (kw == null || kw.isEmpty) {
-    return StationMapMarkersLoadResult(
-      items: mapResult.items,
-      mapTotalCount: mapResult.mapTotalCount,
-      truncated: mapResult.truncated,
-    );
-  }
-
-  final idResult = await api.collectStationIdsForKeyword(
     keyword: kw,
-    provinceCode: key.provinceCode,
-    districtCode: key.districtCode,
-    status: key.status,
   );
-  final filtered = mapResult.items.where((m) => idResult.ids.contains(m.stationId)).toList();
 
   return StationMapMarkersLoadResult(
-    items: filtered,
+    items: mapResult.items,
     mapTotalCount: mapResult.mapTotalCount,
     truncated: mapResult.truncated,
-    keywordApplied: true,
-    keywordListTruncated: idResult.listTruncated,
+    keywordApplied: kw != null,
   );
 });
 

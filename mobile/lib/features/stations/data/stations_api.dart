@@ -16,6 +16,7 @@ import 'models/station_detail_dto.dart';
 import 'models/station_list_item.dart';
 import 'models/station_map_item.dart';
 import 'models/station_map_markers_load_result.dart';
+import 'models/station_map_province_cluster.dart';
 import '../../store_services/data/models/store_service_catalog_item.dart';
 import 'models/station_rating_summary_dto.dart';
 import 'models/station_review_dto.dart';
@@ -86,6 +87,7 @@ class StationsApi {
     String? provinceCode,
     String? districtCode,
     String? status,
+    String? keyword,
   }) async {
     final t = (take <= 0 ? 50 : take).clamp(1, 100);
     final response = await _getWithConnectionRetry(
@@ -96,6 +98,7 @@ class StationsApi {
         if (provinceCode != null && provinceCode.isNotEmpty) 'provinceCode': provinceCode,
         if (districtCode != null && districtCode.isNotEmpty) 'districtCode': districtCode,
         if (status != null && status.isNotEmpty) 'status': status,
+        if (keyword != null && keyword.isNotEmpty) 'keyword': keyword,
       },
       debugLabel: 'getMapSummary',
     );
@@ -105,6 +108,69 @@ class StationsApi {
         throw const FormatException('Expected map for PagedStationsResponse');
       }
       return PagedStationsResponse.fromJson(m, StationMapItem.fromJson);
+    });
+  }
+
+  /// `GET /api/stations/map/bounds` (Phase 2.G) — markers trong bounding box
+  /// + optional [keyword]. Dùng cho zoom-aware viewport loading (zoom ≥ 11).
+  /// Cap server: take mặc định 500, max 1000.
+  Future<PagedStationsResponse<StationMapItem>> getMapByBounds({
+    required double minLat,
+    required double maxLat,
+    required double minLng,
+    required double maxLng,
+    int skip = 0,
+    int take = 500,
+    String? status,
+    String? keyword,
+  }) async {
+    final response = await _getWithConnectionRetry(
+      ApiEndpoints.stationsMapBounds,
+      queryParameters: <String, dynamic>{
+        'minLat': minLat,
+        'maxLat': maxLat,
+        'minLng': minLng,
+        'maxLng': maxLng,
+        'skip': skip,
+        'take': take,
+        if (status != null && status.isNotEmpty) 'status': status,
+        if (keyword != null && keyword.isNotEmpty) 'keyword': keyword,
+      },
+      debugLabel: 'getMapByBounds',
+    );
+    return ApiResponseHandler.decode(response, (data) {
+      final m = JsonUtils.readMap(data);
+      if (m == null) {
+        throw const FormatException('Expected map for PagedStationsResponse');
+      }
+      return PagedStationsResponse.fromJson(m, StationMapItem.fromJson);
+    });
+  }
+
+  /// `GET /api/stations/map/clusters` (Phase 2.G) — count + centroid theo tỉnh
+  /// cho low zoom (< 11). Optional [keyword] để cluster theo kết quả search.
+  Future<List<StationMapProvinceCluster>> getMapProvinceClusters({
+    String? status,
+    String? keyword,
+  }) async {
+    final response = await _getWithConnectionRetry(
+      ApiEndpoints.stationsMapClusters,
+      queryParameters: <String, dynamic>{
+        if (status != null && status.isNotEmpty) 'status': status,
+        if (keyword != null && keyword.isNotEmpty) 'keyword': keyword,
+      },
+      debugLabel: 'getMapProvinceClusters',
+    );
+    return ApiResponseHandler.decode(response, (data) {
+      final list = JsonUtils.readList(data);
+      if (list == null) {
+        throw const FormatException('Expected list for ProvinceClusters');
+      }
+      return list
+          .map((e) => JsonUtils.readMap(e))
+          .where((m) => m != null)
+          .map((m) => StationMapProvinceCluster.fromJson(m!))
+          .toList();
     });
   }
 
@@ -122,6 +188,7 @@ class StationsApi {
     String? provinceCode,
     String? districtCode,
     String? status,
+    String? keyword,
     int pageSize = 50,
     int maxPages = 15,
   }) async {
@@ -132,6 +199,7 @@ class StationsApi {
       provinceCode: provinceCode,
       districtCode: districtCode,
       status: status,
+      keyword: keyword,
     );
     final totalCount = first.totalCount;
     final all = List<StationMapItem>.from(first.items);
@@ -169,6 +237,7 @@ class StationsApi {
         provinceCode: provinceCode,
         districtCode: districtCode,
         status: status,
+        keyword: keyword,
       );
     }
 
@@ -191,6 +260,7 @@ class StationsApi {
       provinceCode: provinceCode,
       districtCode: districtCode,
       status: status,
+      keyword: keyword,
     );
 
     final truncated = all.length < totalCount;
@@ -209,6 +279,7 @@ class StationsApi {
     String? provinceCode,
     String? districtCode,
     String? status,
+    String? keyword,
   }) async {
     var skip = take;
     for (var i = 1; i < maxPages; i++) {
@@ -218,6 +289,7 @@ class StationsApi {
         provinceCode: provinceCode,
         districtCode: districtCode,
         status: status,
+        keyword: keyword,
       );
       all.addAll(page.items);
       if (page.items.isEmpty || page.items.length < take) {
@@ -246,6 +318,7 @@ class StationsApi {
     String? provinceCode,
     String? districtCode,
     String? status,
+    String? keyword,
   }) async {
     var start = firstPageIndex;
     while (start <= lastPageIndex) {
@@ -259,6 +332,7 @@ class StationsApi {
             provinceCode: provinceCode,
             districtCode: districtCode,
             status: status,
+            keyword: keyword,
           ),
         );
       }
@@ -276,6 +350,7 @@ class StationsApi {
             provinceCode: provinceCode,
             districtCode: districtCode,
             status: status,
+            keyword: keyword,
           );
           all.addAll(page.items);
         }

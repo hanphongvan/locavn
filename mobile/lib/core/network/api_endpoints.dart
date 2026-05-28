@@ -8,6 +8,10 @@
 abstract final class ApiEndpoints {
   static const stations = '/api/stations';
   static const stationsMap = '/api/stations/map';
+  /// Citizen viewport — markers trong bbox + optional keyword (Phase 2.G).
+  static const stationsMapBounds = '/api/stations/map/bounds';
+  /// Province-level clusters (count + centroid) cho low zoom (Phase 2.G).
+  static const stationsMapClusters = '/api/stations/map/clusters';
   static const stationsStoreServicesCatalog = '/api/stations/store-services-catalog';
   static const stationsNearest = '/api/stations/nearest';
   static const stationsCheapest = '/api/stations/cheapest';
