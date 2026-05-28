@@ -232,9 +232,8 @@ class _MapStationMapBodyState extends State<MapStationMapBody> {
     final lngSpan = (bounds.northeast.longitude - bounds.southwest.longitude).abs();
     final maxSpan = latSpan > lngSpan ? latSpan : lngSpan;
 
-    if (maxSpan > 0.25) return 0;     // > 27 km — thành phố trở lên → ẨN
-    if (maxSpan > 0.08) return 360;   // 9-27 km — quận / huyện
-    if (maxSpan > 0.03) return 220;   // 3-9 km — phường / xã
+    if (maxSpan > 0.1) return 0;      // > 11 km — quận lớn / thành phố / tỉnh → ẨN
+    if (maxSpan > 0.03) return 220;   // 3-11 km — phường / xã / quận nhỏ
     return 160;                        // < 3 km — street view
   }
 
