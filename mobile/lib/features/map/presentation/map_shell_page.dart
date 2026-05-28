@@ -92,10 +92,6 @@ class _MapShellPageState extends ConsumerState<MapShellPage> {
     final asyncMarkers = ref.watch(stationMapMarkersProvider);
     final filters = ref.watch(mapFiltersProvider);
     final viewport = ref.watch(mapViewportProvider);
-    final isLowZoom = viewport != null && viewport.zoom < kMapClusterZoomThreshold;
-    final asyncClusters = ref.watch(stationMapProvinceClustersProvider);
-    final clusterTotal = (asyncClusters.asData?.value ?? const [])
-        .fold<int>(0, (sum, c) => sum + c.stationCount);
     // 4 provider sau (highlight / ephemeral / cheap spotlight / fuel mode) chỉ truyền xuống
     // `MapStationMapBody`. Watch trong Consumer bên trong builder để chrome (search bar /
     // filter chips / active strip) không rebuild khi tap marker.
@@ -191,13 +187,8 @@ class _MapShellPageState extends ConsumerState<MapShellPage> {
                           ref.read(mapViewportProvider.notifier).state = next;
                         }
                       },
-                      topOverlay: (() {
-                        final isEmptyHighZoom =
-                            viewport != null && !isLowZoom && result.items.isEmpty && !result.keywordApplied;
-                        if (!(result.truncated || result.keywordListTruncated || isLowZoom || isEmptyHighZoom)) {
-                          return null;
-                        }
-                        return Align(
+                      topOverlay: (result.truncated || result.keywordListTruncated)
+                          ? Align(
                               alignment: Alignment.topCenter,
                               child: Padding(
                                 padding: EdgeInsets.fromLTRB(16, _mapTopInsetPx + 8, 16, 0),
@@ -211,26 +202,6 @@ class _MapShellPageState extends ConsumerState<MapShellPage> {
                                       crossAxisAlignment: CrossAxisAlignment.stretch,
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        if (isLowZoom)
-                                          Text(
-                                            clusterTotal > 0
-                                                ? 'Phóng to bản đồ để xem $clusterTotal cây xăng theo từng khu vực.'
-                                                : 'Phóng to bản đồ để xem cây xăng.',
-                                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                                  color: MapScreenPalette.textPrimary,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                            textAlign: TextAlign.center,
-                                          ),
-                                        if (isEmptyHighZoom)
-                                          Text(
-                                            'Không có cây xăng trong khu vực hiển thị. Hãy phóng nhỏ bản đồ hoặc di chuyển sang khu vực khác.',
-                                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                                  color: MapScreenPalette.textPrimary,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                            textAlign: TextAlign.center,
-                                          ),
                                         if (result.keywordListTruncated)
                                           Text(
                                             'Danh sách từ khóa có thể chưa đủ (giới hạn trang API).',
@@ -252,8 +223,8 @@ class _MapShellPageState extends ConsumerState<MapShellPage> {
                                   ),
                                 ),
                               ),
-                            );
-                      })(),
+                            )
+                          : null,
                         );
                       },
                     ),
