@@ -48,9 +48,13 @@ class _MapShellPageState extends ConsumerState<MapShellPage> {
       if (!mounted) return;
       final ro = _chromeKey.currentContext?.findRenderObject();
       if (ro is RenderBox && ro.hasSize) {
-        final h = ro.size.height;
-        if ((h - _mapTopInsetPx).abs() > 0.5) {
-          setState(() => _mapTopInsetPx = h);
+        // Phải dùng localToGlobal để cộng cả SafeArea (status bar) + outer
+        // Padding (top:4). Chỉ lấy `ro.size.height` sẽ thiếu offset đó → banner /
+        // floating controls bị chrome (search bar + filter chips) đè lên.
+        final topLeftGlobal = ro.localToGlobal(Offset.zero);
+        final chromeBottomY = topLeftGlobal.dy + ro.size.height;
+        if ((chromeBottomY - _mapTopInsetPx).abs() > 0.5) {
+          setState(() => _mapTopInsetPx = chromeBottomY);
         }
       }
     });
