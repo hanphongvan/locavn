@@ -221,14 +221,23 @@ class _MapStationMapBodyState extends State<MapStationMapBody> {
     );
   }
 
-  static int _capForZoom(double zoom) {
-    if (zoom < 7.5) return 240;
-    if (zoom < 9.5) return 420;
-    if (zoom < 11.5) return 650;
-    if (zoom < 13) return 900;
-    if (zoom < 14.5) return 360;
-    if (zoom < 16) return 220;
-    return 160;
+  /// Tính cap marker từ ĐỘ RỘNG BBOX (degree) thay vì tin số zoom — Goong/MapLibre
+  /// adapter trên một số thiết bị báo zoom stale (vd luôn trả 15.78 dù user zoom
+  /// ra toàn quốc). Bbox luôn đúng vì map provider tự cập nhật.
+  ///
+  /// Tham chiếu: vĩ độ Việt Nam ~16°, 1° ≈ 110 km.
+  static int _capForBounds(AppLatLngBounds bounds) {
+    final latSpan = (bounds.northeast.latitude - bounds.southwest.latitude).abs();
+    final lngSpan = (bounds.northeast.longitude - bounds.southwest.longitude).abs();
+    final maxSpan = latSpan > lngSpan ? latSpan : lngSpan;
+
+    if (maxSpan > 4.0) return 0;     // > 440 km — toàn quốc / liên vùng → ẩn
+    if (maxSpan > 1.5) return 420;   // 165-440 km — liên tỉnh
+    if (maxSpan > 0.6) return 650;   // 66-165 km — 1-2 tỉnh
+    if (maxSpan > 0.25) return 900;  // 27-66 km — thành phố / liên thành phố
+    if (maxSpan > 0.08) return 360;  // 9-27 km — quận / huyện
+    if (maxSpan > 0.03) return 220;  // 3-9 km — phường / xã
+    return 160;                       // < 3 km — street view
   }
 
   static double _dist2(StationMapItem a, AppLatLng c) {
@@ -249,7 +258,7 @@ class _MapStationMapBodyState extends State<MapStationMapBody> {
         inside.add(e);
       }
     }
-    final cap = math.min(_capForZoom(zoom), 2000);
+    final cap = math.min(_capForBounds(bounds), 2000);
     if (inside.length <= cap) {
       return inside;
     }
@@ -325,13 +334,16 @@ class _MapStationMapBodyState extends State<MapStationMapBody> {
         final b = bounds;
         final inBoundsCount =
             widget.allItems.where((m) => b.contains(AppLatLng(m.latitude, m.longitude))).length;
+        final latSpan = (b.northeast.latitude - b.southwest.latitude).abs();
+        final lngSpan = (b.northeast.longitude - b.southwest.longitude).abs();
+        final maxSpan = latSpan > lngSpan ? latSpan : lngSpan;
         debugPrint(
           '[map] idle zoom=${zoom.toStringAsFixed(2)} '
+          'span=${maxSpan.toStringAsFixed(3)}° '
           'allItems=${widget.allItems.length} '
           'inBounds=$inBoundsCount '
           'visibleAfterCap=${visible.length} '
-          'cap=${_capForZoom(zoom)} '
-          'bbox=(${b.southwest.latitude.toStringAsFixed(4)},${b.southwest.longitude.toStringAsFixed(4)})-(${b.northeast.latitude.toStringAsFixed(4)},${b.northeast.longitude.toStringAsFixed(4)})',
+          'cap=${_capForBounds(b)}',
         );
       }
       if (!widget.skipEmptyViewportRecovery &&
