@@ -196,7 +196,7 @@ class _MapShellPageState extends ConsumerState<MapShellPage> {
                           ref.read(mapViewportProvider.notifier).state = next;
                         }
                       },
-                      topOverlay: (result.truncated || result.keywordListTruncated)
+                      topOverlay: result.keywordListTruncated
                           ? Align(
                               alignment: Alignment.topCenter,
                               child: Padding(
@@ -207,27 +207,12 @@ class _MapShellPageState extends ConsumerState<MapShellPage> {
                                   color: MapScreenPalette.cardWhite.withValues(alpha: 0.96),
                                   child: Padding(
                                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        if (result.keywordListTruncated)
-                                          Text(
-                                            'Danh sách từ khóa có thể chưa đủ (giới hạn trang API).',
-                                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                                  color: MapScreenPalette.textSecondary,
-                                                ),
-                                            textAlign: TextAlign.center,
+                                    child: Text(
+                                      'Danh sách từ khóa có thể chưa đủ (giới hạn trang API).',
+                                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                            color: MapScreenPalette.textSecondary,
                                           ),
-                                        if (result.truncated)
-                                          Text(
-                                            'Bản đồ: hiển thị ${result.items.length}/${result.mapTotalCount} cây xăng có tọa độ (giới hạn tải).',
-                                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                                  color: MapScreenPalette.textSecondary,
-                                                ),
-                                            textAlign: TextAlign.center,
-                                          ),
-                                      ],
+                                      textAlign: TextAlign.center,
                                     ),
                                   ),
                                 ),
