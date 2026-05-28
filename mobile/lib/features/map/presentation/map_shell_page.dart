@@ -99,9 +99,18 @@ class _MapShellPageState extends ConsumerState<MapShellPage> {
 
     return Scaffold(
       backgroundColor: MapScreenPalette.screenBackground,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
+      // Tap outside ô tìm kiếm -> ẩn bàn phím + bỏ focus. HitTestBehavior.translucent
+      // để tap vẫn pass-through xuống AppMap (pan/zoom marker tap không bị nuốt);
+      // dùng onTapDown để bắt ngay khi user chạm — không đợi nhấc tay.
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTapDown: (_) {
+          final scope = FocusScope.of(context);
+          if (scope.hasFocus) scope.unfocus();
+        },
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
           Positioned.fill(
             child: AsyncValueBody<StationMapMarkersLoadResult>(
               value: asyncMarkers,
@@ -267,6 +276,7 @@ class _MapShellPageState extends ConsumerState<MapShellPage> {
             ),
           ),
         ],
+        ),
       ),
     );
   }
