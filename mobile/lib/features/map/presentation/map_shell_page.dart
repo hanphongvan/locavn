@@ -15,6 +15,7 @@ import 'map_providers.dart';
 import 'map_screen_palette.dart';
 import 'map_search_bar.dart';
 import 'map_station_map_body.dart';
+import 'map_viewport_state.dart';
 import 'station_map_bottom_sheet.dart';
 
 class MapShellPage extends ConsumerStatefulWidget {
@@ -86,6 +87,11 @@ class _MapShellPageState extends ConsumerState<MapShellPage> {
 
     final asyncMarkers = ref.watch(stationMapMarkersProvider);
     final filters = ref.watch(mapFiltersProvider);
+    final viewport = ref.watch(mapViewportProvider);
+    final isLowZoom = viewport != null && viewport.zoom < kMapClusterZoomThreshold;
+    final asyncClusters = ref.watch(stationMapProvinceClustersProvider);
+    final clusterTotal = (asyncClusters.asData?.value ?? const [])
+        .fold<int>(0, (sum, c) => sum + c.stationCount);
     // 4 provider sau (highlight / ephemeral / cheap spotlight / fuel mode) chỉ truyền xuống
     // `MapStationMapBody`. Watch trong Consumer bên trong builder để chrome (search bar /
     // filter chips / active strip) không rebuild khi tap marker.
@@ -105,7 +111,10 @@ class _MapShellPageState extends ConsumerState<MapShellPage> {
               isEmpty: (r) => r.items.isEmpty && !r.keywordApplied && r.mapTotalCount == 0,
               onRetry: () => ref.invalidate(stationMapMarkersFetchProvider),
               dataBuilder: (result) {
-                if (result.items.isEmpty) {
+                // Phase 2.B-viewport: ở zoom thấp ta CHỦ ĐỘNG không tải markers cá nhân
+                // (chỉ render banner gợi ý zoom). Không rơi vào nhánh empty text — phải
+                // giữ MapStationMapBody để user còn thao tác zoom in.
+                if (result.items.isEmpty && !isLowZoom) {
                   String message;
                   if (result.keywordApplied) {
                     message =
@@ -159,7 +168,17 @@ class _MapShellPageState extends ConsumerState<MapShellPage> {
                         _mapController = c;
                         ref.read(mapAppMapControllerProvider.notifier).state = c;
                       },
-                      topOverlay: (result.truncated || result.keywordListTruncated)
+                      // Phase 2.B-viewport: cập nhật viewport state mỗi lần camera idle
+                      // (debounce 400ms ở MapStationMapBody). stationMapMarkersFetchProvider
+                      // dùng giá trị này để fetch markers trong bbox (zoom ≥ 11) hoặc dừng
+                      // fetch + chuyển sang clusters (zoom < 11).
+                      onCameraViewportChanged: (zoom, bounds) {
+                        final next = MapViewport(zoom: zoom, bounds: bounds);
+                        if (ref.read(mapViewportProvider) != next) {
+                          ref.read(mapViewportProvider.notifier).state = next;
+                        }
+                      },
+                      topOverlay: (result.truncated || result.keywordListTruncated || isLowZoom)
                           ? Align(
                               alignment: Alignment.topCenter,
                               child: Padding(
@@ -174,6 +193,17 @@ class _MapShellPageState extends ConsumerState<MapShellPage> {
                                       crossAxisAlignment: CrossAxisAlignment.stretch,
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
+                                        if (isLowZoom)
+                                          Text(
+                                            clusterTotal > 0
+                                                ? 'Phóng to bản đồ để xem $clusterTotal cây xăng theo từng khu vực.'
+                                                : 'Phóng to bản đồ để xem cây xăng.',
+                                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                                  color: MapScreenPalette.textPrimary,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                            textAlign: TextAlign.center,
+                                          ),
                                         if (result.keywordListTruncated)
                                           Text(
                                             'Danh sách từ khóa có thể chưa đủ (giới hạn trang API).',

@@ -44,6 +44,7 @@ class MapStationMapBody extends StatefulWidget {
     this.mapTopPadding = 0,
     this.fuelPriceMode = MapMarkerFuelPriceMode.ron95,
     this.skipEmptyViewportRecovery = true,
+    this.onCameraViewportChanged,
   });
 
   final List<StationMapItem> allItems;
@@ -78,6 +79,10 @@ class MapStationMapBody extends StatefulWidget {
   /// Khi `false`, nếu viewport không có marker nhưng [allItems] không rỗng, tự fit camera tới vùng có trạm (hữu ích cho bản đồ "toàn quốc").
   /// Mặc định `true` cho UX người dân: giữ khung ~500 m quanh GPS.
   final bool skipEmptyViewportRecovery;
+
+  /// Phase 2.B-viewport: bắn (zoom, bounds) sau mỗi lần camera idle (đã debounce 400ms).
+  /// Shell cập nhật `mapViewportProvider` để fetch viewport-aware.
+  final void Function(double zoom, AppLatLngBounds bounds)? onCameraViewportChanged;
 
   @override
   State<MapStationMapBody> createState() => _MapStationMapBodyState();
@@ -311,6 +316,9 @@ class _MapStationMapBodyState extends State<MapStationMapBody> {
         if (showBusy) setState(() => _markersBusy = false);
         return;
       }
+      // Phase 2.B-viewport: thông báo (zoom, bounds) cho shell — kích hoạt fetch
+      // mới (markers in bounds / province clusters) tùy zoom.
+      widget.onCameraViewportChanged?.call(zoom, bounds);
       var visible = _withOverlayStation(_itemsInView(widget.allItems, bounds, zoom));
       if (!widget.skipEmptyViewportRecovery &&
           visible.isEmpty &&
