@@ -164,9 +164,11 @@ class _MapFilterSheetBodyState extends ConsumerState<_MapFilterSheetBody> {
 
   @override
   Widget build(BuildContext context) {
-    final hideGasFuel = ref.watch(portalSessionScopeProvider)?.loai == PortalLoai.leader;
+    final loai = ref.watch(portalSessionScopeProvider)?.loai;
+    final isLeader = loai == PortalLoai.leader;
+    final hideGasFuel = isLeader;
+    final showUnitTypePanel = isLeader; // Citizen (Loai=5) / guest -> ẩn 'Loại đơn vị'.
     final provincesAsync = ref.watch(geographyProvincesProvider);
-    final districtsAsync = ref.watch(geographyDistrictsProvider(_provinceCode ?? ''));
     final catalogAsync = ref.watch(stationStoreServiceCatalogProvider);
     final screenH = MediaQuery.sizeOf(context).height;
     final summary = _buildDraftFilters().compactSummaryLabel;
@@ -245,19 +247,21 @@ class _MapFilterSheetBodyState extends ConsumerState<_MapFilterSheetBody> {
                             padding: const EdgeInsets.fromLTRB(18, 8, 18, 8),
                             children: [
                               if (!_collapsed) ...[
-                                FilterSection(
-                                  title: 'Loại đơn vị',
-                                  child: FilterChipGroup<MapUnitTypeFilter>(
-                                    options: const [
-                                      FilterChipOption(value: MapUnitTypeFilter.all, label: 'Tất cả'),
-                                      FilterChipOption(value: MapUnitTypeFilter.wholesale, label: 'Doanh nghiệp đầu mối'),
-                                      FilterChipOption(value: MapUnitTypeFilter.retail, label: 'Cửa hàng bán lẻ'),
-                                    ],
-                                    selected: _unitType,
-                                    onSelected: (v) => setState(() => _unitType = v),
+                                if (showUnitTypePanel) ...[
+                                  FilterSection(
+                                    title: 'Loại đơn vị',
+                                    child: FilterChipGroup<MapUnitTypeFilter>(
+                                      options: const [
+                                        FilterChipOption(value: MapUnitTypeFilter.all, label: 'Tất cả'),
+                                        FilterChipOption(value: MapUnitTypeFilter.wholesale, label: 'Doanh nghiệp đầu mối'),
+                                        FilterChipOption(value: MapUnitTypeFilter.retail, label: 'Cửa hàng bán lẻ'),
+                                      ],
+                                      selected: _unitType,
+                                      onSelected: (v) => setState(() => _unitType = v),
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(height: 22),
+                                  const SizedBox(height: 22),
+                                ],
                                 FilterSection(
                                   title: 'Loại nhiên liệu',
                                   subtitle: hideGasFuel ? 'Vai trò Lãnh đạo: chỉ Xăng và Dầu.' : null,
@@ -435,65 +439,6 @@ class _MapFilterSheetBodyState extends ConsumerState<_MapFilterSheetBody> {
                                               }
                                               _districtCode = null;
                                               _districtLabel = null;
-                                            });
-                                          },
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                                const SizedBox(height: 12),
-                                districtsAsync.when(
-                                  loading: () => const SizedBox(
-                                    height: 4,
-                                    child: LinearProgressIndicator(),
-                                  ),
-                                  error: (e, _) => Text('Quận/huyện: $e', style: Theme.of(context).textTheme.bodySmall),
-                                  data: (districts) {
-                                    if (_provinceCode == null || _provinceCode!.isEmpty) {
-                                      return Text(
-                                        'Chọn tỉnh để lọc quận/huyện.',
-                                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                              color: MapScreenPalette.filterTextSecondary,
-                                            ),
-                                      );
-                                    }
-                                    return InputDecorator(
-                                      decoration: InputDecoration(
-                                        labelText: 'Quận/Huyện',
-                                        filled: true,
-                                        fillColor: MapScreenPalette.filterSheetBackground,
-                                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-                                      ),
-                                      child: DropdownButtonHideUnderline(
-                                        child: DropdownButton<String?>(
-                                          value: _districtCode,
-                                          isExpanded: true,
-                                          hint: const Text('Chọn quận/huyện'),
-                                          items: [
-                                            const DropdownMenuItem<String?>(
-                                              value: null,
-                                              child: Text('Tất cả quận/huyện trong tỉnh'),
-                                            ),
-                                            ...districts.map(
-                                              (d) => DropdownMenuItem<String?>(
-                                                value: d.districtCode,
-                                                child: Text(d.districtName ?? 'Mã ${d.districtCode}'),
-                                              ),
-                                            ),
-                                          ],
-                                          onChanged: (code) {
-                                            setState(() {
-                                              _districtCode = code;
-                                              _districtLabel = null;
-                                              if (code != null) {
-                                                for (final d in districts) {
-                                                  if (d.districtCode == code) {
-                                                    _districtLabel = d.districtName ?? 'Mã $code';
-                                                    break;
-                                                  }
-                                                }
-                                              }
                                             });
                                           },
                                         ),
