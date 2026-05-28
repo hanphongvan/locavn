@@ -221,8 +221,9 @@ class _MapStationMapBodyState extends State<MapStationMapBody> {
   }
 
   static int _capForZoom(double zoom) {
-    if (zoom < 7.5) return 240;
-    if (zoom < 9.5) return 420;
+    // Tạm ẩn marker khi zoom < 11 (theo yêu cầu UX: chỉ hiện trạm khi user zoom
+    // đủ chi tiết — tránh dày đặc + lag ở mức tỉnh/toàn quốc).
+    if (zoom < 11) return 0;
     if (zoom < 11.5) return 650;
     if (zoom < 13) return 900;
     if (zoom < 14.5) return 360;
