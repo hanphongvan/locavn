@@ -27,6 +27,8 @@ public sealed class DmpPortalDbContext : DbContext
 
     public DbSet<ClientVersionLog> ClientVersionLogs => Set<ClientVersionLog>();
 
+    public DbSet<AppVersionPolicy> AppVersionPolicies => Set<AppVersionPolicy>();
+
     public DbSet<DmDonVi> DmDonVis => Set<DmDonVi>();
     public DbSet<DmDonViTinh> DmDonViTinhs => Set<DmDonViTinh>();
     public DbSet<DmTinh> DmTinhs => Set<DmTinh>();

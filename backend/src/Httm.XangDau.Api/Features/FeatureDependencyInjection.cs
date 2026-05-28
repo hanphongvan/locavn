@@ -6,6 +6,7 @@ using Httm.XangDau.Api.Features.Auth.Registration;
 using Httm.XangDau.Api.Features.BadReports;
 using Httm.XangDau.Api.Features.CitizenReports;
 using Httm.XangDau.Api.Features.ClientTelemetry;
+using Httm.XangDau.Api.Features.AppVersionPolicy;
 using Httm.XangDau.Api.Features.Fuel;
 using Httm.XangDau.Api.Features.FuelReporting;
 using Httm.XangDau.Api.Features.Geography;
@@ -52,6 +53,7 @@ public static class FeatureDependencyInjection
         services.AddUserVehiclesFeature();
         services.AddFuelFeature();
         services.AddClientTelemetry(configuration);
+        services.AddAppVersionPolicyFeature();
         return services;
     }
 }
