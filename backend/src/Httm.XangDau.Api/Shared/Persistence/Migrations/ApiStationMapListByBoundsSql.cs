@@ -1,22 +1,25 @@
 namespace Httm.XangDau.Api.Shared.Persistence.Migrations;
 
 /// <summary>
-/// <c>GET /api/stations/map</c> — danh sách trạm có tọa độ hợp lệ, lọc tỉnh/huyện, trạng thái mở/đóng (cùng logic <c>sp_Reports_GetStationOverview</c> / visitor filters ở tầng API).
+/// <c>GET /api/stations/map/bounds</c> — trạm bán lẻ trong khung nhìn (lat/lng bounding box) với keyword tùy chọn.
+/// Cùng logic mở/đóng + lọc tọa độ hợp lệ như <c>sp_Api_StationMap_ListPaged</c>; thêm filter LIKE 5 cột giống <c>sp_Station_Search</c>.
 /// </summary>
-internal static class ApiStationMapListPagedSql
+internal static class ApiStationMapListByBoundsSql
 {
     internal const string CreateProcedure =
         """
-        CREATE OR ALTER PROCEDURE dbo.sp_Api_StationMap_ListPaged
+        CREATE OR ALTER PROCEDURE dbo.sp_Api_StationMap_ListByBounds
             @RetailCapDonViId INT,
             @DayOfWeek TINYINT,
             @NowTime TIME(0),
-            @ProvinceCode NVARCHAR(20) = NULL,
-            @DistrictQuanHuyenId INT = NULL,
+            @MinLat FLOAT,
+            @MaxLat FLOAT,
+            @MinLng FLOAT,
+            @MaxLng FLOAT,
             @Status NVARCHAR(20) = NULL,
             @Keyword NVARCHAR(200) = NULL,
             @Skip INT = 0,
-            @Take INT = 20
+            @Take INT = 500
         AS
         BEGIN
             SET NOCOUNT ON;
@@ -50,14 +53,12 @@ internal static class ApiStationMapListPagedSql
                     d.OpenTime,
                     d.CloseTime
                 FROM dbo.DM_DonVi AS d
-                LEFT JOIN dbo.DM_Tinh AS t ON t.Id = d.Tinh
-                LEFT JOIN dbo.DM_XaPhuong AS x ON x.Id = d.Xa
                 WHERE d.CapDonViId = @RetailCapDonViId
                   AND d.ViDo IS NOT NULL AND d.KinhDo IS NOT NULL
                   AND d.ViDo >= -90 AND d.ViDo <= 90 AND d.KinhDo >= -180 AND d.KinhDo <= 180
                   AND NOT (d.ViDo = 0 AND d.KinhDo = 0)
-                  AND (@ProvinceCode IS NULL OR t.Ma = @ProvinceCode)
-                  AND (@DistrictQuanHuyenId IS NULL OR x.QuanHuyenId = @DistrictQuanHuyenId)
+                  AND CAST(d.ViDo AS float) BETWEEN @MinLat AND @MaxLat
+                  AND CAST(d.KinhDo AS float) BETWEEN @MinLng AND @MaxLng
                   AND (
                       @KwTrim IS NULL
                       OR d.Ten           LIKE N'%' + @KwTrim + N'%'

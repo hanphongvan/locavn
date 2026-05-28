@@ -5,6 +5,18 @@ namespace Httm.XangDau.Api.Features.Stations.Contracts;
 /// <summary>Paginated station read models (mobile list / map).</summary>
 public sealed record PagedStationsResponse<T>(IReadOnlyList<T> Items, int TotalCount, int Skip, int Take);
 
+/// <summary>
+/// 1 cluster / 1 tỉnh cho <c>GET /api/stations/map/clusters</c>: số trạm + centroid (avg lat/lng).
+/// Dùng khi zoom map &lt; threshold để tránh render hàng nghìn marker.
+/// </summary>
+public sealed record StationMapProvinceClusterDto(
+    int ProvinceId,
+    string ProvinceCode,
+    string ProvinceName,
+    long StationCount,
+    double CentroidLat,
+    double CentroidLng);
+
 /// <summary>One row in <c>StationOperatingHours</c> (weekly template).</summary>
 public sealed record StationOperatingSlotDto(
     int DayOfWeek,

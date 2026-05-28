@@ -57,6 +57,17 @@ public sealed class StationReadService(
         if (kw is { Length: > StationReadValidator.MaxKeywordLength })
             return (EmptyPage<StationListItemDto>(skip, take), $"keyword max length is {StationReadValidator.MaxKeywordLength}.");
 
+        // Backward-compat for deployed mobile pre-Phase-2: collectStationIdsForKeyword
+        // caps at 2000 IDs (maxPages=20 × pageSize=100), so keyword matches past the cap
+        // are dropped during the 2-call intersect with /api/stations/map. When the client
+        // queries with a keyword (i.e. it is hunting for matching stations, not browsing
+        // the full list), serve everything on the first page so the client breaks out
+        // after a single round-trip via `skip + items.length >= totalCount`.
+        // Skip the override when no keyword to avoid returning the full 12k list for
+        // legitimate full-list browsing.
+        if (skip == 0 && kw is not null)
+            take = 50000;
+
         var (totalLong, searchRows) = await stationListSearch.SearchAsync(
                 skip,
                 take,
@@ -89,9 +100,20 @@ public sealed class StationReadService(
             .ToList();
 
         var ids = pageRows.Select(r => r.StationId).ToList();
-        var hours = await db.StationOperatingHours.AsNoTracking()
-            .Where(h => ids.Contains(h.DonViId))
-            .ToListAsync(cancellationToken);
+
+        // Batch ids.Contains to stay under the SQL Server 2100-parameter cap. Keyword
+        // search with take=50000 hack can produce thousands of IDs in a single response.
+        // (See BuildMapStationItemsAsync for the matching pattern + reasoning.)
+        const int IdContainsBatchSize = 1000;
+        var hours = new List<StationOperatingHour>();
+        for (var i = 0; i < ids.Count; i += IdContainsBatchSize)
+        {
+            var batch = ids.GetRange(i, Math.Min(IdContainsBatchSize, ids.Count - i));
+            var batchHours = await db.StationOperatingHours.AsNoTracking()
+                .Where(h => batch.Contains(h.DonViId))
+                .ToListAsync(cancellationToken);
+            hours.AddRange(batchHours);
+        }
         var hoursByStation = hours.ToLookup(h => h.DonViId);
         var openMap = StationOperationalEvaluator.BuildOpenNowMap(ids, hours, dow, nowTime);
         var priceMap = await fuelReporting.GetMapPriceSnapshotsForStationsAsync(ids, cancellationToken);
@@ -135,6 +157,7 @@ public sealed class StationReadService(
         string? provinceCode,
         string? districtCode,
         string? status,
+        string? keyword,
         CancellationToken cancellationToken = default)
     {
         if (take < 1)
@@ -148,11 +171,15 @@ public sealed class StationReadService(
         if (err is not null)
             return (EmptyPage<StationMapItemDto>(skip, take), err);
 
-        // Deployed mobile (loadMapMarkersPaged) caps at 750 markers (pageSize=50 × maxPages=15);
-        // keyword intersect drops matches that sort past the cap. Serve all rows on the first
-        // page so the client's `totalCount >= items.Count` short-circuit ends pagination.
-        // Remove after mobile Phase 2 ships keyword param on /api/stations/map.
-        if (skip == 0)
+        var keywordTrim = string.IsNullOrWhiteSpace(keyword) ? null : keyword.Trim();
+
+        // Backward-compat for deployed mobile pre-Phase-2: loadMapMarkersPaged caps at 750
+        // markers (pageSize=50 × maxPages=15) and runs keyword-intersect client-side, so
+        // matches past the cap get dropped. Serve everything on the first page when no
+        // keyword is sent (i.e. legacy clients) so the client short-circuits pagination
+        // via `totalCount >= items.Count`. New clients that pass `keyword` get the proper
+        // server-side filter and don't need this fan-out.
+        if (skip == 0 && keywordTrim is null)
             take = 50000;
 
         int? districtQuanHuyenId = null;
@@ -175,6 +202,7 @@ public sealed class StationReadService(
                 provinceTrim,
                 districtQuanHuyenId,
                 status,
+                keywordTrim,
                 dowByte,
                 nowTime,
                 PetrolRetailConstants.CapDonViId,
@@ -231,6 +259,97 @@ public sealed class StationReadService(
             .ConfigureAwait(false);
 
         return (new PagedStationsResponse<StationMapItemDto>(merged, total, skip, take), null);
+    }
+
+    /// <inheritdoc />
+    public async Task<(PagedStationsResponse<StationMapItemDto> Data, string? Error)> MapByBoundsCitizenAsync(
+        int skip,
+        int take,
+        double minLat,
+        double maxLat,
+        double minLng,
+        double maxLng,
+        string? status,
+        string? keyword,
+        CancellationToken cancellationToken = default)
+    {
+        if (take < 1)
+            take = StationReadValidator.DefaultTake;
+
+        var (_, dow, nowTime) = StationVietnamClock.NowParts(DateTime.UtcNow);
+        var dowByte = (byte)dow;
+
+        var err = StationReadValidator.ValidatePagination(skip, take)
+                  ?? StationReadValidator.ValidateStatus(status)
+                  ?? StationReadValidator.ValidateMapBounds(minLat, maxLat, minLng, maxLng);
+        if (err is not null)
+            return (EmptyPage<StationMapItemDto>(skip, take), err);
+
+        var keywordTrim = string.IsNullOrWhiteSpace(keyword) ? null : keyword.Trim();
+        if (keywordTrim is { Length: > StationReadValidator.MaxKeywordLength })
+            return (EmptyPage<StationMapItemDto>(skip, take), $"keyword max length is {StationReadValidator.MaxKeywordLength}.");
+
+        var (totalLong, sqlRows) = await stationMapMarkers
+            .ListByBoundsCitizenAsync(
+                skip,
+                take,
+                minLat,
+                maxLat,
+                minLng,
+                maxLng,
+                status,
+                keywordTrim,
+                dowByte,
+                nowTime,
+                PetrolRetailConstants.CapDonViId,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        var total = totalLong > int.MaxValue ? int.MaxValue : (int)totalLong;
+        var merged = await BuildMapStationItemsAsync(sqlRows, dow, dowByte, nowTime, cancellationToken)
+            .ConfigureAwait(false);
+
+        return (new PagedStationsResponse<StationMapItemDto>(merged, total, skip, take), null);
+    }
+
+    /// <inheritdoc />
+    public async Task<(IReadOnlyList<StationMapProvinceClusterDto> Data, string? Error)> ProvinceClustersAsync(
+        string? status,
+        string? keyword,
+        CancellationToken cancellationToken = default)
+    {
+        var err = StationReadValidator.ValidateStatus(status);
+        if (err is not null)
+            return (Array.Empty<StationMapProvinceClusterDto>(), err);
+
+        var keywordTrim = string.IsNullOrWhiteSpace(keyword) ? null : keyword.Trim();
+        if (keywordTrim is { Length: > StationReadValidator.MaxKeywordLength })
+            return (Array.Empty<StationMapProvinceClusterDto>(), $"keyword max length is {StationReadValidator.MaxKeywordLength}.");
+
+        var (_, dow, nowTime) = StationVietnamClock.NowParts(DateTime.UtcNow);
+        var dowByte = (byte)dow;
+
+        var rows = await stationMapMarkers
+            .ProvinceClustersAsync(
+                status,
+                keywordTrim,
+                dowByte,
+                nowTime,
+                PetrolRetailConstants.CapDonViId,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        var items = rows
+            .Select(r => new StationMapProvinceClusterDto(
+                r.ProvinceId,
+                r.ProvinceCode,
+                r.ProvinceName,
+                r.StationCount,
+                r.CentroidLat,
+                r.CentroidLng))
+            .ToList();
+
+        return (items, null);
     }
 
     public async Task<(StationDetailDto? Data, string? Error)> GetDetailAsync(int id, CancellationToken cancellationToken = default)

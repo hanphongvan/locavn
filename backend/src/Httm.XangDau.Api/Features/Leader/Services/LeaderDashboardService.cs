@@ -125,7 +125,7 @@ public sealed class LeaderDashboardService(
         int take,
         CancellationToken cancellationToken)
     {
-        var (page, err) = await stations.MapAsync(skip, take, provinceCode: null, districtCode: null, status: null, cancellationToken)
+        var (page, err) = await stations.MapAsync(skip, take, provinceCode: null, districtCode: null, status: null, keyword: null, cancellationToken)
             .ConfigureAwait(false);
         if (err is not null || page.Items.Count == 0)
             return Array.Empty<MapInventoryMarker>();

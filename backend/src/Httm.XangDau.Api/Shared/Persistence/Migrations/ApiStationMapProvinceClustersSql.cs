@@ -1,22 +1,20 @@
 namespace Httm.XangDau.Api.Shared.Persistence.Migrations;
 
 /// <summary>
-/// <c>GET /api/stations/map</c> — danh sách trạm có tọa độ hợp lệ, lọc tỉnh/huyện, trạng thái mở/đóng (cùng logic <c>sp_Reports_GetStationOverview</c> / visitor filters ở tầng API).
+/// <c>GET /api/stations/map/clusters</c> — gom trạm bán lẻ theo tỉnh (centroid + count) cho zoom thấp.
+/// Optional <c>@Keyword</c> (LIKE 5 cột giống <c>sp_Station_Search</c>) + <c>@Status</c> (open/closed).
+/// Chỉ trả tỉnh có ≥ 1 trạm hợp lệ (có toạ độ + match filter).
 /// </summary>
-internal static class ApiStationMapListPagedSql
+internal static class ApiStationMapProvinceClustersSql
 {
     internal const string CreateProcedure =
         """
-        CREATE OR ALTER PROCEDURE dbo.sp_Api_StationMap_ListPaged
+        CREATE OR ALTER PROCEDURE dbo.sp_Api_StationMap_ProvinceClusters
             @RetailCapDonViId INT,
             @DayOfWeek TINYINT,
             @NowTime TIME(0),
-            @ProvinceCode NVARCHAR(20) = NULL,
-            @DistrictQuanHuyenId INT = NULL,
             @Status NVARCHAR(20) = NULL,
-            @Keyword NVARCHAR(200) = NULL,
-            @Skip INT = 0,
-            @Take INT = 20
+            @Keyword NVARCHAR(200) = NULL
         AS
         BEGIN
             SET NOCOUNT ON;
@@ -26,38 +24,21 @@ internal static class ApiStationMapListPagedSql
 
             DECLARE @KwTrim NVARCHAR(200) = NULLIF(LTRIM(RTRIM(@Keyword)), N'');
 
-            CREATE TABLE #Filtered (
-                StationId INT NOT NULL,
-                StationName NVARCHAR(500),
-                StationMa NVARCHAR(100),
-                Latitude FLOAT,
-                Longitude FLOAT,
-                ShortAddress NVARCHAR(MAX),
-                TrangThai BIT,
-                OpenTime TIME(0),
-                CloseTime TIME(0)
-            );
-
             ;WITH Base AS (
                 SELECT
                     d.Id AS StationId,
-                    d.Ten AS StationName,
-                    d.Ma AS StationMa,
+                    t.Id AS ProvinceId,
+                    t.Ma AS ProvinceCode,
+                    t.Ten AS ProvinceName,
                     CAST(d.ViDo AS float) AS Latitude,
                     CAST(d.KinhDo AS float) AS Longitude,
-                    NULLIF(LTRIM(RTRIM(COALESCE(d.DiaChiChiTiet, d.DiaChi))), N'') AS ShortAddress,
-                    d.TrangThai,
-                    d.OpenTime,
-                    d.CloseTime
+                    d.TrangThai
                 FROM dbo.DM_DonVi AS d
-                LEFT JOIN dbo.DM_Tinh AS t ON t.Id = d.Tinh
-                LEFT JOIN dbo.DM_XaPhuong AS x ON x.Id = d.Xa
+                INNER JOIN dbo.DM_Tinh AS t ON t.Id = d.Tinh
                 WHERE d.CapDonViId = @RetailCapDonViId
                   AND d.ViDo IS NOT NULL AND d.KinhDo IS NOT NULL
                   AND d.ViDo >= -90 AND d.ViDo <= 90 AND d.KinhDo >= -180 AND d.KinhDo <= 180
                   AND NOT (d.ViDo = 0 AND d.KinhDo = 0)
-                  AND (@ProvinceCode IS NULL OR t.Ma = @ProvinceCode)
-                  AND (@DistrictQuanHuyenId IS NULL OR x.QuanHuyenId = @DistrictQuanHuyenId)
                   AND (
                       @KwTrim IS NULL
                       OR d.Ten           LIKE N'%' + @KwTrim + N'%'
@@ -108,39 +89,29 @@ internal static class ApiStationMapListPagedSql
                         ELSE 0
                     END AS IsOpen
                 FROM Base AS b
+            ),
+            Eligible AS (
+                SELECT
+                    f.ProvinceId,
+                    f.ProvinceCode,
+                    f.ProvinceName,
+                    f.Latitude,
+                    f.Longitude
+                FROM Flagged AS f
+                WHERE @StatusNorm = N'all'
+                   OR (@StatusNorm = N'open' AND f.IsOpen = 1)
+                   OR (@StatusNorm = N'closed' AND f.IsOpen = 0)
             )
-            INSERT INTO #Filtered (StationId, StationName, StationMa, Latitude, Longitude, ShortAddress, TrangThai, OpenTime, CloseTime)
             SELECT
-                f.StationId,
-                f.StationName,
-                f.StationMa,
-                f.Latitude,
-                f.Longitude,
-                f.ShortAddress,
-                f.TrangThai,
-                f.OpenTime,
-                f.CloseTime
-            FROM Flagged AS f
-            WHERE @StatusNorm = N'all'
-               OR (@StatusNorm = N'open' AND f.IsOpen = 1)
-               OR (@StatusNorm = N'closed' AND f.IsOpen = 0);
-
-            SELECT CASE WHEN @Skip = 0 THEN (SELECT COUNT_BIG(*) FROM #Filtered) ELSE CAST(0 AS bigint) END AS TotalCount;
-
-            SELECT
-                f.StationId,
-                f.StationName,
-                f.Latitude,
-                f.Longitude,
-                f.ShortAddress,
-                f.TrangThai,
-                f.OpenTime,
-                f.CloseTime
-            FROM #Filtered AS f
-            ORDER BY f.StationName, f.StationMa
-            OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY;
-
-            DROP TABLE #Filtered;
+                e.ProvinceId,
+                e.ProvinceCode,
+                e.ProvinceName,
+                COUNT_BIG(*) AS StationCount,
+                AVG(e.Latitude)  AS CentroidLat,
+                AVG(e.Longitude) AS CentroidLng
+            FROM Eligible AS e
+            GROUP BY e.ProvinceId, e.ProvinceCode, e.ProvinceName
+            ORDER BY e.ProvinceName, e.ProvinceId;
         END;
         """;
 }
