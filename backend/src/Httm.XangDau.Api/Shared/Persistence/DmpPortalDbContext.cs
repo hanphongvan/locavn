@@ -25,6 +25,8 @@ public sealed class DmpPortalDbContext : DbContext
 
     public DbSet<UserDataDeletionRequest> UserDataDeletionRequests => Set<UserDataDeletionRequest>();
 
+    public DbSet<ClientVersionLog> ClientVersionLogs => Set<ClientVersionLog>();
+
     public DbSet<DmDonVi> DmDonVis => Set<DmDonVi>();
     public DbSet<DmDonViTinh> DmDonViTinhs => Set<DmDonViTinh>();
     public DbSet<DmTinh> DmTinhs => Set<DmTinh>();

@@ -4,6 +4,7 @@ using Httm.XangDau.Api.Shared.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Httm.XangDau.Api.Shared.Persistence.Migrations
 {
     [DbContext(typeof(DmpPortalDbContext))]
-    partial class DmpPortalDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260528024036_AddClientVersionDistributionStoredProcedure")]
+    partial class AddClientVersionDistributionStoredProcedure
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

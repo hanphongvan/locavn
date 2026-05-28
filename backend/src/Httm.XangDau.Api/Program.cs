@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Text.Json;
 using System.Threading.RateLimiting;
 using Httm.XangDau.Api.Features;
+using Httm.XangDau.Api.Features.ClientTelemetry;
 using Httm.XangDau.Api.Features.LeaderAi.Security;
 using Httm.XangDau.Api.Shared.DependencyInjection;
 using Httm.XangDau.Api.Shared.Persistence;
@@ -161,6 +162,9 @@ app.UseRateLimiter();
 
 // Loca AI Leader rate limit — chỉ áp cho prefix /api/leader-ai (middleware tự skip route khác).
 app.UseMiddleware<RateLimitMiddleware>();
+
+// Client telemetry — sample 1% (cấu hình `Telemetry:SampleRate`) để track adoption phiên bản mobile.
+app.UseMiddleware<ClientVersionLogMiddleware>();
 
 app.MapControllers();
 
