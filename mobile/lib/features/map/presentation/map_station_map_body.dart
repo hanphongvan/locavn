@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 
@@ -321,6 +322,19 @@ class _MapStationMapBodyState extends State<MapStationMapBody> {
       // mới (markers in bounds / province clusters) tùy zoom.
       widget.onCameraViewportChanged?.call(zoom, bounds);
       var visible = _withOverlayStation(_itemsInView(widget.allItems, bounds, zoom));
+      if (kDebugMode) {
+        final b = bounds;
+        final inBoundsCount =
+            widget.allItems.where((m) => b.contains(AppLatLng(m.latitude, m.longitude))).length;
+        debugPrint(
+          '[map] idle zoom=${zoom.toStringAsFixed(2)} '
+          'allItems=${widget.allItems.length} '
+          'inBounds=$inBoundsCount '
+          'visibleAfterCap=${visible.length} '
+          'cap=${_capForZoom(zoom)} '
+          'bbox=(${b.southwest.latitude.toStringAsFixed(4)},${b.southwest.longitude.toStringAsFixed(4)})-(${b.northeast.latitude.toStringAsFixed(4)},${b.northeast.longitude.toStringAsFixed(4)})',
+        );
+      }
       if (!widget.skipEmptyViewportRecovery &&
           visible.isEmpty &&
           widget.allItems.isNotEmpty &&
