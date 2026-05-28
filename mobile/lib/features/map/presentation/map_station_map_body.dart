@@ -225,19 +225,17 @@ class _MapStationMapBodyState extends State<MapStationMapBody> {
   /// adapter trên một số thiết bị báo zoom stale (vd luôn trả 15.78 dù user zoom
   /// ra toàn quốc). Bbox luôn đúng vì map provider tự cập nhật.
   ///
-  /// Tham chiếu: vĩ độ Việt Nam ~16°, 1° ≈ 110 km.
+  /// Tham chiếu: vĩ độ Việt Nam ~16°, 1° ≈ 110 km. Hiện tại chỉ hiển thị marker
+  /// khi anh zoom xuống mức quận/huyện trở xuống (theo yêu cầu UX).
   static int _capForBounds(AppLatLngBounds bounds) {
     final latSpan = (bounds.northeast.latitude - bounds.southwest.latitude).abs();
     final lngSpan = (bounds.northeast.longitude - bounds.southwest.longitude).abs();
     final maxSpan = latSpan > lngSpan ? latSpan : lngSpan;
 
-    if (maxSpan > 4.0) return 0;     // > 440 km — toàn quốc / liên vùng → ẩn
-    if (maxSpan > 1.5) return 420;   // 165-440 km — liên tỉnh
-    if (maxSpan > 0.6) return 650;   // 66-165 km — 1-2 tỉnh
-    if (maxSpan > 0.25) return 900;  // 27-66 km — thành phố / liên thành phố
-    if (maxSpan > 0.08) return 360;  // 9-27 km — quận / huyện
-    if (maxSpan > 0.03) return 220;  // 3-9 km — phường / xã
-    return 160;                       // < 3 km — street view
+    if (maxSpan > 0.25) return 0;     // > 27 km — thành phố trở lên → ẨN
+    if (maxSpan > 0.08) return 360;   // 9-27 km — quận / huyện
+    if (maxSpan > 0.03) return 220;   // 3-9 km — phường / xã
+    return 160;                        // < 3 km — street view
   }
 
   static double _dist2(StationMapItem a, AppLatLng c) {
