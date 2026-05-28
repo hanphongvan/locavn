@@ -13,6 +13,7 @@ import '../../../core/map/app_map_controller.dart';
 import '../../../core/map/app_map_marker.dart';
 import '../../stations/data/models/station_map_item.dart';
 import '../../stations/station_open_status.dart';
+import '../data/brand_marker_source.dart';
 import 'map_providers.dart';
 import 'map_station_marker_composer.dart';
 import 'map_station_marker_factory.dart';
@@ -466,6 +467,21 @@ class _MapStationMapBodyState extends State<MapStationMapBody> {
     } catch (_) {
       MapStationMarkerFactory.invalidateCache();
     }
+
+    // Preload 9 marker brand bundled (3 brand × 3 kind) — size PHẢI khớp composer
+    // lookup, lấy qua helper [MapStationMarkerComposer.innerIconPxFor] để tránh
+    // off-by-one giữa preload (36*dpr) và compose (36*dpr*0.88).
+    final brandSizePx = MapStationMarkerComposer.innerIconPxFor(
+      dpr: dpr,
+      displayBothFuelPrices: false,
+    );
+    try {
+      await BrandMarkerSource.instance
+          .preloadAll(brandSizePx)
+          .timeout(const Duration(seconds: 6));
+    } on TimeoutException {
+      // Best-effort — composer fallback marker chung; lần re-apply sau marker brand sẽ vào.
+    } catch (_) {/* best-effort */}
 
     const batch = 80;
     final markers = <AppMapMarker>{};

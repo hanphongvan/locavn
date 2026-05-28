@@ -68,7 +68,11 @@ public sealed record StationMapItemDto(
     /// <summary>Giờ đóng — ưu tiên <c>DM_DonVi.CloseTime</c> khi có; không thì lịch tuần hôm nay.</summary>
     string? ClosingTime = null,
     /// <summary>Active <c>StationStoreServices.ServiceCode</c> values for map filtering (client-side).</summary>
-    IReadOnlyList<string>? ActiveServiceCodes = null);
+    IReadOnlyList<string>? ActiveServiceCodes = null,
+    /// <summary>Stable slug mapped từ <c>DM_DonVi.CapTrenId</c> (đầu mối) qua <c>StationBranding</c> appsettings. Null = dùng marker chung.</summary>
+    string? BrandKey = null,
+    /// <summary>Remote logo URL fallback khi brand chưa bundle trong app. Null = bundle-only / không có logo.</summary>
+    string? BrandLogoUrl = null);
 
 /// <summary>One configured retail service on a station (<c>StationStoreServices</c>).</summary>
 public sealed record StationDetailStoreServiceDto(

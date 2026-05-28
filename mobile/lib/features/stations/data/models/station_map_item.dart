@@ -16,6 +16,8 @@ class StationMapItem {
     this.openingTime,
     this.closingTime,
     this.activeServiceCodes = const [],
+    this.brandKey,
+    this.brandLogoUrl,
   });
 
   final int stationId;
@@ -45,6 +47,13 @@ class StationMapItem {
   /// Active `StationStoreServices.serviceCode` values from the map API.
   final List<String> activeServiceCodes;
 
+  /// Slug ổn định cho thương hiệu (đầu mối). Khi non-null, marker dùng logo brand
+  /// thay icon trạm chung. Lookup asset bundled qua `BrandMarkerRegistry`.
+  final String? brandKey;
+
+  /// Remote logo URL fallback cho brand chưa bundle (cache memory client-side).
+  final String? brandLogoUrl;
+
   /// `true` nếu cặp (lat, lng) hữu hạn và nằm trong dải hợp lệ.
   /// Dùng để filter những trạm có dữ liệu tọa độ hỏng (NaN, Infinity, vượt ±90/±180).
   static bool isValidCoord(double lat, double lng) =>
@@ -70,6 +79,8 @@ class StationMapItem {
       openingTime: JsonUtils.readString(json['openingTime']),
       closingTime: JsonUtils.readString(json['closingTime']),
       activeServiceCodes: _readStringList(json['activeServiceCodes']),
+      brandKey: JsonUtils.readString(json['brandKey']),
+      brandLogoUrl: JsonUtils.readString(json['brandLogoUrl']),
     );
   }
 

@@ -32,7 +32,7 @@ public static class FeatureDependencyInjection
     {
         services.AddFuelReportingFeature();
         services.AddAccountFeature();
-        services.AddStationsFeature();
+        services.AddStationsFeature(configuration);
         services.AddGeographyFeature();
         services.AddHttmFeature();
         services.AddHttmPhase2Features();

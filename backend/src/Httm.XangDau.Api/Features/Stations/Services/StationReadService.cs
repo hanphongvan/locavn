@@ -18,7 +18,8 @@ public sealed class StationReadService(
     DmpPortalDbContext db,
     IFuelReportingReadService fuelReporting,
     IStationListSearchDataAccess stationListSearch,
-    IStationMapMarkersDataAccess stationMapMarkers) : IStationReadService
+    IStationMapMarkersDataAccess stationMapMarkers,
+    IStationBrandRegistry brandRegistry) : IStationReadService
 {
     public async Task<(PagedStationsResponse<StationListItemDto> Data, string? Error)> ListAsync(
         int skip,
@@ -522,6 +523,21 @@ public sealed class StationReadService(
         var openMap = StationOperationalEvaluator.BuildOpenNowMap(ids, hours, dow, nowTime);
         var priceMap = await fuelReporting.GetMapPriceSnapshotsForStationsAsync(ids, cancellationToken);
 
+        // Brand: load DM_DonVi.CapTrenId cho từng trạm trong batch ≤1000 (giữ inline IN(...)
+        // — xem ghi chú ở activeServiceRows phía trên). CapTrenId là parent đầu mối (cấp 235);
+        // map qua IStationBrandRegistry (appsettings StationBranding:Brands) → BrandKey slug.
+        var parentByStation = new Dictionary<int, int?>(ids.Count);
+        for (var i = 0; i < ids.Count; i += IdContainsBatchSize)
+        {
+            var batch = ids.GetRange(i, Math.Min(IdContainsBatchSize, ids.Count - i));
+            var rows = await db.DmDonVis.AsNoTracking()
+                .Where(d => batch.Contains(d.Id))
+                .Select(d => new { d.Id, d.CapTrenId })
+                .ToListAsync(cancellationToken);
+            foreach (var r in rows)
+                parentByStation[r.Id] = r.CapTrenId;
+        }
+
         return mapRows.Select(r =>
         {
             var todayH = hoursByStation[r.StationId].Where(h => h.DayOfWeek == dowByte).ToList();
@@ -533,6 +549,8 @@ public sealed class StationReadService(
             priceMap.TryGetValue(r.StationId, out var px);
             px ??= new MapStationPrices(null, null);
             activeCodesByStation.TryGetValue(r.StationId, out var svcCodes);
+            parentByStation.TryGetValue(r.StationId, out var parentId);
+            var brand = brandRegistry.Resolve(parentId);
             return new StationMapItemDto(
                 r.StationId,
                 r.StationName,
@@ -546,7 +564,9 @@ public sealed class StationReadService(
                 StationOperationalEvaluator.ToOpenStatus(openNow),
                 op,
                 cl,
-                svcCodes is { Count: > 0 } ? svcCodes : Array.Empty<string>());
+                svcCodes is { Count: > 0 } ? svcCodes : Array.Empty<string>(),
+                brand?.Key,
+                brand?.LogoUrl);
         }).ToList();
     }
 
