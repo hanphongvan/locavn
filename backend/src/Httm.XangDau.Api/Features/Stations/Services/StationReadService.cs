@@ -279,7 +279,10 @@ public sealed class StationReadService(
         var (_, dow, nowTime) = StationVietnamClock.NowParts(DateTime.UtcNow);
         var dowByte = (byte)dow;
 
-        var err = StationReadValidator.ValidatePagination(skip, take)
+        // Viewport endpoint dùng cap riêng (MaxTakeBounds=1000) — bbox ở zoom 11–13
+        // có thể chứa hàng trăm trạm; nếu giữ MaxTake=100 mobile phải paginate
+        // nhiều round-trip mỗi lần pan map → lag UX.
+        var err = StationReadValidator.ValidatePagination(skip, take, StationReadValidator.MaxTakeBounds)
                   ?? StationReadValidator.ValidateStatus(status)
                   ?? StationReadValidator.ValidateMapBounds(minLat, maxLat, minLng, maxLng);
         if (err is not null)
