@@ -108,13 +108,22 @@ class _MapShellPageState extends ConsumerState<MapShellPage> {
               errorLogLabel: 'Bản đồ cây xăng (stationMapMarkersProvider)',
               loadingLabel: 'Đang tải dữ liệu bản đồ cây xăng',
               emptyMessage: 'Không có cây xăng nào có tọa độ hợp lệ.',
-              isEmpty: (r) => r.items.isEmpty && !r.keywordApplied && r.mapTotalCount == 0,
+              // Phase 2.B-viewport: chỉ short-circuit empty khi viewport CHƯA set
+              // (lần tải initial 12k trả về 0 — data thực sự lỗi). Sau khi camera
+              // idle lần đầu (viewport != null), luôn render map để user còn zoom
+              // / pan; empty case xử lý inline trong dataBuilder qua banner.
+              isEmpty: (r) =>
+                  r.items.isEmpty &&
+                  !r.keywordApplied &&
+                  r.mapTotalCount == 0 &&
+                  viewport == null,
               onRetry: () => ref.invalidate(stationMapMarkersFetchProvider),
               dataBuilder: (result) {
-                // Phase 2.B-viewport: ở zoom thấp ta CHỦ ĐỘNG không tải markers cá nhân
-                // (chỉ render banner gợi ý zoom). Không rơi vào nhánh empty text — phải
-                // giữ MapStationMapBody để user còn thao tác zoom in.
-                if (result.items.isEmpty && !isLowZoom) {
+                // Phase 2.B-viewport: chỉ giữ nhánh "text-only" cho trường hợp
+                // viewport CHƯA set (initial load lỗi hoặc filter quá khắt). Sau khi
+                // viewport set, luôn render map — empty cases hiển thị banner inline
+                // bên trong Stack để user còn pan/zoom.
+                if (result.items.isEmpty && viewport == null) {
                   String message;
                   if (result.keywordApplied) {
                     message =
@@ -178,8 +187,13 @@ class _MapShellPageState extends ConsumerState<MapShellPage> {
                           ref.read(mapViewportProvider.notifier).state = next;
                         }
                       },
-                      topOverlay: (result.truncated || result.keywordListTruncated || isLowZoom)
-                          ? Align(
+                      topOverlay: (() {
+                        final isEmptyHighZoom =
+                            viewport != null && !isLowZoom && result.items.isEmpty && !result.keywordApplied;
+                        if (!(result.truncated || result.keywordListTruncated || isLowZoom || isEmptyHighZoom)) {
+                          return null;
+                        }
+                        return Align(
                               alignment: Alignment.topCenter,
                               child: Padding(
                                 padding: EdgeInsets.fromLTRB(16, _mapTopInsetPx + 8, 16, 0),
@@ -198,6 +212,15 @@ class _MapShellPageState extends ConsumerState<MapShellPage> {
                                             clusterTotal > 0
                                                 ? 'Phóng to bản đồ để xem $clusterTotal cây xăng theo từng khu vực.'
                                                 : 'Phóng to bản đồ để xem cây xăng.',
+                                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                                  color: MapScreenPalette.textPrimary,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                            textAlign: TextAlign.center,
+                                          ),
+                                        if (isEmptyHighZoom)
+                                          Text(
+                                            'Không có cây xăng trong khu vực hiển thị. Hãy phóng nhỏ bản đồ hoặc di chuyển sang khu vực khác.',
                                             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                                                   color: MapScreenPalette.textPrimary,
                                                   fontWeight: FontWeight.w600,
@@ -225,8 +248,8 @@ class _MapShellPageState extends ConsumerState<MapShellPage> {
                                   ),
                                 ),
                               ),
-                            )
-                          : null,
+                            );
+                      })(),
                         );
                       },
                     ),
