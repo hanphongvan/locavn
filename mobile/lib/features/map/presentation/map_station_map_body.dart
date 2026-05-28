@@ -552,8 +552,14 @@ class _MapStationMapBodyState extends State<MapStationMapBody> {
                     padding: kDefaultMapFitPadding,
                   ));
                 } catch (_) {
-                  final t = _initialCamera.target;
-                  await c.animateCamera(AppMapCameraUpdate.newLatLngZoom(t, _initialCamera.zoom));
+                  // Fallback khi fit bounds fail — và bản thân fallback cũng có thể fail
+                  // (vd MapLibre Android channel chưa attach ngay sau onMapCreated trong
+                  // chu kỳ hot-reload). Nuốt lỗi để không crash; _kickApplyMarkersSoon sẽ
+                  // vẫn chạy + camera idle tiếp theo sẽ tự refresh.
+                  try {
+                    final t = _initialCamera.target;
+                    await c.animateCamera(AppMapCameraUpdate.newLatLngZoom(t, _initialCamera.zoom));
+                  } catch (_) {/* swallow plugin race */}
                 }
                 if (mounted) _kickApplyMarkersSoon();
               })());
