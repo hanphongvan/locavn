@@ -142,74 +142,51 @@ final mapSortedStationSheetItemsProvider = Provider<List<StationMapItem>>((ref) 
   return copy;
 });
 
-/// Tải trạm từ máy chủ — viewport-aware (Phase 2.B-viewport):
-/// 1. Chưa biết viewport (camera chưa idle lần nào): load paged (legacy behavior).
-/// 2. zoom ≥ [kMapClusterZoomThreshold]: chỉ tải markers trong bbox qua `/api/stations/map/bounds`.
-/// 3. zoom < threshold: trả rỗng markers; province clusters cấp qua [stationMapProvinceClustersProvider].
+/// Tải trạm từ máy chủ — KHÔNG watch viewport để tránh re-run khi camera idle
+/// (AsyncValueBody flip qua loading → unmount MapStationMapBody → MapLibre tear down
+/// → STYLE_NOT_READY race → blinking loop).
+///
+/// Phase 2.B-viewport: chỉ áp dụng cho clusters (provider khác) + banner UI.
+/// True viewport-aware fetch (giảm initial 12k load) cần redesign khác: preserve
+/// dataBuilder qua refresh (AsyncValue.unwrapPrevious) hoặc tách map khỏi
+/// AsyncValueBody — defer cho phase tiếp.
 ///
 /// [FutureProvider] (không autoDispose): giữ kết quả khi rời tab Bản đồ — tránh tải lại toàn bộ marker
 /// mỗi lần quay lại (IndexedStack vẫn giữ widget nhưng autoDispose có thể hủy cache khi không còn listener).
 final stationMapMarkersFetchProvider = FutureProvider<StationMapMarkersLoadResult>((ref) async {
   final key = ref.watch(mapApiFilterKeyProvider);
-  final viewport = ref.watch(mapViewportProvider);
   final api = ref.watch(stationsApiProvider);
 
   final kw = (key.keyword == null || key.keyword!.isEmpty) ? null : key.keyword;
-
-  // (1) Chưa có viewport → legacy paged (cần để vẽ marker initial cho người ko di chuyển map).
-  // Khi camera idle lần đầu sẽ chuyển sang nhánh bbox/clusters phù hợp.
-  if (viewport == null) {
-    final mapResult = await api.loadMapMarkersPaged(
-      provinceCode: key.provinceCode,
-      districtCode: key.districtCode,
-      status: key.status,
-      keyword: kw,
-    );
-    return StationMapMarkersLoadResult(
-      items: mapResult.items,
-      mapTotalCount: mapResult.mapTotalCount,
-      truncated: mapResult.truncated,
-      keywordApplied: kw != null,
-    );
-  }
-
-  // (3) Low zoom — không vẽ markers; render clusters thay thế (provider khác).
-  if (viewport.zoom < kMapClusterZoomThreshold) {
-    return StationMapMarkersLoadResult(
-      items: const [],
-      mapTotalCount: 0,
-      truncated: false,
-      keywordApplied: kw != null,
-    );
-  }
-
-  // (2) High zoom — fetch markers trong bbox.
-  final page = await api.getMapByBounds(
-    minLat: viewport.bounds.southwest.latitude,
-    maxLat: viewport.bounds.northeast.latitude,
-    minLng: viewport.bounds.southwest.longitude,
-    maxLng: viewport.bounds.northeast.longitude,
+  final mapResult = await api.loadMapMarkersPaged(
+    provinceCode: key.provinceCode,
+    districtCode: key.districtCode,
     status: key.status,
     keyword: kw,
-    take: 1000,
   );
   return StationMapMarkersLoadResult(
-    items: page.items,
-    mapTotalCount: page.totalCount,
-    truncated: false,
+    items: mapResult.items,
+    mapTotalCount: mapResult.mapTotalCount,
+    truncated: mapResult.truncated,
     keywordApplied: kw != null,
   );
+});
+
+/// Boolean cờ "đang ở zoom thấp" — derive từ viewport. Tách provider riêng để
+/// [stationMapProvinceClustersProvider] chỉ re-fetch khi zoom CROSS threshold,
+/// không phải mỗi camera idle.
+final mapIsLowZoomProvider = Provider<bool>((ref) {
+  final v = ref.watch(mapViewportProvider);
+  return v != null && v.zoom < kMapClusterZoomThreshold;
 });
 
 /// Province-level clusters cho zoom thấp. Trả rỗng khi zoom ≥ threshold.
 /// Optional theo keyword (count chỉ trạm match).
 final stationMapProvinceClustersProvider =
     FutureProvider<List<StationMapProvinceCluster>>((ref) async {
+  final isLowZoom = ref.watch(mapIsLowZoomProvider);
+  if (!isLowZoom) return const [];
   final key = ref.watch(mapApiFilterKeyProvider);
-  final viewport = ref.watch(mapViewportProvider);
-  if (viewport == null || viewport.zoom >= kMapClusterZoomThreshold) {
-    return const [];
-  }
   final api = ref.watch(stationsApiProvider);
   final kw = (key.keyword == null || key.keyword!.isEmpty) ? null : key.keyword;
   return api.getMapProvinceClusters(status: key.status, keyword: kw);
