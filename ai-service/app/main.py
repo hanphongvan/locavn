@@ -39,7 +39,7 @@ from .services.cache_service import CacheService
 from .services.dotnet_api_client import DotnetApiClient
 from .services.llm_mode_manager import InvalidLlmMode, LlmModeManager
 from .services.llm_service import LlmService, create_llm_service
-from .services.logging_service import configure_logging, get_logger
+from .services.logging_service import configure_logging, get_log_level, get_logger, set_log_level
 from .services.metrics_service import (
     measure_request,
     measure_tool,  # noqa: F401 — re-export cho debug.
@@ -450,6 +450,45 @@ def create_app() -> FastAPI:
         _llm_service_cache.clear()
         return {"currentMode": new_mode, "message": f"Đã chuyển sang {new_mode}."}
 
+    # ------------------------------------------------------------------
+    # Phase 5I — Toggle log level runtime để theo dõi hoạt động khi cần
+    # mà không phải restart app. Bật DEBUG xong nhớ tắt lại (verbose log
+    # có thể leak câu hỏi + answer text vào log file).
+    # ------------------------------------------------------------------
+
+    @app.get("/admin/log-level", tags=["admin"])
+    async def get_log_level_endpoint(
+        x_internal_key: Annotated[str | None, Header(alias="X-Internal-Key")] = None,
+    ):
+        _check_internal_key(settings, x_internal_key)
+        return {
+            "level": get_log_level(),
+            "validLevels": ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        }
+
+    @app.post("/admin/log-level", tags=["admin"])
+    async def set_log_level_endpoint(
+        body: dict,
+        x_internal_key: Annotated[str | None, Header(alias="X-Internal-Key")] = None,
+    ):
+        """Body: `{"level": "DEBUG"|"INFO"|"WARNING"|"ERROR"|"CRITICAL"}`.
+
+        Override in-memory — restart sẽ reset về `.env` `LOG_LEVEL`.
+        DEBUG sẽ in chi tiết security_guard / intent / plan / executor /
+        answer_composer cho từng request — hữu ích khi debug câu trả lời sai.
+        """
+        _check_internal_key(settings, x_internal_key)
+        level = (body or {}).get("level") or ""
+        try:
+            new_level = set_log_level(level)
+        except ValueError as ex:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(ex),
+            )
+        _logger.info("admin.log_level_changed", new_level=new_level)
+        return {"level": new_level, "message": f"Đã chuyển log level sang {new_level}."}
+
     @app.post("/ai/leader/chat", response_model=ChatResponse, response_model_by_alias=True, tags=["leader"])
     async def chat(
         request: ChatRequest,
@@ -539,6 +578,17 @@ async def _run_chat(request: ChatRequest, deps: Deps, settings: Settings) -> Cha
         "context_summary": request.context_summary,
     }
 
+    _logger.debug(
+        "ai_request_start",
+        user_id=request.user_id,
+        user_loai=request.user_loai,
+        conversation_id=request.conversation_id,
+        question_preview=request.message[:200],
+        history_count=len(request.history),
+        has_context=request.context is not None,
+        has_context_summary=bool(request.context_summary),
+    )
+
     rate_limit = RateLimitInfo(
         requests_today=0,  # AI Gateway không tự đếm — counter ở .NET API.
         max_per_day=settings.rate_limit_per_day,
@@ -604,6 +654,18 @@ async def _run_chat(request: ChatRequest, deps: Deps, settings: Settings) -> Cha
         conversation_id=response.conversation_id or None,
         confidence=response.confidence,
     )
+    _logger.debug(
+        "ai_request_complete_detail",
+        user_id=request.user_id,
+        intent=response.intent,
+        answer_type=response.answer_type,
+        answer_preview=(response.answer_text or "")[:300],
+        has_table=bool(response.data and response.data.table),
+        table_rows=len(response.data.table or []) if response.data else 0,
+        has_chart=bool(response.data and response.data.chart),
+        has_map=bool(response.data and response.data.map),
+        has_report=bool(response.data and response.data.report_markdown),
+    )
     return response
 
 
@@ -628,16 +690,29 @@ async def _stream_chat(
     try:
         response = await _run_chat(request, deps, settings)
     except Exception as ex:  # pragma: no cover (FallbackHandler đã bọc trong _run_chat)
+        _logger.error("stream_chat.unexpected_exception", error=str(ex))
         yield _sse_event({"event": "error", "message": str(ex)})
         return
 
     answer = response.answer_text or ""
+    total_chunks = (len(answer) + chunk_size - 1) // chunk_size
+    _logger.debug(
+        "stream_chat.begin_emit",
+        user_id=request.user_id,
+        answer_length=len(answer),
+        total_chunks=total_chunks,
+    )
     for offset in range(0, len(answer), chunk_size):
         await asyncio.sleep(0)  # nhường event loop để client thấy chunks streaming.
         yield _sse_event({"event": "text_delta", "text": answer[offset:offset + chunk_size]})
 
     # `model_dump(by_alias=True)` để JSON event giữ camelCase đúng Section 4.3.
     yield _sse_event({"event": "complete", "data": response.model_dump(by_alias=True)})
+    _logger.debug(
+        "stream_chat.complete_emitted",
+        user_id=request.user_id,
+        intent=response.intent,
+    )
 
 
 def _sse_event(payload: dict) -> bytes:

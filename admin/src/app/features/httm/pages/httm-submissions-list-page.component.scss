@@ -1,0 +1,45 @@
+.submissions-list {
+  padding: 16px 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+
+  &__header h1 { margin: 0 0 4px; font-size: 22px; }
+  &__header .muted { color: var(--app-text-muted); font-size: 13px; }
+
+  &__filters {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin: 16px 0;
+    .grow { flex: 1 1 240px; }
+  }
+
+  &__table {
+    width: 100%;
+    background: #fff;
+  }
+
+  &__pager {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 12px;
+    margin-top: 16px;
+
+    .muted { color: var(--app-text-muted); font-size: 13px; }
+  }
+}
+
+.chip {
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: #eceff1;
+  color: #37474f;
+  font-size: 12px;
+
+  &--pending { background: #fff3e0; color: #ef6c00; }
+  &--approved { background: #e8f5e9; color: #2e7d32; }
+  &--rejected { background: #ffebee; color: #c62828; }
+  &--new { background: #e1f5fe; color: #0277bd; }
+}

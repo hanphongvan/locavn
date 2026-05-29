@@ -1,0 +1,221 @@
+@if (loading()) {
+  <p class="muted">Đang tải…</p>
+} @else {
+  @if (errorMessage()) {
+    <div class="banner banner--error" role="alert">{{ errorMessage() }}</div>
+  } @else {
+    @if (facility(); as fac) {
+      <div class="stack">
+        <app-page-header [title]="fac.name">
+          <p appPageHeaderDesc>
+            Mã: <code>{{ fac.id }}</code> —
+            <a routerLink="/httm/hoso" class="link-inline">← Danh sách</a>
+            @if (canDelete()) {
+              <button type="button" class="btn btn--secondary" style="margin-left: 1rem" (click)="deleteFacility()">Xoá hồ sơ</button>
+            }
+          </p>
+        </app-page-header>
+
+        <mat-tab-group mat-stretch-tabs="false" animationDuration="200ms">
+          <mat-tab label="Thông tin chung">
+            <div class="tab-pad">
+              <form [formGroup]="generalForm" (ngSubmit)="saveGeneral()" class="filters">
+                <div class="form-grid form-grid--2">
+                  <div class="form-field" style="grid-column: 1 / -1">
+                    <label class="form-label" for="g-name">Tên *</label>
+                    <input id="g-name" class="form-control" formControlName="name" />
+                  </div>
+                  <div class="form-field">
+                    <label class="form-label">Loại *</label>
+                    <select class="form-control" formControlName="httmType">
+                      @for (t of typeItems(); track t.id) {
+                        <option [value]="t.code">{{ t.name }}</option>
+                      }
+                    </select>
+                  </div>
+                  <div class="form-field">
+                    <label class="form-label">Trạng thái *</label>
+                    <select class="form-control" formControlName="status">
+                      @for (s of statusItems(); track s.id) {
+                        <option [value]="s.code">{{ s.name }}</option>
+                      }
+                    </select>
+                  </div>
+                  <div class="form-field">
+                    <label class="form-label">Tỉnh / TP *</label>
+                    <select class="form-control" formControlName="provinceCode">
+                      @for (p of provinces(); track p.code) {
+                        <option [value]="p.code">{{ p.name }}</option>
+                      }
+                    </select>
+                  </div>
+                  <div class="form-field" style="grid-column: 1 / -1">
+                    <label class="form-label">Địa chỉ chi tiết</label>
+                    <input class="form-control" formControlName="addressDetail" />
+                  </div>
+                  <div class="form-field" style="grid-column: 1 / -1">
+                    <label class="form-label">Ghi chú</label>
+                    <textarea class="form-control" rows="3" formControlName="notes"></textarea>
+                  </div>
+                </div>
+                <div class="btn-row">
+                  <button type="submit" class="btn btn--primary" [disabled]="savingGeneral()">Lưu thông tin chung</button>
+                </div>
+              </form>
+            </div>
+          </mat-tab>
+
+          <mat-tab label="Vị trí địa lý">
+            <div class="tab-pad">
+              <p>Kinh độ: <strong>{{ fac.lng ?? '—' }}</strong> — Vĩ độ: <strong>{{ fac.lat ?? '—' }}</strong></p>
+            </div>
+          </mat-tab>
+
+          <mat-tab label="Hạ tầng &amp; quy mô">
+            <div class="tab-pad">
+              <ul class="kv">
+                <li><span>Diện tích đất (m²)</span><b>{{ fac.landArea ?? '—' }}</b></li>
+                <li><span>Diện tích sàn (m²)</span><b>{{ fac.floorArea ?? '—' }}</b></li>
+                <li><span>Số tầng</span><b>{{ fac.floors ?? '—' }}</b></li>
+                <li><span>Số gian hàng</span><b>{{ fac.stallCount ?? '—' }}</b></li>
+                <li><span>Chỗ đỗ xe</span><b>{{ fac.parkingSlots ?? '—' }}</b></li>
+                <li><span>Điện dự phòng</span><b>{{ fac.hasBackupPower ? 'Có' : 'Không' }}</b></li>
+                <li><span>PCCC</span><b>{{ fac.hasFireProtection ? 'Có' : 'Không' }}</b></li>
+                <li><span>Chất lượng công trình</span><b>{{ fac.buildingQuality ?? '—' }}</b></li>
+              </ul>
+            </div>
+          </mat-tab>
+
+          <mat-tab label="Kinh doanh">
+            <div class="tab-pad">
+              @if (fac.isSensitiveVisible) {
+                <ul class="kv">
+                  <li><span>Giá thuê TB (triệu/m²/tháng)</span><b>{{ fac.avgRentPrice ?? '—' }}</b></li>
+                  <li><span>Doanh thu năm (tỷ VND)</span><b>{{ fac.annualRevenue ?? '—' }}</b></li>
+                  <li><span>Tỷ lệ lấp đầy (%)</span><b>{{ fac.fillRate ?? '—' }}</b></li>
+                  <li><span>Số nhà bán lẻ</span><b>{{ fac.vendorCount ?? '—' }}</b></li>
+                </ul>
+              } @else {
+                <p class="muted">Bạn không có quyền xem các chỉ số nhạy cảm (giá thuê, doanh thu) theo chính sách BCT.</p>
+              }
+            </div>
+          </mat-tab>
+
+          <mat-tab label="Pháp lý &amp; giấy phép">
+            <div class="tab-pad">
+              <h3 class="h3">Thêm giấy phép</h3>
+              <form [formGroup]="licenseForm" (ngSubmit)="addLicense()" class="filters">
+                <div class="form-grid form-grid--2">
+                  <div class="form-field" style="grid-column: 1 / -1">
+                    <label class="form-label">Loại giấy (mã catalog) *</label>
+                    <input class="form-control" formControlName="licenseType" placeholder="VD: business_license" />
+                  </div>
+                  <div class="form-field">
+                    <label class="form-label">Số giấy</label>
+                    <input class="form-control" formControlName="licenseNumber" />
+                  </div>
+                  <div class="form-field">
+                    <label class="form-label">Cơ quan cấp</label>
+                    <input class="form-control" formControlName="issuedBy" />
+                  </div>
+                  <div class="form-field">
+                    <label class="form-label">Ngày cấp</label>
+                    <input class="form-control" type="date" formControlName="issuedDate" />
+                  </div>
+                  <div class="form-field">
+                    <label class="form-label">Ngày hết hạn</label>
+                    <input class="form-control" type="date" formControlName="expiryDate" />
+                  </div>
+                  <div class="form-field" style="grid-column: 1 / -1">
+                    <label class="form-label">URL tệp đính kèm</label>
+                    <input class="form-control" formControlName="fileUrl" />
+                  </div>
+                  <div class="form-field" style="grid-column: 1 / -1">
+                    <label class="form-label">Ghi chú</label>
+                    <input class="form-control" formControlName="notes" />
+                  </div>
+                </div>
+                <button type="submit" class="btn btn--primary" [disabled]="savingLicense()">Lưu giấy phép</button>
+              </form>
+
+              <h3 class="h3" style="margin-top: 1.5rem">Tóm tắt thẻ</h3>
+              <div class="lic-cards">
+                @for (lic of licenses(); track lic.id) {
+                  <app-httm-license-card [license]="lic" />
+                }
+              </div>
+              <h3 class="h3" style="margin-top: 1.5rem">Bảng chi tiết</h3>
+              @if (licenses().length === 0) {
+                <p class="muted">Chưa có giấy phép.</p>
+              } @else {
+                <div class="table-scroll">
+                  <table class="data-table">
+                    <thead>
+                      <tr>
+                        <th>Loại</th>
+                        <th>Số</th>
+                        <th>Hết hạn</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (lic of licenses(); track lic.id) {
+                        <tr>
+                          <td>{{ lic.licenseType }}</td>
+                          <td>{{ lic.licenseNumber ?? '—' }}</td>
+                          <td>{{ lic.expiryDate ?? '—' }} @if (lic.expiryAlert30d) { <span class="warn">(!)</span> }</td>
+                          <td>
+                            <button type="button" class="btn btn--text" (click)="removeLicense(lic.id)">Xoá</button>
+                          </td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              }
+            </div>
+          </mat-tab>
+
+          <mat-tab label="Hình ảnh">
+            <div class="tab-pad">
+              <input type="file" accept="image/jpeg,image/png,image/webp" (change)="onImageSelected($event)" />
+              <app-httm-image-gallery [facilityId]="fac.id" />
+            </div>
+          </mat-tab>
+
+          <mat-tab label="Lịch sử thay đổi">
+            <div class="tab-pad">
+              <p class="muted">Tổng {{ auditTotal() }} bản ghi — hiển thị tối đa 50 mới nhất.</p>
+              @if (auditItems().length === 0) {
+                <p class="muted">Chưa có nhật ký.</p>
+              } @else {
+                <div class="table-scroll">
+                  <table class="data-table">
+                    <thead>
+                      <tr>
+                        <th>Thời điểm</th>
+                        <th>Hành động</th>
+                        <th>Người thực hiện</th>
+                        <th>Chi tiết</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (a of auditItems(); track a.id) {
+                        <tr>
+                          <td>{{ a.performedAt | date: 'short' }}</td>
+                          <td>{{ a.action }}</td>
+                          <td>{{ a.performedByName || a.performedBy }}</td>
+                          <td><code class="wrap">{{ a.changedFields ?? '—' }}</code></td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              }
+            </div>
+          </mat-tab>
+        </mat-tab-group>
+      </div>
+    }
+  }
+}

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/router/app_router.dart';
 import 'core/router/deep_link_listener.dart';
+import 'features/app_version/presentation/app_version_gate.dart';
 import 'shared/theme/app_theme.dart';
 
 class HttmXangdauApp extends ConsumerWidget {
@@ -19,6 +20,9 @@ class HttmXangdauApp extends ConsumerWidget {
       theme: AppTheme.light(),
       routerConfig: router,
       debugShowCheckedModeBanner: false,
+      builder: (context, child) {
+        return AppVersionGate(child: child ?? const SizedBox.shrink());
+      },
     );
   }
 }

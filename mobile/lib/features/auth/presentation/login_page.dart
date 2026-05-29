@@ -201,6 +201,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     final bottomInset = MediaQuery.paddingOf(context).bottom;
     final logoSize = MediaQuery.sizeOf(context).shortestSide < 360 ? 88.0 : 112.0;
 
+    // Citizen guest mở login qua `context.push` → router có thể pop về màn trước.
+    // Auto-redirect / hard-go thì canPop=false → không hiển thị nút back (giữ flow login bắt buộc).
+    final canPop = GoRouter.of(context).canPop();
+
     return Scaffold(
       body: Stack(
         fit: StackFit.expand,
@@ -494,6 +498,24 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               },
             ),
           ),
+          if (canPop)
+            Positioned(
+              top: MediaQuery.paddingOf(context).top + 4,
+              left: 4,
+              child: Material(
+                color: Colors.white.withValues(alpha: 0.85),
+                shape: const CircleBorder(),
+                elevation: 1,
+                child: IconButton(
+                  tooltip: 'Quay lại',
+                  icon: const Icon(
+                    Icons.arrow_back_rounded,
+                    color: LoginScreenTheme.titleBlue,
+                  ),
+                  onPressed: _loading ? null : () => context.pop(),
+                ),
+              ),
+            ),
         ],
       ),
     );

@@ -3,16 +3,28 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/map/app_lat_lng.dart';
 import '../../../core/map/app_map_controller.dart';
+import '../../stations/data/models/fuel_product_leaf.dart';
+import '../../stations/data/models/station_distributor.dart';
 import '../../stations/data/models/station_map_item.dart';
 import '../../store_services/data/models/store_service_catalog_item.dart';
 import '../../stations/data/models/station_map_markers_load_result.dart';
+import '../../stations/data/models/station_map_province_cluster.dart';
 import '../../stations/data/stations_api.dart';
 import '../data/map_discovery.dart';
 import '../data/map_filters.dart';
 import '../data/map_geo.dart';
 import '../data/map_user_location.dart';
+import 'map_viewport_state.dart';
 
 final mapFiltersProvider = StateProvider<MapFilters>((ref) => const MapFilters());
+
+/// Đầu mối (CapDonViId=235) có trạm bán lẻ — dùng cho bottom sheet lọc brand
+/// trên thanh tìm kiếm. Không autoDispose để cache giữa các lần mở sheet.
+final mapDistributorsProvider =
+    FutureProvider<List<StationDistributor>>((ref) async {
+  final api = ref.watch(stationsApiProvider);
+  return api.getDistributors();
+});
 
 /// Public store-service catalog for map filter chips (same payload as admin catalog).
 final stationStoreServiceCatalogProvider =
@@ -21,7 +33,14 @@ final stationStoreServiceCatalogProvider =
   return api.getStoreServicesCatalog();
 });
 
-/// Chỉ các trường kích hoạt tải lại từ API (`GET /api/stations/map` + ∩ danh sách từ khóa).
+/// Public leaves of the `FuelProducts` tree (mã + tên) cho chip "Loại nhiên liệu" động.
+/// Keep cache giữa các lần mở bottom sheet (không autoDispose).
+final fuelProductLeavesProvider = FutureProvider<List<FuelProductLeaf>>((ref) async {
+  final api = ref.watch(stationsApiProvider);
+  return api.getFuelProductLeaves();
+});
+
+/// Chỉ các trường kích hoạt tải lại từ API (`GET /api/stations/map/v2` + ∩ danh sách từ khóa).
 @immutable
 class MapApiFilterKey {
   const MapApiFilterKey({
@@ -29,12 +48,14 @@ class MapApiFilterKey {
     required this.districtCode,
     required this.keyword,
     required this.status,
+    required this.fuelCode,
   });
 
   final String? provinceCode;
   final String? districtCode;
   final String? keyword;
   final String? status;
+  final String? fuelCode;
 
   @override
   bool operator ==(Object other) =>
@@ -44,10 +65,11 @@ class MapApiFilterKey {
           provinceCode == other.provinceCode &&
           districtCode == other.districtCode &&
           keyword == other.keyword &&
-          status == other.status;
+          status == other.status &&
+          fuelCode == other.fuelCode;
 
   @override
-  int get hashCode => Object.hash(provinceCode, districtCode, keyword, status);
+  int get hashCode => Object.hash(provinceCode, districtCode, keyword, status, fuelCode);
 }
 
 final mapApiFilterKeyProvider = Provider<MapApiFilterKey>((ref) {
@@ -63,6 +85,7 @@ final mapApiFilterKeyProvider = Provider<MapApiFilterKey>((ref) {
     districtCode: norm(f.districtCode),
     keyword: (kw == null || kw.isEmpty) ? null : kw,
     status: _statusQuery(f.status),
+    fuelCode: norm(f.fuelCode),
   );
 });
 
@@ -140,7 +163,14 @@ final mapSortedStationSheetItemsProvider = Provider<List<StationMapItem>>((ref) 
   return copy;
 });
 
-/// Tải trạm từ máy chủ (chỉ phụ thuộc [mapApiFilterKeyProvider]).
+/// Tải trạm từ máy chủ — KHÔNG watch viewport để tránh re-run khi camera idle
+/// (AsyncValueBody flip qua loading → unmount MapStationMapBody → MapLibre tear down
+/// → STYLE_NOT_READY race → blinking loop).
+///
+/// Phase 2.B-viewport: chỉ áp dụng cho clusters (provider khác) + banner UI.
+/// True viewport-aware fetch (giảm initial 12k load) cần redesign khác: preserve
+/// dataBuilder qua refresh (AsyncValue.unwrapPrevious) hoặc tách map khỏi
+/// AsyncValueBody — defer cho phase tiếp.
 ///
 /// [FutureProvider] (không autoDispose): giữ kết quả khi rời tab Bản đồ — tránh tải lại toàn bộ marker
 /// mỗi lần quay lại (IndexedStack vẫn giữ widget nhưng autoDispose có thể hủy cache khi không còn listener).
@@ -148,36 +178,40 @@ final stationMapMarkersFetchProvider = FutureProvider<StationMapMarkersLoadResul
   final key = ref.watch(mapApiFilterKeyProvider);
   final api = ref.watch(stationsApiProvider);
 
-  final mapResult = await api.loadMapMarkersPaged(
+  final kw = (key.keyword == null || key.keyword!.isEmpty) ? null : key.keyword;
+  final mapResult = await api.loadMapMarkersPagedV2(
     provinceCode: key.provinceCode,
     districtCode: key.districtCode,
     status: key.status,
-  );
-
-  final kw = key.keyword;
-  if (kw == null || kw.isEmpty) {
-    return StationMapMarkersLoadResult(
-      items: mapResult.items,
-      mapTotalCount: mapResult.mapTotalCount,
-      truncated: mapResult.truncated,
-    );
-  }
-
-  final idResult = await api.collectStationIdsForKeyword(
     keyword: kw,
-    provinceCode: key.provinceCode,
-    districtCode: key.districtCode,
-    status: key.status,
+    fuelCode: key.fuelCode,
   );
-  final filtered = mapResult.items.where((m) => idResult.ids.contains(m.stationId)).toList();
-
   return StationMapMarkersLoadResult(
-    items: filtered,
+    items: mapResult.items,
     mapTotalCount: mapResult.mapTotalCount,
     truncated: mapResult.truncated,
-    keywordApplied: true,
-    keywordListTruncated: idResult.listTruncated,
+    keywordApplied: kw != null,
   );
+});
+
+/// Boolean cờ "đang ở zoom thấp" — derive từ viewport. Tách provider riêng để
+/// [stationMapProvinceClustersProvider] chỉ re-fetch khi zoom CROSS threshold,
+/// không phải mỗi camera idle.
+final mapIsLowZoomProvider = Provider<bool>((ref) {
+  final v = ref.watch(mapViewportProvider);
+  return v != null && v.zoom < kMapClusterZoomThreshold;
+});
+
+/// Province-level clusters cho zoom thấp. Trả rỗng khi zoom ≥ threshold.
+/// Optional theo keyword (count chỉ trạm match).
+final stationMapProvinceClustersProvider =
+    FutureProvider<List<StationMapProvinceCluster>>((ref) async {
+  final isLowZoom = ref.watch(mapIsLowZoomProvider);
+  if (!isLowZoom) return const [];
+  final key = ref.watch(mapApiFilterKeyProvider);
+  final api = ref.watch(stationsApiProvider);
+  final kw = (key.keyword == null || key.keyword!.isEmpty) ? null : key.keyword;
+  return api.getMapProvinceClusters(status: key.status, keyword: kw);
 });
 
 bool _stationPassesClientFilters(StationMapItem m, MapFilters f) {
@@ -189,24 +223,17 @@ bool _stationPassesClientFilters(StationMapItem m, MapFilters f) {
       return false;
   }
 
-  switch (f.fuelType) {
-    case MapFuelTypeFilter.all:
-    case MapFuelTypeFilter.lpg:
-      break;
-    case MapFuelTypeFilter.petrol:
-      if (m.priceRon95 == null) return false;
-      break;
-    case MapFuelTypeFilter.diesel:
-      if (m.priceDiesel == null) return false;
-      break;
-  }
+  // Fuel filter đã làm server-side tại `/api/stations/map/v2?fuelCode=...`
+  // (xem `stationMapMarkersFetchProvider`); không lọc lại client-side.
 
   if (f.hasPriceFilter) {
     final lo = f.priceMinDong.toDouble();
     final hi = f.priceMaxDong.toDouble();
     final prices = <double>[
-      if (m.priceRon95 != null) m.priceRon95!,
-      if (m.priceDiesel != null) m.priceDiesel!,
+      // Khi user chọn fuelCode cụ thể → check đúng giá fuel đó (V2 đính kèm).
+      if (f.fuelCode != null && m.priceForSelectedFuel != null) m.priceForSelectedFuel!,
+      if (f.fuelCode == null && m.priceRon95 != null) m.priceRon95!,
+      if (f.fuelCode == null && m.priceDiesel != null) m.priceDiesel!,
     ];
     if (prices.isEmpty) return false;
     final inBand = prices.any((p) => p >= lo && p <= hi);
@@ -218,6 +245,10 @@ bool _stationPassesClientFilters(StationMapItem m, MapFilters f) {
     for (final sel in f.selectedServiceCodes) {
       if (!stationCodes.contains(sel.toUpperCase())) return false;
     }
+  }
+
+  if (f.distributorId != null) {
+    if (m.parentDonViId != f.distributorId) return false;
   }
 
   // Đánh giá: DTO map chưa có điểm — giữ nguyên danh sách (chip vẫn hiện trong tóm tắt).

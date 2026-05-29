@@ -4,10 +4,23 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591;1570;1573;1574;1587;1734</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- HTTM SQL migrations: embed *.sql under backend/database/migrations as assembly resource
+         so EF Core migration wrappers can load them at runtime without external files. -->
+    <EmbeddedResource Include="..\..\database\migrations\*Httm*.sql">
+      <LogicalName>HttmSqlMigrations.%(Filename).sql</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ClosedXML" Version="0.105.0" />
     <PackageReference Include="Dapper" Version="2.1.66" />
+    <PackageReference Include="FluentValidation" Version="11.11.0" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="11.11.0" />
     <PackageReference Include="Google.Apis.Auth" Version="1.69.0" />
     <PackageReference Include="MailKit" Version="4.16.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.0" />

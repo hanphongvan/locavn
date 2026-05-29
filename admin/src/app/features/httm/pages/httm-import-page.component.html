@@ -1,0 +1,188 @@
+<div class="httm-import-page">
+  <header class="httm-import-page__header">
+    <a routerLink="/httm/hoso" class="httm-import-page__back">← Danh sách HTTM</a>
+    <h1>Import hồ sơ HTTM từ Excel</h1>
+    <p class="httm-import-page__subtitle">
+      Wizard 3 bước. Tối đa <strong>1000 dòng</strong> / file, kích thước &le; 10MB.
+      Dòng trùng (Tên + Mã tỉnh + Mã huyện) sẽ bị <strong>bỏ qua</strong>.
+    </p>
+  </header>
+
+  <mat-stepper linear #stepper>
+    <!-- ============ STEP 1 ============ -->
+    <mat-step [completed]="!!file()" label="1. Tải mẫu & chọn file">
+      <mat-card class="httm-import-page__card">
+        <mat-card-content>
+          <p>Bước 1: tải file Excel mẫu, điền dữ liệu, rồi chọn lại file để upload.</p>
+          <div class="httm-import-page__actions">
+            <button mat-stroked-button color="primary" type="button" (click)="downloadTemplate()" [disabled]="downloading()">
+              <mat-icon>download</mat-icon>
+              {{ downloading() ? 'Đang tải…' : 'Tải file mẫu (.xlsx)' }}
+            </button>
+
+            <label class="httm-import-page__file">
+              <input type="file" accept=".xlsx" (change)="onFileSelected($event)" hidden #fi />
+              <button mat-flat-button color="accent" type="button" (click)="fi.click()">
+                <mat-icon>upload_file</mat-icon>
+                Chọn file Excel…
+              </button>
+              @if (file()) {
+                <span class="httm-import-page__filename">{{ file()!.name }} ({{ (file()!.size / 1024) | number: '1.0-0' }} KB)</span>
+              }
+            </label>
+          </div>
+        </mat-card-content>
+        <mat-card-actions align="end">
+          <button mat-flat-button color="primary" matStepperNext type="button" [disabled]="!file()">
+            Tiếp tục
+          </button>
+        </mat-card-actions>
+      </mat-card>
+    </mat-step>
+
+    <!-- ============ STEP 2 ============ -->
+    <mat-step [completed]="!!validateResult() && !hasBlockingErrors()" label="2. Xem trước & kiểm tra lỗi">
+      <mat-card class="httm-import-page__card">
+        <mat-card-content>
+          <div class="httm-import-page__validate-actions">
+            <button mat-stroked-button color="primary" type="button" (click)="runValidate()" [disabled]="!file() || validating()">
+              @if (validating()) {
+                <mat-spinner diameter="16" />
+              } @else {
+                <mat-icon>find_in_page</mat-icon>
+              }
+              {{ validating() ? 'Đang kiểm tra…' : (validateResult() ? 'Kiểm tra lại' : 'Bắt đầu kiểm tra') }}
+            </button>
+          </div>
+
+          @if (validateResult(); as r) {
+            <div class="httm-import-page__summary">
+              <span class="chip chip--ok">Hợp lệ: {{ r.validCount }}</span>
+              <span class="chip chip--warn">Trùng (sẽ bỏ qua): {{ r.skippedDuplicateCount }}</span>
+              <span class="chip chip--err">Lỗi: {{ r.errorCount }}</span>
+              <span class="chip">Tổng: {{ r.totalRows }} dòng</span>
+            </div>
+
+            @if (r.validRowsPreview.length > 0) {
+              <h3>Dòng hợp lệ (preview {{ r.validRowsPreview.length }} dòng đầu)</h3>
+              <table mat-table [dataSource]="r.validRowsPreview" class="httm-import-page__table">
+                <ng-container matColumnDef="rowNumber">
+                  <th mat-header-cell *matHeaderCellDef>Dòng</th>
+                  <td mat-cell *matCellDef="let row">{{ row.rowNumber }}</td>
+                </ng-container>
+                <ng-container matColumnDef="name">
+                  <th mat-header-cell *matHeaderCellDef>Tên cơ sở</th>
+                  <td mat-cell *matCellDef="let row">{{ row.name }}</td>
+                </ng-container>
+                <ng-container matColumnDef="httmType">
+                  <th mat-header-cell *matHeaderCellDef>Loại hình</th>
+                  <td mat-cell *matCellDef="let row">{{ row.httmType }}</td>
+                </ng-container>
+                <ng-container matColumnDef="provinceCode">
+                  <th mat-header-cell *matHeaderCellDef>Mã tỉnh</th>
+                  <td mat-cell *matCellDef="let row">{{ row.provinceCode }}</td>
+                </ng-container>
+                <ng-container matColumnDef="addressDetail">
+                  <th mat-header-cell *matHeaderCellDef>Địa chỉ</th>
+                  <td mat-cell *matCellDef="let row">{{ row.addressDetail || '—' }}</td>
+                </ng-container>
+                <tr mat-header-row *matHeaderRowDef="previewColumns"></tr>
+                <tr mat-row *matRowDef="let row; columns: previewColumns"></tr>
+              </table>
+            }
+
+            @if (r.errors.length > 0) {
+              <h3 class="httm-import-page__err-title">Lỗi (hiển thị {{ r.errors.length }} lỗi đầu)</h3>
+              <table mat-table [dataSource]="r.errors" class="httm-import-page__table httm-import-page__table--err">
+                <ng-container matColumnDef="rowNumber">
+                  <th mat-header-cell *matHeaderCellDef>Dòng</th>
+                  <td mat-cell *matCellDef="let e">{{ e.rowNumber }}</td>
+                </ng-container>
+                <ng-container matColumnDef="column">
+                  <th mat-header-cell *matHeaderCellDef>Cột</th>
+                  <td mat-cell *matCellDef="let e">{{ e.column || '—' }}</td>
+                </ng-container>
+                <ng-container matColumnDef="message">
+                  <th mat-header-cell *matHeaderCellDef>Lỗi</th>
+                  <td mat-cell *matCellDef="let e">{{ e.message }}</td>
+                </ng-container>
+                <tr mat-header-row *matHeaderRowDef="errorColumns"></tr>
+                <tr mat-row *matRowDef="let row; columns: errorColumns"></tr>
+              </table>
+
+              <mat-checkbox [(ngModel)]="skipErrors" class="httm-import-page__skip">
+                Bỏ qua dòng lỗi khi confirm (chỉ tạo dòng hợp lệ)
+              </mat-checkbox>
+            }
+          }
+        </mat-card-content>
+        <mat-card-actions align="end">
+          <button mat-stroked-button matStepperPrevious type="button">Quay lại</button>
+          <button
+            mat-flat-button
+            color="primary"
+            matStepperNext
+            type="button"
+            [disabled]="!validateResult() || validateResult()!.validCount === 0 || hasBlockingErrors()"
+          >
+            Tiếp tục
+          </button>
+        </mat-card-actions>
+      </mat-card>
+    </mat-step>
+
+    <!-- ============ STEP 3 ============ -->
+    <mat-step label="3. Xác nhận import">
+      <mat-card class="httm-import-page__card">
+        <mat-card-content>
+          @if (validateResult(); as r) {
+            <p>
+              Sẽ tạo <strong>{{ r.validCount }}</strong> hồ sơ HTTM.
+              @if (r.skippedDuplicateCount > 0) {
+                <br />Bỏ qua <strong>{{ r.skippedDuplicateCount }}</strong> dòng trùng theo (Tên + Mã tỉnh + Mã huyện).
+              }
+              @if (r.errorCount > 0 && skipErrors()) {
+                <br />Bỏ qua <strong>{{ r.errorCount }}</strong> dòng lỗi.
+              }
+            </p>
+          }
+
+          <div class="httm-import-page__actions">
+            <button
+              mat-flat-button
+              color="primary"
+              type="button"
+              (click)="runConfirm()"
+              [disabled]="!validateResult() || confirming() || !!confirmResult()"
+            >
+              @if (confirming()) {
+                <mat-spinner diameter="16" />
+              } @else {
+                <mat-icon>cloud_upload</mat-icon>
+              }
+              {{ confirming() ? 'Đang import…' : 'Xác nhận tạo hồ sơ' }}
+            </button>
+          </div>
+
+          @if (confirmResult(); as cr) {
+            <div class="httm-import-page__result">
+              <h3>Kết quả</h3>
+              <span class="chip chip--ok">Đã tạo: {{ cr.created }}</span>
+              <span class="chip chip--warn">Trùng bỏ qua: {{ cr.skippedDuplicates }}</span>
+              <span class="chip chip--err">Lỗi bỏ qua: {{ cr.skippedErrors }}</span>
+
+              @if (cr.perRowErrors.length > 0) {
+                <h4 class="httm-import-page__err-title">Lỗi khi insert</h4>
+                <pre class="httm-import-page__pre">{{ errorsToString(cr.perRowErrors) }}</pre>
+              }
+            </div>
+          }
+        </mat-card-content>
+        <mat-card-actions align="end">
+          <button mat-stroked-button matStepperPrevious type="button" [disabled]="!!confirmResult()">Quay lại</button>
+          <button mat-flat-button color="primary" type="button" (click)="goBackToList()">Về danh sách</button>
+        </mat-card-actions>
+      </mat-card>
+    </mat-step>
+  </mat-stepper>
+</div>

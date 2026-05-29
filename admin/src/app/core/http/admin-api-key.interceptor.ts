@@ -2,18 +2,19 @@ import { HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
 
 import { AuthSessionStorage } from '../auth/auth-session.storage';
-import { environment } from '../../../environments/environment';
+import { RuntimeConfigService } from '../config/runtime-config.service';
+import { API_BASE_URL } from '../tokens/api-base-url.token';
 import { isRequestToApiBase } from './api-origin-matches.util';
 
 /** Phải khớp `AdminApiKeyDefaults.ApiKeyHeaderName` trên backend. */
 const ADMIN_API_KEY_HEADER = 'X-Admin-Api-Key';
 
 export const adminApiKeyInterceptor: HttpInterceptorFn = (req, next) => {
-  const key = environment.adminApiKey?.trim();
+  const key = inject(RuntimeConfigService).adminApiKey?.trim();
   if (!key) {
     return next(req);
   }
-  const base = environment.apiBaseUrl.replace(/\/$/, '');
+  const base = inject(API_BASE_URL);
   if (!base || !isRequestToApiBase(req.url, base)) {
     return next(req);
   }

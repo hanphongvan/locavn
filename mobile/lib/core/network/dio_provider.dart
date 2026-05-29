@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'api_config.dart';
 import 'auth_http_interceptor.dart';
+import 'client_telemetry_interceptor.dart';
 
 String _dioSafeRequestUrl(Uri u) =>
     '${u.scheme}://${u.host}${u.hasPort && u.port != 0 ? ':${u.port}' : ''}${u.path}';
@@ -21,6 +22,7 @@ final dioProvider = Provider<Dio>((ref) {
     ),
   );
   dio.interceptors.add(AuthHttpInterceptor(ref));
+  dio.interceptors.add(ClientTelemetryInterceptor(ref));
   dio.interceptors.add(
     InterceptorsWrapper(
       onRequest: (options, handler) {

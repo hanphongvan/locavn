@@ -5,6 +5,18 @@ namespace Httm.XangDau.Api.Features.Stations.Contracts;
 /// <summary>Paginated station read models (mobile list / map).</summary>
 public sealed record PagedStationsResponse<T>(IReadOnlyList<T> Items, int TotalCount, int Skip, int Take);
 
+/// <summary>
+/// 1 cluster / 1 tỉnh cho <c>GET /api/stations/map/clusters</c>: số trạm + centroid (avg lat/lng).
+/// Dùng khi zoom map &lt; threshold để tránh render hàng nghìn marker.
+/// </summary>
+public sealed record StationMapProvinceClusterDto(
+    int ProvinceId,
+    string ProvinceCode,
+    string ProvinceName,
+    long StationCount,
+    double CentroidLat,
+    double CentroidLng);
+
 /// <summary>One row in <c>StationOperatingHours</c> (weekly template).</summary>
 public sealed record StationOperatingSlotDto(
     int DayOfWeek,
@@ -56,7 +68,49 @@ public sealed record StationMapItemDto(
     /// <summary>Giờ đóng — ưu tiên <c>DM_DonVi.CloseTime</c> khi có; không thì lịch tuần hôm nay.</summary>
     string? ClosingTime = null,
     /// <summary>Active <c>StationStoreServices.ServiceCode</c> values for map filtering (client-side).</summary>
-    IReadOnlyList<string>? ActiveServiceCodes = null);
+    IReadOnlyList<string>? ActiveServiceCodes = null,
+    /// <summary>Stable slug mapped từ <c>DM_DonVi.CapTrenId</c> (đầu mối) qua <c>StationBranding</c> appsettings. Null = dùng marker chung.</summary>
+    string? BrandKey = null,
+    /// <summary>Remote logo URL fallback khi brand chưa bundle trong app. Null = bundle-only / không có logo.</summary>
+    string? BrandLogoUrl = null,
+    /// <summary><c>DM_DonVi.CapTrenId</c> — đầu mối (CapDonViId=235) của trạm. Mobile dùng để lọc client-side theo đầu mối.</summary>
+    int? ParentDonViId = null);
+
+/// <summary>
+/// V2 marker payload cho <c>GET /api/stations/map/v2</c>. Khác V1:
+/// - <c>PriceRon95</c>/<c>PriceDiesel</c>/<see cref="PriceForSelectedFuel"/> lấy trực tiếp từ
+///   <c>StationStoreServices.Price</c> (ServiceCode = <c>RON95</c>/<c>DIESEL</c>/<c>fuelCode</c> truyền vào).
+/// - Khi <c>fuelCode</c> được set, response chỉ chứa các trạm có dịch vụ ấy đang <c>IsActive</c>.
+/// </summary>
+public sealed record StationMapItemV2Dto(
+    int StationId,
+    string StationName,
+    double Latitude,
+    double Longitude,
+    string? ShortAddress,
+    decimal? PriceRon95 = null,
+    decimal? PriceDiesel = null,
+    /// <summary>Giá theo fuel code mobile đã chọn (null khi <c>fuelCode</c> không truyền).</summary>
+    decimal? PriceForSelectedFuel = null,
+    bool? IsActive = null,
+    bool? OpenNow = null,
+    string? OpenStatus = null,
+    string? OpeningTime = null,
+    string? ClosingTime = null,
+    IReadOnlyList<string>? ActiveServiceCodes = null,
+    string? BrandKey = null,
+    string? BrandLogoUrl = null,
+    int? ParentDonViId = null);
+
+/// <summary>Một đầu mối (<c>DM_DonVi</c> với <c>CapDonViId=235</c>) có ít nhất 1 trạm bán lẻ (<c>CapDonViId=248</c>).</summary>
+public sealed record StationDistributorDto(
+    int Id,
+    string Name,
+    int StationCount,
+    /// <summary>Slug brand từ <c>StationBranding</c> appsettings; null nếu đầu mối chưa cấu hình logo riêng.</summary>
+    string? BrandKey = null,
+    /// <summary>Logo URL remote (optional, đi kèm <c>BrandKey</c>).</summary>
+    string? BrandLogoUrl = null);
 
 /// <summary>One configured retail service on a station (<c>StationStoreServices</c>).</summary>
 public sealed record StationDetailStoreServiceDto(

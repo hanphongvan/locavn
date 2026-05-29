@@ -4,7 +4,7 @@ import { Router } from '@angular/router';
 import { catchError, throwError } from 'rxjs';
 
 import { AuthSessionStorage } from '../auth/auth-session.storage';
-import { environment } from '../../../environments/environment';
+import { API_BASE_URL } from '../tokens/api-base-url.token';
 import { isRequestToApiBase } from './api-origin-matches.util';
 
 /**
@@ -12,7 +12,7 @@ import { isRequestToApiBase } from './api-origin-matches.util';
  * Không áp dụng cho `POST /api/oauth/*` (luồng token).
  */
 export const adminApiUnauthorizedInterceptor: HttpInterceptorFn = (req, next) => {
-  const base = environment.apiBaseUrl.replace(/\/$/, '').trim();
+  const base = inject(API_BASE_URL);
   const session = inject(AuthSessionStorage);
   const router = inject(Router);
 

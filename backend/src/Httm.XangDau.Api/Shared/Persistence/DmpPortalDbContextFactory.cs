@@ -21,7 +21,7 @@ public sealed class DmpPortalDbContextFactory : IDesignTimeDbContextFactory<DmpP
             ?? "Server=(localdb)\\mssqllocaldb;Database=DMPPortal;Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=true";
 
         var options = new DbContextOptionsBuilder<DmpPortalDbContext>()
-            .UseSqlServer(connectionString)
+            .UseSqlServer(connectionString, sql => sql.UseCompatibilityLevel(120))
             .Options;
 
         return new DmpPortalDbContext(options);

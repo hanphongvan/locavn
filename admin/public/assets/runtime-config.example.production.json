@@ -1,0 +1,5 @@
+{
+  "_comment": "Sao chép nội dung file này → ghi đè `assets/runtime-config.json` trên server IIS sau khi deploy. Không cần build lại Angular. F5 trình duyệt là có hiệu lực (web.config đã set no-cache cho runtime-config.json).",
+  "apiBaseUrl": "https://xdapi.dms.gov.vn",
+  "adminApiKey": ""
+}

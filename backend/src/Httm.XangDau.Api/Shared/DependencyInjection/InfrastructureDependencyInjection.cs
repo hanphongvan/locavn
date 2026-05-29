@@ -41,7 +41,7 @@ public static class InfrastructureDependencyInjection
         }
 
         services.AddDbContext<DmpPortalDbContext>(options =>
-            options.UseSqlServer(connectionString));
+            options.UseSqlServer(connectionString, sql => sql.UseCompatibilityLevel(120)));
 
         services.AddHttpContextAccessor();
         services.AddScoped<IAdminPortalRequestContext, AdminPortalRequestContext>();

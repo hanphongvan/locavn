@@ -8,12 +8,15 @@ public static class StationReadValidator
     public const int DefaultTake = 20;
     public const int MaxKeywordLength = 200;
 
-    public static string? ValidatePagination(int skip, int take)
+    /// <summary>Cap riêng cho viewport queries — bbox có thể chứa hàng trăm trạm ở zoom thấp/vừa.</summary>
+    public const int MaxTakeBounds = 1000;
+
+    public static string? ValidatePagination(int skip, int take, int maxTake = MaxTake)
     {
         if (skip < 0)
             return "skip must be >= 0.";
-        if (take < 1 || take > MaxTake)
-            return $"take must be between 1 and {MaxTake}.";
+        if (take < 1 || take > maxTake)
+            return $"take must be between 1 and {maxTake}.";
         return null;
     }
 

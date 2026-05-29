@@ -29,3 +29,19 @@ IconData storeServiceIconData(String? iconKey) {
       return Icons.room_service_outlined;
   }
 }
+
+/// Icon ưu tiên theo [serviceCode] khi là sản phẩm nhiên liệu (`StationStoreServices.ServiceCode`
+/// trùng `FuelProducts.Code`): `RON*` / `E5*` / `E10*` → bơm xăng; `DIESEL*` → thùng dầu.
+/// Các code khác fallback về [storeServiceIconData] với [iconKey] do store-admin / catalog cấu hình.
+IconData storeServiceIconForCode(String? serviceCode, String? iconKey) {
+  if (serviceCode != null) {
+    final u = serviceCode.trim().toUpperCase();
+    if (u.startsWith('DIESEL')) {
+      return Icons.oil_barrel_outlined;
+    }
+    if (u.startsWith('E5') || u.startsWith('E10') || u.startsWith('RON')) {
+      return Icons.local_gas_station_outlined;
+    }
+  }
+  return storeServiceIconData(iconKey);
+}

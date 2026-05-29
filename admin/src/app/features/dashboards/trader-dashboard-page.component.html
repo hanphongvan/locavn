@@ -1,10 +1,5 @@
 <div class="dash">
-  <app-page-header title="Bảng điều khiển — Nhà phân phối">
-    <p appPageHeaderDesc>
-      Tổng quan từ cùng API quản trị (danh mục cửa hàng, giá hiện hành, tồn kho). Không có API riêng «cửa hàng cần cập
-      nhật» — mục đó không hiển thị.
-    </p>
-  </app-page-header>
+  <app-page-header title="Bảng điều khiển — Nhà phân phối" />
 
   @if (model(); as m) {
     <div class="dash__kpis">
@@ -83,7 +78,7 @@
 
     @if (m.prices.kind === 'ok' && m.prices.items.length) {
       <app-section-card title="Giá hiện hành (theo cửa hàng)" [flushBody]="true">
-        <p class="dash-section-lede">{{ m.prices.items.length }} dòng từ trang API (không bổ sung dữ liệu)</p>
+        <p class="dash-section-lede">{{ m.prices.items.length }} dòng</p>
         <app-table-wrapper>
           <table class="data-table dash-preview__table">
             <thead>

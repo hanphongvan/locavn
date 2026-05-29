@@ -4,10 +4,12 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../core/assets/brand_marker_registry.dart';
 import '../../../core/assets/map_marker_asset_paths.dart';
 import '../../../core/formatting/vnd_currency_format.dart';
 import '../../../core/map/app_map_marker.dart';
 import '../../stations/data/models/station_map_item.dart';
+import '../data/brand_marker_source.dart';
 import 'map_providers.dart';
 import 'map_screen_palette.dart';
 import 'map_station_marker_factory.dart';
@@ -23,7 +25,13 @@ abstract final class MapStationMarkerComposer {
   /// Tránh đọc lặp asset PNG từ disk khi compose nhiều marker.
   static final Map<String, Future<ByteData>> _bundleLoadFutures = {};
 
-  static String _pathForKind(StationMapMarkerAssetKind kind) => switch (kind) {
+  static const Map<StationMapMarkerAssetKind, String> _kindNames = {
+    StationMapMarkerAssetKind.open: 'open',
+    StationMapMarkerAssetKind.closed: 'closed',
+    StationMapMarkerAssetKind.cheap: 'cheap',
+  };
+
+  static String _genericPathFor(StationMapMarkerAssetKind kind) => switch (kind) {
         StationMapMarkerAssetKind.open => MapMarkerAssetPaths.stationOpen,
         StationMapMarkerAssetKind.closed => MapMarkerAssetPaths.stationClosed,
         StationMapMarkerAssetKind.cheap => MapMarkerAssetPaths.stationCheap,
@@ -31,6 +39,16 @@ abstract final class MapStationMarkerComposer {
 
   static double? _price(StationMapItem item, MapMarkerFuelPriceMode mode) =>
       mode == MapMarkerFuelPriceMode.ron95 ? item.priceRon95 : item.priceDiesel;
+
+  /// Size pixel (đã round) cho **inner icon** bên trong marker — composer dùng làm key
+  /// query [BrandMarkerSource]. Public để [MapStationMapBody] preload **đúng size**:
+  /// nếu preload size khác composer lookup → cache miss vĩnh viễn.
+  static int innerIconPxFor({required double dpr, required bool displayBothFuelPrices}) {
+    final clampedDpr = dpr.clamp(2.0, 3.0);
+    final iconLogical = displayBothFuelPrices ? 30.0 : 36.0;
+    final iconH = iconLogical * clampedDpr;
+    return (iconH * 0.88).round().clamp(24, 200);
+  }
 
   static String _cacheKey({
     required int stationId,
@@ -42,13 +60,22 @@ abstract final class MapStationMarkerComposer {
     required bool displayBothFuelPrices,
     double? priceRon95,
     double? priceDiesel,
+    String? brandKey,
+    String? selectedFuelCode,
   }) {
+    // brand suffix làm cache key duy nhất per-brand+kind → 200 trạm cùng (brand,kind,price)
+    // dùng chung 1 bitmap.
+    final brandSuffix = brandKey == null ? '' : '_$brandKey';
+    // fc suffix để khi user đổi fuelCode lọc → cache không trả icon RON cũ.
+    final fcSuffix = selectedFuelCode == null ? '' : '_fc${selectedFuelCode.toUpperCase()}';
     if (displayBothFuelPrices) {
-      return '${stationId}_${kind.name}_${selected ? 1 : 0}_${dpr.toStringAsFixed(1)}_dual_'
+      return '${stationId}_${kind.name}$brandSuffix$fcSuffix'
+          '_${selected ? 1 : 0}_${dpr.toStringAsFixed(1)}_dual_'
           '${priceRon95?.round() ?? -1}_${priceDiesel?.round() ?? -1}';
     }
 
-    return '${stationId}_${kind.name}_${selected ? 1 : 0}_${dpr.toStringAsFixed(1)}_${fuel.name}_${price?.round() ?? -1}';
+    return '${stationId}_${kind.name}$brandSuffix$fcSuffix'
+        '_${selected ? 1 : 0}_${dpr.toStringAsFixed(1)}_${fuel.name}_${price?.round() ?? -1}';
   }
 
   static void _remember(String key, AppMapMarkerIcon d) {
@@ -66,8 +93,11 @@ abstract final class MapStationMarkerComposer {
   static Future<ui.Image?> _decodeInnerIcon(String path, int px) async {
     try {
       final raw = await _bundleBytes(path);
+      final bytes = raw.buffer.asUint8List();
+      // Placeholder (1×1, ~67 B) → coi như chưa có asset → caller fallback.
+      if (bytes.length < 200) return null;
       final codec = await ui.instantiateImageCodec(
-        raw.buffer.asUint8List(),
+        bytes,
         targetWidth: px,
         targetHeight: px,
       );
@@ -87,9 +117,19 @@ abstract final class MapStationMarkerComposer {
     required MapMarkerFuelPriceMode fuelMode,
     /// `true`: hai dòng giá (RON95 + diesel). `false`: một dòng theo [fuelMode] (bản đồ Lãnh đạo dùng false).
     bool displayBothFuelPrices = false,
+    /// Khi non-null, marker ưu tiên `item.priceForSelectedFuel` thay vì giá theo [fuelMode]
+    /// — đồng bộ với bộ lọc fuelCode mobile gửi xuống `/api/stations/map/v2`.
+    String? selectedFuelCode,
   }) async {
     final dpr = devicePixelRatio.clamp(2.0, 3.0);
-    final price = _price(item, fuelMode);
+    final price = selectedFuelCode != null
+        ? item.priceForSelectedFuel
+        : _price(item, fuelMode);
+
+    // Brand bundled? Cache key per-brand để bitmap tái dùng giữa 200 trạm cùng brand.
+    // Brand chưa bundle hoặc PNG placeholder → null → cache key như chế độ marker chung.
+    final brandKey = BrandMarkerRegistry.isBundled(item.brandKey) ? item.brandKey : null;
+
     final key = _cacheKey(
       stationId: item.stationId,
       kind: kind,
@@ -100,6 +140,8 @@ abstract final class MapStationMarkerComposer {
       displayBothFuelPrices: displayBothFuelPrices,
       priceRon95: item.priceRon95,
       priceDiesel: item.priceDiesel,
+      brandKey: brandKey,
+      selectedFuelCode: selectedFuelCode,
     );
     final cached = _cache[key];
     if (cached != null) {
@@ -158,14 +200,22 @@ abstract final class MapStationMarkerComposer {
     }
 
     final innerPx = (iconH * 0.88).round().clamp(24, 200);
-    final inner = await _decodeInnerIcon(_pathForKind(kind), innerPx);
+    final resolved = await _resolveInnerIcon(
+      brandKey: brandKey,
+      kind: kind,
+      iconPx: innerPx,
+    );
+    final inner = resolved.image;
     if (inner != null) {
       final iw = inner.width.toDouble();
       final ih = inner.height.toDouble();
       final dst = Rect.fromCenter(center: iconCenter, width: iconH, height: iconH);
       final src = Rect.fromLTWH(0, 0, iw, ih);
       canvas.drawImageRect(inner, src, dst, Paint()..filterQuality = FilterQuality.medium);
-      inner.dispose();
+      // Generic asset decode mỗi lần (không cache) → dispose. Brand cache giữ ảnh.
+      if (resolved.canDispose) {
+        inner.dispose();
+      }
     } else {
       final iconPaint = Paint()..color = MapScreenPalette.textSecondary;
       canvas.drawCircle(iconCenter, iconH * 0.32, iconPaint);
@@ -246,4 +296,27 @@ abstract final class MapStationMarkerComposer {
     _remember(key, icon);
     return icon;
   }
+
+  /// Resolve icon trạm: ưu tiên brand bundled (`<brand>_<kind>.png`), fallback marker chung.
+  /// **Không block**: nếu brand asset chưa preload xong, fallback marker chung trong khung
+  /// hiện tại; [MapStationMapBody] sẽ re-apply sau khi preload xong (cache key đổi → re-render).
+  static Future<_InnerIcon> _resolveInnerIcon({
+    required String? brandKey,
+    required StationMapMarkerAssetKind kind,
+    required int iconPx,
+  }) async {
+    if (brandKey != null) {
+      final kindName = _kindNames[kind] ?? kind.name;
+      final brandImg = BrandMarkerSource.instance.markerImageSync(brandKey, kindName, iconPx);
+      if (brandImg != null) return _InnerIcon(brandImg, canDispose: false);
+    }
+    final generic = await _decodeInnerIcon(_genericPathFor(kind), iconPx);
+    return _InnerIcon(generic, canDispose: generic != null);
+  }
+}
+
+class _InnerIcon {
+  const _InnerIcon(this.image, {required this.canDispose});
+  final ui.Image? image;
+  final bool canDispose;
 }

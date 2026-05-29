@@ -3,14 +3,11 @@ import 'package:flutter/foundation.dart';
 /// Loại đơn vị (bản đồ hiện chủ yếu cửa hàng bán lẻ; đầu mối sẽ hiển thị khi API bổ sung).
 enum MapUnitTypeFilter { all, wholesale, retail }
 
-/// Lọc theo loại nhiên liệu có giá trên marker (client-side).
-enum MapFuelTypeFilter { all, petrol, diesel, lpg }
-
 /// Lọc theo đánh giá — chỉ thu hẹp danh sách khi API map có điểm trung bình.
 enum MapRatingFilter { all, min3, min4 }
 
-/// Map filter state. Geo + [status] + [keyword] kích hoạt tải lại từ máy chủ;
-/// các trường còn lại lọc client-side sau khi tải (không gọi lại API khi chỉ đổi chip).
+/// Map filter state. Geo + [status] + [keyword] + [fuelCode] kích hoạt tải lại từ máy chủ
+/// (/api/stations/map/v2); các trường còn lại lọc client-side sau khi tải.
 @immutable
 class MapFilters {
   const MapFilters({
@@ -22,11 +19,13 @@ class MapFilters {
     /// `null` / rỗng / `'all'` → không gửi `status`. `'open'` / `'closed'` → API.
     this.status,
     this.unitType = MapUnitTypeFilter.all,
-    this.fuelType = MapFuelTypeFilter.all,
+    this.fuelCode,
     this.ratingFilter = MapRatingFilter.all,
     this.priceMinDong = MapFilters.priceSliderMinDong,
     this.priceMaxDong = MapFilters.priceSliderMaxDong,
     this.selectedServiceCodes = const [],
+    this.distributorId,
+    this.distributorLabel,
   });
 
   final String? keyword;
@@ -37,7 +36,11 @@ class MapFilters {
   final String? status;
 
   final MapUnitTypeFilter unitType;
-  final MapFuelTypeFilter fuelType;
+
+  /// Mã lá của cây `FuelProducts` (vd `RON95`, `E5RON92`, `DIESEL`).
+  /// Null = "Tất cả". Truyền nguyên xuống `/api/stations/map/v2?fuelCode=...`.
+  final String? fuelCode;
+
   final MapRatingFilter ratingFilter;
   final int priceMinDong;
   final int priceMaxDong;
@@ -45,11 +48,25 @@ class MapFilters {
   /// Uppercase service codes from [StoreServiceCatalogItem.serviceCode] — station must have **all** active.
   final List<String> selectedServiceCodes;
 
+  /// Đầu mối được chọn (`DM_DonVi` cấp 235). Null = không lọc theo đầu mối.
+  /// Lọc client-side qua `StationMapItem.parentDonViId`.
+  final int? distributorId;
+
+  /// Tên đầu mối hiển thị trên chip strip (cache để không phải lookup lại danh sách).
+  final String? distributorLabel;
+
   /// Đồng/lít — mép slider (đơn giản, không phụ thuộc từng tỉnh).
   static const int priceSliderMinDong = 10000;
   static const int priceSliderMaxDong = 50000;
 
   static const int maxKeywordLength = 200;
+
+  /// Vai trò Lãnh đạo bị ẩn nhóm khí — kiểm tra theo code/parent code (case-insensitive).
+  static bool isGasFuelCode(String? code) {
+    if (code == null) return false;
+    final upper = code.trim().toUpperCase();
+    return upper == 'LPG' || upper == 'GAS' || upper == 'KHI';
+  }
 
   static List<String> normalizeSelectedServices(Iterable<String> raw) {
     final u = raw.map((c) => c.toUpperCase()).toSet().toList()..sort();
@@ -67,32 +84,33 @@ class MapFilters {
 
   bool get hasActiveClientFilters =>
       unitType != MapUnitTypeFilter.all ||
-      fuelType != MapFuelTypeFilter.all ||
+      fuelCode != null ||
       ratingFilter != MapRatingFilter.all ||
       hasPriceFilter ||
-      selectedServiceCodes.isNotEmpty;
+      selectedServiceCodes.isNotEmpty ||
+      distributorId != null;
 
-  /// Tỉnh/huyện/từ khóa — hiển thị thanh chip trên bản đồ.
-  bool get hasActiveStrip => hasActiveGeo || hasActiveKeyword;
+  /// Tỉnh/huyện/từ khóa/đầu mối — hiển thị thanh chip trên bản đồ.
+  bool get hasActiveStrip =>
+      hasActiveGeo || hasActiveKeyword || distributorId != null;
 
   /// Có bất kỳ bộ lọc nào (gồm chip client-side).
   bool get hasAny => hasActiveStrip || hasActiveClientFilters;
 
   /// Chuỗi tóm tắt một dòng (collapsed sheet / chip).
-  String get compactSummaryLabel {
+  ///
+  /// Khi muốn show tên fuel theo catalog từ API (vd "E5RON92"), caller có thể lookup
+  /// label từ [FuelProductLeaf.name] và truyền vào [compactSummaryLabelWithFuelName].
+  String get compactSummaryLabel => compactSummaryLabelWithFuelName(null);
+
+  /// Variant nhận [fuelDisplayName] đã resolve từ catalog. Null → fallback theo code.
+  String compactSummaryLabelWithFuelName(String? fuelDisplayName) {
     final parts = <String>[];
-    switch (fuelType) {
-      case MapFuelTypeFilter.all:
-        break;
-      case MapFuelTypeFilter.petrol:
-        parts.add('Xăng');
-        break;
-      case MapFuelTypeFilter.diesel:
-        parts.add('Dầu');
-        break;
-      case MapFuelTypeFilter.lpg:
-        parts.add('Khí');
-        break;
+    final fuel = fuelCode?.trim();
+    if (fuel != null && fuel.isNotEmpty) {
+      parts.add(fuelDisplayName != null && fuelDisplayName.isNotEmpty
+          ? fuelDisplayName
+          : fuel);
     }
     final st = status?.trim().toLowerCase();
     if (st == 'open') {
@@ -130,6 +148,10 @@ class MapFilters {
             : '${selectedServiceCodes.length} dịch vụ',
       );
     }
+    final dn = distributorLabel?.trim();
+    if (dn != null && dn.isNotEmpty) {
+      parts.add(dn);
+    }
     if (parts.isEmpty) {
       return 'Chưa lọc thêm';
     }
@@ -159,11 +181,13 @@ class MapFilters {
       districtLabel: districtLabel,
       status: status,
       unitType: unitType,
-      fuelType: fuelType,
+      fuelCode: fuelCode,
       ratingFilter: ratingFilter,
       priceMinDong: priceMinDong,
       priceMaxDong: priceMaxDong,
       selectedServiceCodes: selectedServiceCodes,
+      distributorId: distributorId,
+      distributorLabel: distributorLabel,
     );
   }
 
@@ -177,11 +201,13 @@ class MapFilters {
     Object? districtLabel = _sentinel,
     Object? status = _sentinel,
     Object? unitType = _sentinel,
-    Object? fuelType = _sentinel,
+    Object? fuelCode = _sentinel,
     Object? ratingFilter = _sentinel,
     Object? priceMinDong = _sentinel,
     Object? priceMaxDong = _sentinel,
     Object? selectedServiceCodes = _sentinel,
+    Object? distributorId = _sentinel,
+    Object? distributorLabel = _sentinel,
   }) {
     return MapFilters(
       keyword: identical(keyword, _sentinel) ? this.keyword : keyword as String?,
@@ -191,7 +217,7 @@ class MapFilters {
       districtLabel: identical(districtLabel, _sentinel) ? this.districtLabel : districtLabel as String?,
       status: identical(status, _sentinel) ? this.status : status as String?,
       unitType: identical(unitType, _sentinel) ? this.unitType : unitType as MapUnitTypeFilter,
-      fuelType: identical(fuelType, _sentinel) ? this.fuelType : fuelType as MapFuelTypeFilter,
+      fuelCode: identical(fuelCode, _sentinel) ? this.fuelCode : fuelCode as String?,
       ratingFilter: identical(ratingFilter, _sentinel) ? this.ratingFilter : ratingFilter as MapRatingFilter,
       priceMinDong: identical(priceMinDong, _sentinel) ? this.priceMinDong : priceMinDong as int,
       priceMaxDong: identical(priceMaxDong, _sentinel) ? this.priceMaxDong : priceMaxDong as int,
@@ -200,6 +226,8 @@ class MapFilters {
           : List<String>.unmodifiable(
               (selectedServiceCodes as List<String>).map((c) => c.toUpperCase()).toList()..sort(),
             ),
+      distributorId: identical(distributorId, _sentinel) ? this.distributorId : distributorId as int?,
+      distributorLabel: identical(distributorLabel, _sentinel) ? this.distributorLabel : distributorLabel as String?,
     );
   }
 }

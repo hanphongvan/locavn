@@ -8,7 +8,18 @@
 abstract final class ApiEndpoints {
   static const stations = '/api/stations';
   static const stationsMap = '/api/stations/map';
+  /// V2 map markers: thêm `fuelCode` (lọc theo `StationStoreServices.ServiceCode` khớp
+  /// `FuelProducts.Code`) + embed `priceForSelectedFuel` trong cùng SP. V1 giữ cho app cũ.
+  static const stationsMapV2 = '/api/stations/map/v2';
+  /// Citizen viewport — markers trong bbox + optional keyword (Phase 2.G).
+  static const stationsMapBounds = '/api/stations/map/bounds';
+  /// Province-level clusters (count + centroid) cho low zoom (Phase 2.G).
+  static const stationsMapClusters = '/api/stations/map/clusters';
+  /// Đầu mối (CapDonViId=235) có trạm bán lẻ — dùng cho bộ lọc brand bản đồ Citizen.
+  static const stationsDistributors = '/api/stations/distributors';
   static const stationsStoreServicesCatalog = '/api/stations/store-services-catalog';
+  /// Lá active của cây `FuelProducts` — public catalog cho chip "Loại nhiên liệu".
+  static const stationsFuelProductLeaves = '/api/stations/fuel-products/leaves';
   static const stationsNearest = '/api/stations/nearest';
   static const stationsCheapest = '/api/stations/cheapest';
   static const stationsTopRated = '/api/stations/top-rated';

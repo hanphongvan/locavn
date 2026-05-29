@@ -1,0 +1,115 @@
+<div class="stack">
+  <app-page-header title="Bảng điều khiển HTTM">
+  </app-page-header>
+
+  @if (errorMessage(); as err) {
+  <div class="banner banner--error" role="alert">{{ err }}</div>
+  }
+
+  <!-- Vùng 1: Hero CTA -->
+  <section class="hero-cta">
+    <button type="button" class="hero-cta__btn hero-cta__btn--primary" (click)="createSurveyDraft()"
+      [disabled]="creatingSurvey()">
+      <span class="hero-cta__icon" aria-hidden="true">📋</span>
+      <span class="hero-cta__body">
+        <span class="hero-cta__title">Tạo phiếu khảo sát</span>
+        <span class="hero-cta__hint">Khảo sát cơ sở HTTM trên địa bàn tỉnh</span>
+      </span>
+    </button>
+
+    <a class="hero-cta__btn hero-cta__btn--secondary" routerLink="/httm/import">
+      <span class="hero-cta__icon" aria-hidden="true">📥</span>
+      <span class="hero-cta__body">
+        <span class="hero-cta__title">Import dữ liệu Hạ tầng TM</span>
+        <span class="hero-cta__hint">Import excel danh sách chợ, siêu thị, TTTM, CHTL...</span>
+      </span>
+    </a>
+  </section>
+
+  <!-- Vùng 2: KPI -->
+  <section class="kpi-grid">
+    <app-stat-card title="Tổng cơ sở HTTM" linkText="Xem danh sách →" linkRouterLink="/httm/hoso">
+      <strong class="kpi-value">{{ summary()?.facilityCount ?? '—' }}</strong>
+    </app-stat-card>
+    <app-stat-card title="Phiếu khảo sát" linkText="Quản lý phiếu →" linkRouterLink="/surveys">
+      <strong class="kpi-value">{{ summary()?.surveyCount ?? '—' }}</strong>
+    </app-stat-card>
+    <app-stat-card title="Phiếu chờ xử lý" hint="submitted + reviewing" linkText="Mở danh sách →"
+      linkRouterLink="/surveys">
+      <strong class="kpi-value">{{ summary()?.surveysPendingReview ?? '—' }}</strong>
+    </app-stat-card>
+    <app-stat-card title="Hạ tầng TM chưa cập nhật" hint="Chưa có đề xuất cập nhật nào" linkText="Tới import →"
+      linkRouterLink="/httm/import">
+      <strong class="kpi-value">{{ notUpdatedCount() ?? '—' }}</strong>
+    </app-stat-card>
+  </section>
+
+  <!-- Vùng 3: Phân bố theo loại HTTM -->
+  <app-section-card title="Phân bố cơ sở theo loại">
+    <div class="chart-box">
+      <canvas id="dash-chart-type" height="160"></canvas>
+    </div>
+  </app-section-card>
+
+  <!-- Vùng 4: Mini map -->
+  <app-section-card title="Bản đồ HTTM">
+    <div appSectionCardActions>
+      <a routerLink="/httm/map" class="btn btn--text">Xem bản đồ đầy đủ →</a>
+    </div>
+    <div #miniMap class="mini-map"></div>
+  </app-section-card>
+
+  <!-- Vùng 5: Hoạt động gần đây -->
+  <section class="recent-grid">
+    <app-section-card title="Phiếu nộp gần nhất">
+      <div appSectionCardActions>
+        <a routerLink="/httm/submissions" class="btn btn--text">Tất cả →</a>
+      </div>
+      @if (recentSubmissions().length === 0) {
+      <p class="muted">Chưa có phiếu nộp nào.</p>
+      } @else {
+      <ul class="recent-list">
+        @for (s of recentSubmissions(); track s.id) {
+        <li class="recent-item">
+          <a [routerLink]="['/httm/submissions', s.id]" class="recent-item__name">{{ s.name }}</a>
+          <span class="recent-item__meta">
+            {{ typeName(s.httmType) }} · {{ s.provinceCode || '—' }} ·
+            <span class="badge badge--{{ s.status }}">{{ s.status }}</span>
+            · {{ s.submittedAt | date: 'short' }}
+          </span>
+        </li>
+        }
+      </ul>
+      }
+    </app-section-card>
+
+    <app-section-card title="Cơ sở vừa cập nhật">
+      <div appSectionCardActions>
+        <a routerLink="/httm/hoso" class="btn btn--text">Tất cả →</a>
+      </div>
+      @if (recentFacilities().length === 0) {
+      <p class="muted">Chưa có cơ sở nào.</p>
+      } @else {
+      <ul class="recent-list">
+        @for (f of recentFacilities(); track f.id) {
+        <li class="recent-item">
+          <a [routerLink]="['/httm', f.id]" class="recent-item__name">{{ f.name }}</a>
+          <span class="recent-item__meta">
+            {{ typeName(f.httmType) }} · {{ f.provinceCode }} · {{ f.updatedAt | date: 'short' }}
+          </span>
+        </li>
+        }
+      </ul>
+      }
+    </app-section-card>
+  </section>
+
+  <!-- Vùng 6: Báo cáo nhanh -->
+  <app-section-card title="Báo cáo nhanh">
+    <div class="quick-actions">
+      <button type="button" class="btn btn--secondary" (click)="exportCsv()">Tải CSV tổng hợp</button>
+      <a routerLink="/httm/analytics" class="btn btn--secondary">Xem thống kê đầy đủ</a>
+      <a routerLink="/httm/report-templates" class="btn btn--secondary">Mẫu báo cáo</a>
+    </div>
+  </app-section-card>
+</div>

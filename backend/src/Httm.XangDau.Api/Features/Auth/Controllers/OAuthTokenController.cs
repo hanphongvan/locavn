@@ -20,7 +20,8 @@ public sealed class OAuthTokenController(
     OAuthJwtTokenIssuer jwtIssuer,
     IOptions<OAuthServerOptions> oauthOptions,
     GoogleLoginService googleLogin,
-    AppleLoginService appleLogin) : ControllerBase
+    AppleLoginService appleLogin,
+    ILogger<OAuthTokenController> logger) : ControllerBase
 {
     private static readonly JsonSerializerOptions OAuthJson = new()
     {
@@ -51,10 +52,23 @@ public sealed class OAuthTokenController(
     [Produces("application/json")]
     public async Task<IActionResult> Google([FromBody] GoogleLoginRequest request, CancellationToken cancellationToken)
     {
+        var remoteIp = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "(unknown)";
+        var ua = HttpContext.Request.Headers.UserAgent.ToString();
+        logger.LogInformation(
+            "[OAuth/Google] Inbound POST /api/oauth/google từ {RemoteIp}, UA='{Ua}', idTokenPresent={Present}, idTokenLength={Len}",
+            remoteIp,
+            ua,
+            request is not null && !string.IsNullOrWhiteSpace(request.IdToken),
+            request?.IdToken?.Length ?? 0);
+
         if (request is null || string.IsNullOrWhiteSpace(request.IdToken))
+        {
+            logger.LogWarning("[OAuth/Google] Request thiếu idToken → reject 400.");
             return InvalidGrant("Thiếu idToken.");
+        }
 
         var result = await googleLogin.SignInAsync(request.IdToken, cancellationToken).ConfigureAwait(false);
+        logger.LogInformation("[OAuth/Google] SignIn kết thúc với result type={ResultType}.", result.GetType().Name);
         return BuildTokenResponse(result);
     }
 

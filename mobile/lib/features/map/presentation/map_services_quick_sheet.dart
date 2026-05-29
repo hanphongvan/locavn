@@ -138,7 +138,7 @@ class _MapServicesQuickSheetState extends ConsumerState<_MapServicesQuickSheet> 
                         for (final item in catalog)
                           FilterChip(
                             avatar: Icon(
-                              storeServiceIconData(item.iconKey),
+                              storeServiceIconForCode(item.serviceCode, item.iconKey),
                               size: 18,
                               color: MapScreenPalette.filterTextPrimary,
                             ),

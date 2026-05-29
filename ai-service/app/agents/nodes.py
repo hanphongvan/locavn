@@ -244,6 +244,14 @@ async def security_guard(state: AgentState, deps: Deps) -> AgentState:
     text = state.get("resolved_question") or state.get("raw_question", "")
     decision = deps.guard.check(text)
     if not decision.allowed:
+        _logger.debug(
+            "security_guard.blocked",
+            user_id=state.get("user_id"),
+            risk_level=decision.risk_level,
+            matched_pattern=decision.matched_pattern,
+            block_reason=decision.block_reason,
+            question_preview=text[:200],
+        )
         await deps.dotnet.log_security_audit(
             user_id=state.get("user_id", 0),
             user_loai=state.get("user_loai", 0),
@@ -253,6 +261,11 @@ async def security_guard(state: AgentState, deps: Deps) -> AgentState:
             block_reason=decision.block_reason or "",
         )
         raise SecurityException(decision)
+    _logger.debug(
+        "security_guard.allowed",
+        user_id=state.get("user_id"),
+        question_preview=text[:200],
+    )
     return {}
 
 
@@ -306,6 +319,13 @@ async def intent_classifier(state: AgentState, deps: Deps) -> AgentState:
     if intent not in ALLOWED_INTENTS:
         intent = "UNKNOWN"
     confidence = float(result.get("confidence", 0.0))
+    _logger.debug(
+        "intent_classifier.result",
+        user_id=state.get("user_id"),
+        intent=intent,
+        confidence=confidence,
+        question_preview=text[:200],
+    )
     return {"intent": intent, "confidence": confidence}
 
 
@@ -389,8 +409,20 @@ async def plan_generator(state: AgentState, deps: Deps) -> AgentState:
         }
 
     # by_alias=True để JSON match camelCase trong schema doc Section 9.1.
+    plan_dict = plan.model_dump(by_alias=True)
+    _logger.debug(
+        "plan_generator.result",
+        user_id=state.get("user_id"),
+        entity_code=plan_dict.get("entity"),
+        confidence=plan.confidence,
+        columns_count=len(plan_dict.get("columns") or []),
+        filters_count=len(plan_dict.get("filters") or []),
+        has_group_by=bool(plan_dict.get("groupBy")),
+        has_order_by=bool(plan_dict.get("orderBy")),
+        limit=plan_dict.get("limit"),
+    )
     return {
-        "query_plan": plan.model_dump(by_alias=True),
+        "query_plan": plan_dict,
         "plan_confidence": plan.confidence,
         "plan_error": None,
     }
@@ -461,6 +493,16 @@ async def dynamic_query_executor(state: AgentState, deps: Deps) -> AgentState:
             status=result.status,
             error=result.error_message[:200] if result.error_message else None,
             log_id=result.log_id,
+        )
+    else:
+        _logger.debug(
+            "dynamic_query_executor.result",
+            user_id=user_id,
+            status=str(result.status),
+            rows_returned=result.rows_returned,
+            duration_ms=result.duration_ms,
+            log_id=result.log_id,
+            entity_code=plan_dict.get("entity"),
         )
 
     return {"query_result": result.to_state_dict()}
@@ -806,17 +848,24 @@ async def answer_composer(state: AgentState, deps: Deps) -> AgentState:
         if isinstance(query_result, dict):
             status = query_result.get("status")
             if status == "success":
+                _logger.debug("answer_composer.branch", branch="unknown_query_success")
                 return _format_dynamic_query_response(
                     query_plan=query_plan, candidates=candidates,
                     query_result=query_result,
                     plan_confidence=plan_confidence,
                 )
             if status == "no_data":
+                _logger.debug("answer_composer.branch", branch="unknown_query_no_data")
                 return _format_no_data_response(
                     query_plan=query_plan, candidates=candidates,
                 )
             # Failure status: fallback Phase 5E preview + thông báo lỗi.
             if isinstance(query_plan, dict):
+                _logger.debug(
+                    "answer_composer.branch",
+                    branch="unknown_query_failure_with_plan",
+                    failure_status=status,
+                )
                 return _format_plan_response(
                     query_plan, candidates,
                     query_failure_status=status,
@@ -829,10 +878,20 @@ async def answer_composer(state: AgentState, deps: Deps) -> AgentState:
             and isinstance(plan_confidence, (int, float))
             and plan_confidence >= PLAN_CONFIDENCE_THRESHOLD
         ):
+            _logger.debug(
+                "answer_composer.branch",
+                branch="unknown_plan_preview",
+                plan_confidence=plan_confidence,
+            )
             return _format_plan_response(query_plan, candidates)
 
         # Phase 5D fallback: UNKNOWN + có candidate → format response liệt kê.
         if candidates:
+            _logger.debug(
+                "answer_composer.branch",
+                branch="unknown_candidates_only",
+                candidates_count=len(candidates),
+            )
             return _format_candidate_entities_response(candidates)
 
     # Báo cáo: đã có report_markdown trong tool_results → đưa thẳng.
@@ -875,6 +934,16 @@ async def answer_composer(state: AgentState, deps: Deps) -> AgentState:
         answer_text = f"{warning_prefix}\n\n{answer_text}"
 
     answer_type = _answer_type_for(state, report_markdown)
+
+    _logger.debug(
+        "answer_composer.llm_answer",
+        user_id=state.get("user_id"),
+        intent=intent,
+        answer_type=answer_type,
+        answer_preview=answer_text[:300],
+        has_warning_prefix=bool(warning_prefix),
+        has_report_markdown=bool(report_markdown),
+    )
 
     return {
         "answer_text": answer_text,

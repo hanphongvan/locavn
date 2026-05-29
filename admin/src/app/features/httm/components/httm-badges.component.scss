@@ -1,0 +1,22 @@
+:host {
+  display: inline-block;
+}
+
+.httm-badge {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  border-radius: var(--app-radius-sm);
+  font-size: var(--app-text-sm);
+  background: var(--app-brand-muted-bg);
+  color: var(--app-brand-dark);
+}
+
+.httm-badge--type {
+  background: var(--app-success-surface);
+  color: var(--app-success-text);
+}
+
+.httm-badge--status {
+  background: #ede7f6;
+  color: #4527a0;
+}

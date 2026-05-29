@@ -23,6 +23,18 @@ export const routes: Routes = [
       import('./features/auth/access-denied-page.component').then((m) => m.AccessDeniedPageComponent),
   },
   {
+    path: 'public/map',
+    loadComponent: () =>
+      import('./features/public-map/public-httm-map-page.component').then((m) => m.PublicHttmMapPageComponent),
+  },
+  {
+    path: 'public/facility-update',
+    loadComponent: () =>
+      import('./features/public-facility-update/public-facility-update-page.component').then(
+        (m) => m.PublicFacilityUpdatePageComponent,
+      ),
+  },
+  {
     path: '',
     component: AdminShellComponent,
     canActivate: [storeAdminAuthGuard],

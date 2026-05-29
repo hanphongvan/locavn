@@ -92,6 +92,9 @@ flutter:
     - assets/map_markers/distributor_safe.png
     - assets/map_markers/distributor_warning.png
     - assets/map_markers/distributor_danger.png
+    # Brand logos: <key>.png khớp BrandMarkerRegistry.bundled + StationBranding:Brands ở backend.
+    # 64×64 nền trong suốt; placeholder 1×1 cho đến khi nạp logo thật.
+    - assets/map_markers/brands/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

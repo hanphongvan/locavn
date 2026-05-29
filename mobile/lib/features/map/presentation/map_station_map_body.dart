@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 
@@ -12,6 +13,7 @@ import '../../../core/map/app_map_controller.dart';
 import '../../../core/map/app_map_marker.dart';
 import '../../stations/data/models/station_map_item.dart';
 import '../../stations/station_open_status.dart';
+import '../data/brand_marker_source.dart';
 import 'map_providers.dart';
 import 'map_station_marker_composer.dart';
 import 'map_station_marker_factory.dart';
@@ -43,7 +45,9 @@ class MapStationMapBody extends StatefulWidget {
     this.mapBottomPadding = 0,
     this.mapTopPadding = 0,
     this.fuelPriceMode = MapMarkerFuelPriceMode.ron95,
+    this.selectedFuelCode,
     this.skipEmptyViewportRecovery = true,
+    this.onCameraViewportChanged,
   });
 
   final List<StationMapItem> allItems;
@@ -72,12 +76,19 @@ class MapStationMapBody extends StatefulWidget {
   /// Vùng UI phủ phía trên (header + tìm kiếm + chip) — đẩy UI bản đồ / controls xuống.
   final double mapTopPadding;
 
-  /// Giá hiển thị trên marker (RON95 / Diesel).
+  /// Giá hiển thị trên marker (RON95 / Diesel) khi không có fuelCode lọc.
   final MapMarkerFuelPriceMode fuelPriceMode;
+
+  /// Khi non-null, marker dùng `priceForSelectedFuel` (đồng bộ chip "Loại nhiên liệu" bộ lọc).
+  final String? selectedFuelCode;
 
   /// Khi `false`, nếu viewport không có marker nhưng [allItems] không rỗng, tự fit camera tới vùng có trạm (hữu ích cho bản đồ "toàn quốc").
   /// Mặc định `true` cho UX người dân: giữ khung ~500 m quanh GPS.
   final bool skipEmptyViewportRecovery;
+
+  /// Phase 2.B-viewport: bắn (zoom, bounds) sau mỗi lần camera idle (đã debounce 400ms).
+  /// Shell cập nhật `mapViewportProvider` để fetch viewport-aware.
+  final void Function(double zoom, AppLatLngBounds bounds)? onCameraViewportChanged;
 
   @override
   State<MapStationMapBody> createState() => _MapStationMapBodyState();
@@ -215,14 +226,20 @@ class _MapStationMapBodyState extends State<MapStationMapBody> {
     );
   }
 
-  static int _capForZoom(double zoom) {
-    if (zoom < 7.5) return 240;
-    if (zoom < 9.5) return 420;
-    if (zoom < 11.5) return 650;
-    if (zoom < 13) return 900;
-    if (zoom < 14.5) return 360;
-    if (zoom < 16) return 220;
-    return 160;
+  /// Tính cap marker từ ĐỘ RỘNG BBOX (degree) thay vì tin số zoom — Goong/MapLibre
+  /// adapter trên một số thiết bị báo zoom stale (vd luôn trả 15.78 dù user zoom
+  /// ra toàn quốc). Bbox luôn đúng vì map provider tự cập nhật.
+  ///
+  /// Tham chiếu: vĩ độ Việt Nam ~16°, 1° ≈ 110 km. Hiện tại chỉ hiển thị marker
+  /// khi anh zoom xuống mức quận/huyện trở xuống (theo yêu cầu UX).
+  static int _capForBounds(AppLatLngBounds bounds) {
+    final latSpan = (bounds.northeast.latitude - bounds.southwest.latitude).abs();
+    final lngSpan = (bounds.northeast.longitude - bounds.southwest.longitude).abs();
+    final maxSpan = latSpan > lngSpan ? latSpan : lngSpan;
+
+    if (maxSpan > 0.1) return 0;      // > 11 km — quận lớn / thành phố / tỉnh → ẨN
+    if (maxSpan > 0.03) return 220;   // 3-11 km — phường / xã / quận nhỏ
+    return 160;                        // < 3 km — street view
   }
 
   static double _dist2(StationMapItem a, AppLatLng c) {
@@ -243,7 +260,7 @@ class _MapStationMapBodyState extends State<MapStationMapBody> {
         inside.add(e);
       }
     }
-    final cap = math.min(_capForZoom(zoom), 2000);
+    final cap = math.min(_capForBounds(bounds), 2000);
     if (inside.length <= cap) {
       return inside;
     }
@@ -311,7 +328,26 @@ class _MapStationMapBodyState extends State<MapStationMapBody> {
         if (showBusy) setState(() => _markersBusy = false);
         return;
       }
+      // Phase 2.B-viewport: thông báo (zoom, bounds) cho shell — kích hoạt fetch
+      // mới (markers in bounds / province clusters) tùy zoom.
+      widget.onCameraViewportChanged?.call(zoom, bounds);
       var visible = _withOverlayStation(_itemsInView(widget.allItems, bounds, zoom));
+      if (kDebugMode) {
+        final b = bounds;
+        final inBoundsCount =
+            widget.allItems.where((m) => b.contains(AppLatLng(m.latitude, m.longitude))).length;
+        final latSpan = (b.northeast.latitude - b.southwest.latitude).abs();
+        final lngSpan = (b.northeast.longitude - b.southwest.longitude).abs();
+        final maxSpan = latSpan > lngSpan ? latSpan : lngSpan;
+        debugPrint(
+          '[map] idle zoom=${zoom.toStringAsFixed(2)} '
+          'span=${maxSpan.toStringAsFixed(3)}° '
+          'allItems=${widget.allItems.length} '
+          'inBounds=$inBoundsCount '
+          'visibleAfterCap=${visible.length} '
+          'cap=${_capForBounds(b)}',
+        );
+      }
       if (!widget.skipEmptyViewportRecovery &&
           visible.isEmpty &&
           widget.allItems.isNotEmpty &&
@@ -436,6 +472,21 @@ class _MapStationMapBodyState extends State<MapStationMapBody> {
       MapStationMarkerFactory.invalidateCache();
     }
 
+    // Preload 9 marker brand bundled (3 brand × 3 kind) — size PHẢI khớp composer
+    // lookup, lấy qua helper [MapStationMarkerComposer.innerIconPxFor] để tránh
+    // off-by-one giữa preload (36*dpr) và compose (36*dpr*0.88).
+    final brandSizePx = MapStationMarkerComposer.innerIconPxFor(
+      dpr: dpr,
+      displayBothFuelPrices: false,
+    );
+    try {
+      await BrandMarkerSource.instance
+          .preloadAll(brandSizePx)
+          .timeout(const Duration(seconds: 6));
+    } on TimeoutException {
+      // Best-effort — composer fallback marker chung; lần re-apply sau marker brand sẽ vào.
+    } catch (_) {/* best-effort */}
+
     const batch = 80;
     final markers = <AppMapMarker>{};
     for (var i = 0; i < items.length; i += batch) {
@@ -456,6 +507,7 @@ class _MapStationMapBodyState extends State<MapStationMapBody> {
           selected: selected,
           devicePixelRatio: dpr,
           fuelMode: widget.fuelPriceMode,
+          selectedFuelCode: widget.selectedFuelCode,
         );
         if (!mounted) return markers;
         markers.add(
@@ -487,6 +539,7 @@ class _MapStationMapBodyState extends State<MapStationMapBody> {
     final overlayChanged = oldWidget.overlayStation?.stationId != widget.overlayStation?.stationId;
     final cheapChanged = oldWidget.cheapSpotlightStationId != widget.cheapSpotlightStationId;
     final fuelChanged = oldWidget.fuelPriceMode != widget.fuelPriceMode;
+    final selectedFuelCodeChanged = oldWidget.selectedFuelCode != widget.selectedFuelCode;
     final recoveryChanged = oldWidget.skipEmptyViewportRecovery != widget.skipEmptyViewportRecovery;
     final padChanged = oldWidget.mapBottomPadding != widget.mapBottomPadding;
     final topPadChanged = oldWidget.mapTopPadding != widget.mapTopPadding;
@@ -498,6 +551,7 @@ class _MapStationMapBodyState extends State<MapStationMapBody> {
         overlayChanged ||
         cheapChanged ||
         fuelChanged ||
+        selectedFuelCodeChanged ||
         recoveryChanged) {
       _kickApplyMarkersSoon();
     } else if (padChanged || topPadChanged) {
@@ -544,8 +598,14 @@ class _MapStationMapBodyState extends State<MapStationMapBody> {
                     padding: kDefaultMapFitPadding,
                   ));
                 } catch (_) {
-                  final t = _initialCamera.target;
-                  await c.animateCamera(AppMapCameraUpdate.newLatLngZoom(t, _initialCamera.zoom));
+                  // Fallback khi fit bounds fail — và bản thân fallback cũng có thể fail
+                  // (vd MapLibre Android channel chưa attach ngay sau onMapCreated trong
+                  // chu kỳ hot-reload). Nuốt lỗi để không crash; _kickApplyMarkersSoon sẽ
+                  // vẫn chạy + camera idle tiếp theo sẽ tự refresh.
+                  try {
+                    final t = _initialCamera.target;
+                    await c.animateCamera(AppMapCameraUpdate.newLatLngZoom(t, _initialCamera.zoom));
+                  } catch (_) {/* swallow plugin race */}
                 }
                 if (mounted) _kickApplyMarkersSoon();
               })());

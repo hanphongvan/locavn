@@ -6,6 +6,53 @@
   --mat-autocomplete-background-color: var(--app-surface);
 }
 
+/* Primary palette — override azure-blue prebuilt to match --app-brand */
+.mat-mdc-unelevated-button.mat-primary:not(:disabled),
+.mat-mdc-raised-button.mat-primary:not(:disabled),
+.mat-mdc-fab.mat-primary:not(:disabled),
+.mat-mdc-mini-fab.mat-primary:not(:disabled) {
+  --mdc-filled-button-container-color: var(--app-brand) !important;
+  --mdc-protected-button-container-color: var(--app-brand) !important;
+  --mdc-fab-container-color: var(--app-brand) !important;
+  --mat-fab-background-color: var(--app-brand) !important;
+  background-color: var(--app-brand) !important;
+}
+
+.mat-mdc-unelevated-button.mat-primary:hover:not(:disabled),
+.mat-mdc-raised-button.mat-primary:hover:not(:disabled) {
+  --mdc-filled-button-container-color: var(--app-brand-hover) !important;
+  --mdc-protected-button-container-color: var(--app-brand-hover) !important;
+  background-color: var(--app-brand-hover) !important;
+}
+
+.mat-mdc-checkbox.mat-primary,
+.mat-mdc-radio-button.mat-primary {
+  --mdc-checkbox-selected-icon-color: var(--app-brand);
+  --mdc-checkbox-selected-focus-icon-color: var(--app-brand);
+  --mdc-checkbox-selected-hover-icon-color: var(--app-brand-hover);
+  --mdc-radio-selected-icon-color: var(--app-brand);
+  --mdc-radio-selected-focus-icon-color: var(--app-brand);
+  --mdc-radio-selected-hover-icon-color: var(--app-brand-hover);
+}
+
+.mat-mdc-tab-group.mat-primary,
+.mat-mdc-tab-nav-bar.mat-primary {
+  --mat-tab-header-active-label-text-color: var(--app-brand);
+  --mat-tab-header-active-ripple-color: var(--app-brand);
+  --mat-tab-header-active-focus-label-text-color: var(--app-brand);
+  --mat-tab-header-active-hover-label-text-color: var(--app-brand-hover);
+  --mdc-tab-indicator-active-indicator-color: var(--app-brand);
+}
+
+.mat-mdc-progress-spinner.mat-primary {
+  --mdc-circular-progress-active-indicator-color: var(--app-brand);
+}
+
+a.mat-mdc-button.mat-primary,
+a.mat-mdc-button-base.mat-primary {
+  color: var(--app-brand) !important;
+}
+
 .mat-mdc-select-panel,
 .mat-mdc-select-panel .mat-mdc-select-scroll-container {
   background-color: var(--app-surface, #ffffff) !important;

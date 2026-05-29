@@ -1,0 +1,31 @@
+<div class="stack">
+  <app-page-header title="Bản đồ HTTM">
+    <p appPageHeaderDesc>
+      Nền OSM qua Carto Light; nhãn Hoàng Sa / Trường Sa (tham chiếu cartographic). Chuyển Goong: hiện dùng cùng nền cho đến khi cấu hình API key.
+    </p>
+  </app-page-header>
+
+  @if (errorMessage(); as err) {
+    <div class="banner banner--error" role="alert">{{ err }}</div>
+  }
+
+  <div class="toolbar">
+    <label class="toolbar__lbl">
+      Nền bản đồ
+      <select class="form-control form-control--inline" (change)="onProvider($any($event.target).value)">
+        <option value="osm" [selected]="mapService.tileProvider() === 'osm'">OSM (Carto)</option>
+        <option value="goong" [selected]="mapService.tileProvider() === 'goong'">Goong (preview)</option>
+      </select>
+    </label>
+    <button type="button" class="btn btn--secondary" (click)="reloadMarkers()" [disabled]="loading()">
+      Tải lại điểm trong khung nhìn
+    </button>
+    <a routerLink="/httm/hoso" class="btn btn--secondary">Danh sách</a>
+  </div>
+
+  @if (loading()) {
+    <p class="muted">Đang tải điểm…</p>
+  }
+
+  <div #mapHost class="map-host"></div>
+</div>

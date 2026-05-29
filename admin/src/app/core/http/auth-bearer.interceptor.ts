@@ -2,11 +2,11 @@ import { HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
 
 import { AuthSessionStorage } from '../auth/auth-session.storage';
-import { environment } from '../../../environments/environment';
+import { API_BASE_URL } from '../tokens/api-base-url.token';
 import { isRequestToApiBase } from './api-origin-matches.util';
 
 export const authBearerInterceptor: HttpInterceptorFn = (req, next) => {
-  const base = environment.apiBaseUrl.replace(/\/$/, '');
+  const base = inject(API_BASE_URL);
   if (!base || !isRequestToApiBase(req.url, base)) {
     return next(req);
   }

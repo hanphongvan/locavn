@@ -14,6 +14,7 @@ internal static class ApiStationMapListPagedSql
             @ProvinceCode NVARCHAR(20) = NULL,
             @DistrictQuanHuyenId INT = NULL,
             @Status NVARCHAR(20) = NULL,
+            @Keyword NVARCHAR(200) = NULL,
             @Skip INT = 0,
             @Take INT = 20
         AS
@@ -22,6 +23,8 @@ internal static class ApiStationMapListPagedSql
 
             DECLARE @StatusNorm NVARCHAR(20) = LOWER(LTRIM(RTRIM(@Status)));
             IF @StatusNorm IS NULL OR @StatusNorm = N'' SET @StatusNorm = N'all';
+
+            DECLARE @KwTrim NVARCHAR(200) = NULLIF(LTRIM(RTRIM(@Keyword)), N'');
 
             CREATE TABLE #Filtered (
                 StationId INT NOT NULL,
@@ -55,6 +58,14 @@ internal static class ApiStationMapListPagedSql
                   AND NOT (d.ViDo = 0 AND d.KinhDo = 0)
                   AND (@ProvinceCode IS NULL OR t.Ma = @ProvinceCode)
                   AND (@DistrictQuanHuyenId IS NULL OR x.QuanHuyenId = @DistrictQuanHuyenId)
+                  AND (
+                      @KwTrim IS NULL
+                      OR d.Ten           LIKE N'%' + @KwTrim + N'%'
+                      OR d.Ma            LIKE N'%' + @KwTrim + N'%'
+                      OR (d.DiaChiChiTiet IS NOT NULL AND d.DiaChiChiTiet LIKE N'%' + @KwTrim + N'%')
+                      OR (d.DiaChi        IS NOT NULL AND d.DiaChi        LIKE N'%' + @KwTrim + N'%')
+                      OR (d.SoGiayPhep    IS NOT NULL AND d.SoGiayPhep    LIKE N'%' + @KwTrim + N'%')
+                  )
             ),
             Flagged AS (
                 SELECT

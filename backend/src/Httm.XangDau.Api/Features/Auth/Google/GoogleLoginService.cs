@@ -36,19 +36,31 @@ public sealed class GoogleLoginService(
 
     public async Task<OAuthGrantResult> SignInAsync(string idToken, CancellationToken cancellationToken = default)
     {
-        var identity = await verifier.VerifyAsync(idToken, cancellationToken).ConfigureAwait(false);
+        logger.LogInformation("[GoogleLogin] SignInAsync bắt đầu. idTokenLength={Len}", idToken?.Length ?? 0);
+
+        var identity = await verifier.VerifyAsync(idToken!, cancellationToken).ConfigureAwait(false);
         if (identity is null)
+        {
+            logger.LogWarning("[GoogleLogin] verifier trả null → reject với InvalidGrant('Google ID token không hợp lệ hoặc đã hết hạn').");
             return new OAuthGrantInvalid("Google ID token không hợp lệ hoặc đã hết hạn.");
+        }
 
         if (!identity.EmailVerified)
+        {
+            logger.LogWarning("[GoogleLogin] Email '{Email}' chưa verified ở Google → reject.", identity.Email);
             return new OAuthGrantInvalid("Email Google chưa được xác thực — không thể đăng nhập.");
+        }
 
         var user = await ResolveOrCreateUserAsync(identity, cancellationToken).ConfigureAwait(false);
+        logger.LogInformation(
+            "[GoogleLogin] Resolved user. UserId={UserId}, Email={Email}, Loai={Loai}, LockoutEnabled={Lockout}",
+            user.Id, user.Email, user.Loai, user.LockoutEnabled);
 
         if (user.LockoutEnabled
             && user.LockoutEndDateUtc is { } lockoutEnd
             && lockoutEnd > DateTime.UtcNow)
         {
+            logger.LogWarning("[GoogleLogin] User {UserId} đang bị khoá đến {LockoutEnd:o} → reject.", user.Id, lockoutEnd);
             return new OAuthGrantInvalid("Tài khoản đã bị khoá.");
         }
 
@@ -57,6 +69,9 @@ public sealed class GoogleLoginService(
         var claims = BuildCitizenClaims(user);
         var props = BuildCitizenProperties(user, issued, expires);
 
+        logger.LogInformation(
+            "[GoogleLogin] Issuing JWT cho UserId={UserId}, Expires={Expires:o}.",
+            user.Id, expires);
         return new OAuthGrantSuccess(claims, issued, expires, props);
     }
 
@@ -76,7 +91,11 @@ public sealed class GoogleLoginService(
                 .FirstOrDefaultAsync(u => u.Id == linkedUserId, cancellationToken)
                 .ConfigureAwait(false);
             if (linked is not null)
+            {
+                logger.LogInformation("[GoogleLogin] Path 1: tìm thấy AspNetUserLogins (provider=Google, sub={Sub}) → UserId={UserId}.", identity.Subject, linked.Id);
                 return linked;
+            }
+            logger.LogWarning("[GoogleLogin] Path 1: AspNetUserLogins có sub={Sub} nhưng UserId={UserId} không còn trong AspNetUsers (rồng row?).", identity.Subject, linkedUserId);
         }
 
         // 2) Có user cùng email → link tài khoản hiện có (Google đã verify email).
@@ -86,11 +105,13 @@ public sealed class GoogleLoginService(
 
         if (existingByEmail is not null)
         {
+            logger.LogInformation("[GoogleLogin] Path 2: tìm thấy AspNetUser cùng email={Email} (UserId={UserId}) → link Google login.", identity.Email, existingByEmail.Id);
             await InsertUserLoginAsync(existingByEmail.Id, identity.Subject, cancellationToken).ConfigureAwait(false);
             return existingByEmail;
         }
 
         // 3) Auto-create user Loai=5.
+        logger.LogInformation("[GoogleLogin] Path 3: chưa có user cho email={Email} → auto-create citizen Loai=5.", identity.Email);
         var newUser = await CreateCitizenUserAsync(identity, cancellationToken).ConfigureAwait(false);
         await InsertUserLoginAsync(newUser.Id, identity.Subject, cancellationToken).ConfigureAwait(false);
         return newUser;

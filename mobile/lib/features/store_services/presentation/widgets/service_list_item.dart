@@ -48,7 +48,7 @@ class ServiceListItem extends StatelessWidget {
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Icon(
-                storeServiceIconData(row.iconKey ?? catalogLookup?.iconKey),
+                storeServiceIconForCode(row.serviceCode, row.iconKey ?? catalogLookup?.iconKey),
                 color: StorePriceDesignTokens.focusBlue,
               ),
             ),

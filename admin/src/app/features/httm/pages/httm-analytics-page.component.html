@@ -1,0 +1,45 @@
+<div class="stack">
+  <app-page-header title="Thống kê HTTM">
+    <p appPageHeaderDesc>Biểu đồ tổng hợp từ API /api/httm-analytics.</p>
+    <div appPageHeaderActions>
+      <button type="button" class="btn btn--secondary" (click)="exportCsv()">Tải CSV tổng hợp</button>
+    </div>
+  </app-page-header>
+
+  @if (errorMessage(); as err) {
+    <div class="banner banner--error" role="alert">{{ err }}</div>
+  }
+
+  @if (summary(); as s) {
+    <app-section-card title="Tóm tắt">
+      <div class="summary-grid">
+        <div><span class="muted">Hồ sơ</span><br /><strong>{{ s.facilityCount }}</strong></div>
+        <div><span class="muted">Phiếu KS</span><br /><strong>{{ s.surveyCount }}</strong></div>
+        <div><span class="muted">Chờ duyệt</span><br /><strong>{{ s.surveysPendingReview }}</strong></div>
+      </div>
+    </app-section-card>
+  }
+
+  <app-section-card title="Biểu đồ">
+    @if (loading()) {
+      <p class="muted">Đang tải…</p>
+    }
+    <div class="chart-grid">
+      <div class="chart-box">
+        <canvas id="chart-type" height="160"></canvas>
+      </div>
+      <div class="chart-box">
+        <canvas id="chart-prov" height="160"></canvas>
+      </div>
+      <div class="chart-box">
+        <canvas id="chart-status" height="160"></canvas>
+      </div>
+      <div class="chart-box">
+        <canvas id="chart-fac-m" height="160"></canvas>
+      </div>
+      <div class="chart-box">
+        <canvas id="chart-sv-m" height="160"></canvas>
+      </div>
+    </div>
+  </app-section-card>
+</div>

@@ -1,7 +1,12 @@
+import 'dart:async';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/map/app_lat_lng.dart';
+import '../../../core/map/app_lat_lng_bounds.dart';
+import '../../../core/map/app_map_camera.dart';
 import '../../../core/network/api_exception.dart';
 import '../../stations/data/models/station_map_item.dart';
 import '../../stations/data/stations_api.dart';
@@ -12,6 +17,23 @@ import 'map_discovery_navigation.dart';
 import 'map_discovery_results_sheet.dart';
 import 'map_providers.dart';
 import 'map_spotlight_station.dart';
+
+/// Bán kính camera ~500 m quanh GPS user khi ấn 'Gần nhất' (~zoom 15-16
+/// tại vĩ độ Việt Nam) — đồng nhất với khung mặc định lúc map mở.
+const double _kNearestFrameRadiusMeters = 500;
+
+AppLatLngBounds _boundsAroundUser(AppLatLng user, double radiusMeters) {
+  final latRad = user.latitude * math.pi / 180;
+  final cosLat = math.cos(latRad).clamp(0.02, 1.0);
+  const mPerDegLat = 111320.0;
+  final mPerDegLng = 111320.0 * cosLat;
+  final dLat = radiusMeters / mPerDegLat;
+  final dLng = radiusMeters / mPerDegLng;
+  return AppLatLngBounds(
+    southwest: AppLatLng(user.latitude - dLat, user.longitude - dLng),
+    northeast: AppLatLng(user.latitude + dLat, user.longitude + dLng),
+  );
+}
 
 /// Resolves nearest station: `GET /api/stations/nearest` first; on recoverable API errors, rank [loadedItems] locally.
 Future<
@@ -163,6 +185,22 @@ Future<void> presentNearestPetrolStation(
   }
 
   final d = resolved.distanceKm;
+
+  // Auto-frame camera: kéo về VỊ TRÍ GPS hiện tại với bán kính ~500 m (đồng
+  // nhất với khung mặc định lúc map mở). Trạm gần nhất sẽ nằm trong khung
+  // này khi cách user < 500 m; xa hơn thì user vẫn nhìn rõ vị trí mình +
+  // hướng tới trạm qua marker / preview sheet.
+  final mapController = ref.read(mapAppMapControllerProvider);
+  if (mapController != null) {
+    final fitBounds = _boundsAroundUser(user, _kNearestFrameRadiusMeters);
+    unawaited(mapController.animateCamera(
+      AppMapCameraUpdate.newLatLngBounds(bounds: fitBounds, padding: 64),
+    ));
+    // Cho camera animation chạy 1 nhịp trước khi sheet che mất bản đồ.
+    await Future<void>.delayed(const Duration(milliseconds: 350));
+    if (!context.mounted) return;
+  }
+
   await showMapDiscoveryResultsSheet(
     context: context,
     rows: [

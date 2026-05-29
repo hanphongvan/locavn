@@ -21,6 +21,7 @@ import {
 
 import {
   PORTAL_LOAI_ADMIN,
+  PORTAL_LOAI_SO_STAFF,
   PORTAL_LOAI_STORE,
   PORTAL_LOAI_TRADER,
 } from '../../core/auth/portal-loai-role';
@@ -159,7 +160,12 @@ export class UserManagementFormComponent implements OnInit, OnDestroy {
   }
 
   isFormLoaiForDonVi(loai: number | null | undefined): boolean {
-    return loai === PORTAL_LOAI_ADMIN || loai === PORTAL_LOAI_TRADER || loai === PORTAL_LOAI_STORE;
+    return (
+      loai === PORTAL_LOAI_ADMIN ||
+      loai === PORTAL_LOAI_TRADER ||
+      loai === PORTAL_LOAI_STORE ||
+      loai === PORTAL_LOAI_SO_STAFF
+    );
   }
 
   onDonViListFilterInput(ev: Event): void {

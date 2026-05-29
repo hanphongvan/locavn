@@ -5,11 +5,14 @@ namespace Httm.XangDau.Api.Features.Stations;
 
 public static class StationsDependencyInjection
 {
-    public static IServiceCollection AddStationsFeature(this IServiceCollection services)
+    public static IServiceCollection AddStationsFeature(this IServiceCollection services, IConfiguration configuration)
     {
+        services.Configure<StationBrandingOptions>(configuration.GetSection(StationBrandingOptions.SectionName));
+        services.AddSingleton<IStationBrandRegistry, StationBrandRegistry>();
         services.AddScoped<IStationListSearchDataAccess, StationListSearchDataAccess>();
         services.AddScoped<IStationMapMarkersDataAccess, StationMapMarkersDataAccess>();
         services.AddScoped<IStationReadService, StationReadService>();
+        services.AddScoped<IFuelProductReadService, FuelProductReadService>();
         services.AddScoped<IStationReviewService, StationReviewService>();
         services.AddScoped<IStationSpotlightReadService, StationSpotlightReadService>();
         return services;

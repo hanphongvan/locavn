@@ -4,6 +4,7 @@
   :host {
     display: block;
     min-height: 100vh;
+    font-family: var(--app-font-display);
     background: var(--app-surface-muted);
     background-image:
       radial-gradient(ellipse 120% 80% at 50% -20%, var(--app-brand-soft), transparent),

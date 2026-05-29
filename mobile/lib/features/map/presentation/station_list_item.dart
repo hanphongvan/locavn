@@ -5,8 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/formatting/vnd_currency_format.dart';
 import '../../station_detail/presentation/station_detail_providers.dart';
 import '../../stations/data/models/station_map_item.dart';
-import '../../stations/domain/station_availability.dart';
-import '../../stations/station_open_status.dart';
+import 'map_providers.dart';
 import 'map_screen_palette.dart';
 
 /// Một dòng trạm trong bottom sheet (dữ liệu map + rating API khi tải xong).
@@ -25,8 +24,10 @@ class StationListItem extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final ratingAsync = ref.watch(stationRatingSummaryProvider(station.stationId));
-    final open = StationOpenStatus.forMapItem(station);
-    final (Color dot, String statusLabel) = _statusStyle(open.tone);
+    final selectedFuelCode = ref.watch(mapFiltersProvider.select((f) => f.fuelCode));
+    final displayPrice = selectedFuelCode != null
+        ? station.priceForSelectedFuel
+        : station.priceRon95;
 
     final name =
         station.stationName.trim().isNotEmpty ? station.stationName : 'Cây xăng #${station.stationId}';
@@ -89,26 +90,6 @@ class StationListItem extends ConsumerWidget {
                           ),
                     ),
                     const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
-                        ),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: Text(
-                            statusLabel,
-                            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                                  color: MapScreenPalette.textSecondary,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
                     ratingAsync.when(
                       data: (r) => Text(
                         r.reviewCount > 0
@@ -139,7 +120,7 @@ class StationListItem extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    formatVndCurrency(station.priceRon95),
+                    formatVndCurrency(displayPrice),
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.w900,
                           color: MapScreenPalette.primaryBlue,
@@ -168,13 +149,6 @@ class StationListItem extends ConsumerWidget {
     );
   }
 
-  static (Color, String) _statusStyle(StationOpenTone tone) {
-    return switch (tone) {
-      StationOpenTone.open => (MapScreenPalette.green, 'Đang mở cửa'),
-      StationOpenTone.closed => (MapScreenPalette.danger, 'Hiện đóng cửa'),
-      StationOpenTone.unknown => (MapScreenPalette.warning, 'Chưa xác định'),
-    };
-  }
 }
 
 String _formatKm(double km) {

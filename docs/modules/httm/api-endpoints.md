@@ -4,7 +4,9 @@
 > Auth header: `Authorization: Bearer <JWT>`  
 > Response format chuẩn: `{ success: bool, data: ..., meta: { page, limit, total } }`
 
----
+> **Triển khai thực tế (Phase 1–2, 2026-05):** API portal dùng `ProblemDetails` (RFC 7807) cho lỗi; một số endpoint trả trực tiếp DTO (không bọc `success`). Chi tiết HTTP status cho `/api/httm`, `/api/catalogs` và **`/api/surveys`** xem Swagger (`/swagger` môi trường Development). Bản đồ tile: [`docs/architecture/map-providers.md`](../../architecture/map-providers.md).
+
+> **`/api/surveys`:** luồng phiếu khảo sát qua `sp_Httm_Survey_*`; `POST .../review` chuyển `submitted` → `reviewing`. Import/Export Excel và `GET /api/surveys/export` chưa có trong code.
 
 ## Auth & Session
 
@@ -48,7 +50,7 @@ GET    /api/surveys
 
 POST   /api/surveys
   Body: { province_code, httm_type }   # Tạo phiếu mới rỗng, trả về { id, survey_code }
-  Auth: Tất cả
+  Auth: Người dùng portal có quyền module Survey (ADMIN, HTTM_ADMIN, BCT, SO, UNIT_USER, …)
 
 GET    /api/surveys/:id
   Auth: Tất cả (kiểm tra quyền xem)
@@ -64,13 +66,17 @@ POST   /api/surveys/:id/submit
 
 POST   /api/surveys/:id/approve
   Body: { notes? }
-  Auth: BCT_STAFF, ADMIN
+  Auth: BCT_STAFF, ADMIN, HTTM_ADMIN (+ API key máy)
   Effect: status → 'approved'
 
 POST   /api/surveys/:id/reject
   Body: { reason: string }   # Bắt buộc
-  Auth: BCT_STAFF, ADMIN
+  Auth: BCT_STAFF, ADMIN, HTTM_ADMIN (+ API key máy)
   Effect: status → 'rejected'
+
+POST   /api/surveys/:id/review
+  Auth: như approve
+  Effect: submitted → reviewing
 
 DELETE /api/surveys/:id
   Auth: Người tạo (chỉ draft) hoặc ADMIN
@@ -98,6 +104,10 @@ GET    /api/surveys/import/template
 ---
 
 ## Hồ Sơ HTTM `/api/httm`
+
+**Auth:** `Authorization: Bearer` hoặc header API key admin (cùng scheme các API portal khác).
+
+**Lỗi:** thường là `403` với `ProblemDetails.detail` chứa `SCOPE_VIOLATION` (cán bộ Sở truy cập ngoài tỉnh); `404` với `NOT_FOUND`; `400` validation hoặc bbox không hợp lệ.
 
 ```
 GET    /api/httm
@@ -127,8 +137,8 @@ DELETE /api/httm/:id
 
 # Từ phiếu khảo sát đã duyệt
 POST   /api/httm/from-survey/:survey_id
-  Auth: BCT_STAFF, ADMIN
-  Effect: Tạo facility từ dữ liệu phiếu đã approve
+  Auth: BCT_STAFF, ADMIN, HTTM_ADMIN (+ API key máy)
+  Effect: Tạo facility từ phiếu `approved`, gọi `sp_Httm_Facility_LinkSourceSurvey`
 
 # Hình ảnh
 POST   /api/httm/:id/images
@@ -154,9 +164,20 @@ GET    /api/httm/export
 
 # Dữ liệu bản đồ
 GET    /api/httm/map-data
-  Query: bounds=west,south,east,north&types=&province_code=
+  Query: west, south, east, north (WGS84), types?, provinceCode?, maxRows?
   Response: GeoJSON FeatureCollection
   Ghi chú: Clustering tự động khi có > 500 điểm trong viewport
+```
+
+### `/api/catalogs` (HTTM + địa giới)
+
+Mirror cho Admin Angular; địa lý ủy quyền cùng dữ liệu với `api/geography`.
+
+```
+GET    /api/catalogs/{type}?activeOnly=true
+GET    /api/catalogs/provinces
+GET    /api/catalogs/districts?province_code=
+GET    /api/catalogs/wards?district_code=
 ```
 
 ---
@@ -165,25 +186,55 @@ GET    /api/httm/map-data
 
 ```
 GET /api/public/httm/map-data
-  Query: bounds, types, province_code
-  Response: GeoJSON (đã lọc trường nhạy cảm)
-
-GET /api/public/httm/:id/summary
-  Response: Thông tin cơ bản (không có doanh thu, pháp lý)
+  Query: west, south, east, north (WGS84 bbox), types?, province_code?, max_rows? (clamp tối đa 800)
+  Response: GeoJSON FeatureCollection (điểm công khai; không dữ liệu nhạy cảm)
+  Rate limit: policy ASP.NET `public-httm` (partition theo IP)
 ```
 
 ---
 
-## Analytics `/api/analytics`
+## Analytics HTTM `/api/httm-analytics`
+
+Auth: Bearer / Admin API key — cùng nhóm `CanUseHttmModule` như `/api/httm`.
 
 ```
+GET /api/httm-analytics/charts/facilities-by-type
+GET /api/httm-analytics/charts/facilities-by-province?top=12
+GET /api/httm-analytics/charts/surveys-by-status
+GET /api/httm-analytics/charts/facility-created-by-month?months=6
+GET /api/httm-analytics/charts/survey-submitted-by-month?months=6
+GET /api/httm-analytics/summary
+GET /api/httm-analytics/export/summary.csv
+```
+
+---
+
+## Mẫu báo cáo `/api/httm-report-templates`
+
+Auth: `CanUseHttmModule`.
+
+```
+GET    /api/httm-report-templates?includeInactive=false
+GET    /api/httm-report-templates/:id
+POST   /api/httm-report-templates   # Upsert body: id?, code, name, description?, reminderIntervalDays, isActive — trả { id }
+DELETE /api/httm-report-templates/:id
+```
+
+> Worker: `ReportTemplateReminderWorker` (HostedService) gọi `sp_Httm_ReportTemplate_ListDueForReminder` + `TouchReminder` (log + cập nhật `LastReminderAt`).
+
+---
+
+## Analytics (tài liệu cũ — placeholder, chưa map 1:1 code)
+
+```
+# Các đường dẫn /api/analytics/* dưới đây là thiết kế tài liệu; triển khai hiện tại dùng /api/httm-analytics (mục trên).
 GET /api/analytics/httm-by-type?province_code=&status=
 GET /api/analytics/httm-by-province?limit=10&httm_type=
 GET /api/analytics/httm-trend?months=6&province_code=
-GET /api/analytics/httm-density-map          # GeoJSON choropleth theo tỉnh
+GET /api/analytics/httm-density-map
 GET /api/analytics/top-provinces?limit=10
 GET /api/analytics/httm-status-ratio?province_code=
-GET /api/analytics/export/excel              # Query params như trên
+GET /api/analytics/export/excel
 GET /api/analytics/export/pdf
 ```
 

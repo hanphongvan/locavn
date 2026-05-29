@@ -1,86 +1,178 @@
-<div class="auth-portal login-page">
-  <div class="auth-portal__brand-bar" aria-hidden="true"></div>
+<div class="portal-login">
+  <div class="portal-login__bg" aria-hidden="true">
+    <div class="portal-login__grid-lines"></div>
+    <div class="portal-login__glow portal-login__glow--tl"></div>
+    <div class="portal-login__glow portal-login__glow--br"></div>
+    @for (s of [1, 2, 3, 4, 5, 6, 7, 8]; track s) {
+      <span class="portal-login__star" [style.left.%]="s * 11" [style.top.%]="(s * 13) % 90"></span>
+    }
+  </div>
 
-  <div class="auth-portal__wrap">
-    <div class="auth-portal__panel">
-      <header class="auth-portal__header">
-        <div class="auth-portal__mark" aria-hidden="true"></div>
-        <div class="auth-portal__headlines">
-          <h1 class="auth-portal__title">Đăng nhập</h1>
-          <p class="auth-portal__subtitle">Hệ thống quản trị HTTM — xác thực qua máy chủ nội bộ</p>
+  <div class="portal-login__layout">
+    <!-- Cột trái ~58% -->
+    <section class="portal-login__left">
+      <header class="portal-login__gov-header">
+        <app-dms-logo [size]="52" />
+        <div class="portal-login__gov-text">
+          <p class="portal-login__gov-line">BỘ CÔNG THƯƠNG</p>
+          <p class="portal-login__gov-line portal-login__gov-line--sub">
+            CỤC QUẢN LÝ VÀ PHÁT TRIỂN THỊ TRƯỜNG TRONG NƯỚC
+          </p>
         </div>
       </header>
 
-      @if (registeredNotice(); as regName) {
-        <div class="login-page__notice login-page__notice--unsupported" role="status">
-          <p class="login-page__notice-title">Đăng ký thành công</p>
-          <p class="login-page__notice-body">
-            Tài khoản <span class="login-page__mono">{{ regName }}</span> đã được tạo. Bạn có thể đăng nhập (kể cả trên hệ
-            thống cũ) bằng mật khẩu vừa đặt.
-          </p>
-        </div>
-      }
+      <h1 class="portal-login__hero-title">
+        <span>HỆ THỐNG CƠ SỞ DỮ LIỆU</span>
+        <span>HẠ TẦNG THƯƠNG MẠI &amp; XĂNG DẦU</span>
+      </h1>
+   
 
-      <form class="login-page__form" (ngSubmit)="submit()" [formGroup]="form" novalidate>
-        <div class="login-page__field">
-          <label class="login-page__label" for="login-username">Tên đăng nhập</label>
-          <input
-            id="login-username"
-            class="login-page__input"
-            type="text"
-            formControlName="username"
-            name="username"
-            autocomplete="username"
-            [disabled]="loading()"
-            required
-          />
-          @if (form.controls.username.invalid && form.controls.username.touched) {
-            <span class="login-page__hint login-page__hint--error">Vui lòng nhập tên đăng nhập.</span>
-          }
-        </div>
+      <div class="portal-login__map-wrap">
+        <app-login-vietnam-map />
+      </div>
 
-        <div class="login-page__field">
-          <label class="login-page__label" for="login-password">Mật khẩu</label>
-          <input
-            id="login-password"
-            class="login-page__input"
-            type="password"
-            formControlName="password"
-            name="password"
-            autocomplete="current-password"
-            [disabled]="loading()"
-            required
-          />
-          @if (form.controls.password.invalid && form.controls.password.touched) {
-            <span class="login-page__hint login-page__hint--error">Vui lòng nhập mật khẩu.</span>
-          }
-        </div>
-
-        @if (loginError(); as err) {
-          <div class="login-page__notice login-page__notice--error" role="alert">{{ err }}</div>
+      <ul class="portal-login__legend">
+        @for (item of legendItems; track item.label) {
+          <li class="portal-login__legend-item">
+            <span class="portal-login__legend-dot" [style.background]="item.color"></span>
+            <span>{{ item.label }}</span>
+          </li>
         }
+      </ul>
+    </section>
 
-        @if (accessDenied(); as denied) {
-          <div class="login-page__notice login-page__notice--denied" role="alert">
-            <strong class="login-page__notice-lead">Không được phép truy cập</strong>
-            <p class="login-page__notice-body">{{ denied }}</p>
+    <!-- Cột phải ~42% -->
+    <section class="portal-login__right">
+      <div class="portal-login__glass">
+        <header class="portal-login__card-head">
+          <app-dms-logo [size]="56" />
+          <p class="portal-login__card-ministry"></p>
+          <h2 class="portal-login__card-title">ĐĂNG NHẬP HỆ THỐNG</h2>
+        </header>
+
+        @if (registeredNotice(); as regName) {
+          <div class="portal-login__alert portal-login__alert--info" role="status">
+            <span class="material-icons" aria-hidden="true">check_circle</span>
+            <div>
+              <strong>Đăng ký thành công</strong>
+              <p>Tài khoản <span class="portal-login__mono">{{ regName }}</span> đã được tạo.</p>
+            </div>
           </div>
         }
 
-        <div class="login-page__actions">
-          <button mat-flat-button color="primary" class="login-page__primary-btn" type="submit" [disabled]="loading() || form.invalid">
+        <form class="portal-login__form" (ngSubmit)="submit()" [formGroup]="form" novalidate>
+          <div class="portal-login__field">
+            <label class="portal-login__sr-only" for="login-username">Tên đăng nhập / Email</label>
+            <div class="portal-login__input-box">
+              <span class="material-icons portal-login__input-ico" aria-hidden="true">person_outline</span>
+              <input
+                id="login-username"
+                class="portal-login__input"
+                type="text"
+                formControlName="username"
+                name="username"
+                autocomplete="username"
+                placeholder="Tên đăng nhập / Email"
+                [disabled]="loading()"
+                required
+              />
+            </div>
+          </div>
+
+          <div class="portal-login__field">
+            <label class="portal-login__sr-only" for="login-password">Mật khẩu</label>
+            <div class="portal-login__input-box">
+              <span class="material-icons portal-login__input-ico" aria-hidden="true">lock_outline</span>
+              <input
+                id="login-password"
+                class="portal-login__input portal-login__input--pwd"
+                [type]="passwordVisible() ? 'text' : 'password'"
+                formControlName="password"
+                name="password"
+                autocomplete="current-password"
+                placeholder="Mật khẩu"
+                [disabled]="loading()"
+                required
+              />
+              <button
+                type="button"
+                class="portal-login__pwd-toggle"
+                (click)="togglePasswordVisible()"
+                [attr.aria-label]="passwordVisible() ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'"
+                [disabled]="loading()"
+              >
+                <span class="material-icons" aria-hidden="true">
+                  {{ passwordVisible() ? 'visibility_off' : 'visibility' }}
+                </span>
+              </button>
+            </div>
+          </div>
+
+          <div class="portal-login__form-row">
+            <label class="portal-login__remember">
+              <input type="checkbox" formControlName="rememberMe" [disabled]="loading()" />
+              <span>Ghi nhớ đăng nhập</span>
+            </label>
+            <a class="portal-login__forgot" href="#" (click)="onForgotPassword($event)">Quên mật khẩu?</a>
+          </div>
+
+          @if (loginError(); as err) {
+            <div class="portal-login__alert portal-login__alert--error" role="alert">
+              <span class="material-icons" aria-hidden="true">error_outline</span>
+              <span>{{ err }}</span>
+            </div>
+          }
+
+          @if (accessDenied(); as denied) {
+            <div class="portal-login__alert portal-login__alert--error" role="alert">
+              <span class="material-icons" aria-hidden="true">block</span>
+              <div>
+                <strong>Không được phép truy cập</strong>
+                <p>{{ denied }}</p>
+              </div>
+            </div>
+          }
+
+          <button class="portal-login__btn-login" type="submit" [disabled]="loading() || form.invalid">
             @if (loading()) {
-              <span class="login-page__spinner" aria-hidden="true"></span>
-              <span>Đang đăng nhập…</span>
+              <span class="portal-login__spinner" aria-hidden="true"></span>
+              <span>ĐANG XỬ LÝ…</span>
             } @else {
-              <span>Đăng nhập</span>
+              <span class="material-icons" aria-hidden="true">login</span>
+              <span>ĐĂNG NHẬP</span>
             }
           </button>
-          <a mat-stroked-button color="primary" class="login-page__register-btn" routerLink="/register">Đăng ký tài khoản</a>
-        </div>
-      </form>
+        </form>
 
-      <p class="login-page__footer">Đăng nhập an toàn qua OAuth2 · Dữ liệu người dùng từ máy chủ</p>
-    </div>
+        <div class="portal-login__divider" aria-hidden="true"><span>HOẶC</span></div>
+
+        <section class="portal-login__infra" aria-labelledby="infra-update-title">
+          <div class="portal-login__infra-head">
+            <span class="portal-login__infra-icon material-icons" aria-hidden="true">storefront</span>
+            <div>
+              <h3 id="infra-update-title" class="portal-login__infra-title">CẬP NHẬT THÔNG TIN HẠ TẦNG</h3>
+              <p class="portal-login__infra-desc">
+                Dành cho Ban quản lý chợ, siêu thị, trung tâm thương mại, doanh nghiệp và người dân gửi cập nhật
+                hoặc đề xuất điều chỉnh thông tin.
+              </p>
+              <p class="portal-login__infra-highlight">Không yêu cầu đăng nhập.</p>
+            </div>
+          </div>
+
+          <a class="portal-login__btn-infra" routerLink="/public/facility-update">
+            <span class="material-icons" aria-hidden="true">add_location_alt</span>
+            <span>CẬP NHẬT THÔNG TIN HẠ TẦNG</span>
+          </a>
+        </section>
+
+        <footer class="portal-login__footer">
+          <p>Phiên bản hệ thống: {{ systemVersion }}</p>
+          <p>© 2026 - Cục Quản lý và Phát triển thị trường trong nước - Bộ Công Thương</p>
+          <a class="portal-login__register-link" routerLink="/register">Đăng ký tài khoản quản trị</a>
+        </footer>
+      </div>
+    </section>
   </div>
+
+  
 </div>

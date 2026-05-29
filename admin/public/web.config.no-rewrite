@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Bản tối thiểu: KHÔNG có <rewrite> → không yêu cầu cài "URL Rewrite Module" trên IIS.
+  Hệ quả: F5 trên route con (`/login`, `/httm/...`) sẽ trả 404 do IIS không biết
+  fallback về `index.html`.
+
+  Chỉ dùng file này khi server không thể cài URL Rewrite Module. Đổi tên thành
+  `web.config` (ghi đè) trước khi deploy.
+-->
+<configuration>
+  <system.webServer>
+    <defaultDocument enabled="true">
+      <files>
+        <clear />
+        <add value="index.html" />
+      </files>
+    </defaultDocument>
+  </system.webServer>
+
+  <!--
+    Runtime config: admin sửa `assets/runtime-config.json` trên server để đổi
+    `apiBaseUrl` / `adminApiKey` mà không cần build lại. Disable cache để
+    browser không giữ giá trị cũ sau khi sửa.
+  -->
+  <location path="assets/runtime-config.json">
+    <system.webServer>
+      <staticContent>
+        <clientCache cacheControlMode="DisableCache" />
+      </staticContent>
+      <httpProtocol>
+        <customHeaders>
+          <add name="Cache-Control" value="no-store, no-cache, must-revalidate" />
+          <add name="Pragma" value="no-cache" />
+        </customHeaders>
+      </httpProtocol>
+    </system.webServer>
+  </location>
+
+  <!--
+    `index.html` KHÔNG có hash trong tên (Angular chỉ hash chunks/main/styles).
+    Browser cache `index.html` cũ → tiếp tục yêu cầu chunk cũ → màn hình trắng.
+    Chunk/main/styles có hash nên CÓ THỂ cache lâu — KHÔNG đặt no-cache cho cả site.
+  -->
+  <location path="index.html">
+    <system.webServer>
+      <staticContent>
+        <clientCache cacheControlMode="DisableCache" />
+      </staticContent>
+      <httpProtocol>
+        <customHeaders>
+          <add name="Cache-Control" value="no-store, no-cache, must-revalidate" />
+          <add name="Pragma" value="no-cache" />
+        </customHeaders>
+      </httpProtocol>
+    </system.webServer>
+  </location>
+</configuration>

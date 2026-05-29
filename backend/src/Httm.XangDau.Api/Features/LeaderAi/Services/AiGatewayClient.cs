@@ -38,16 +38,56 @@ public sealed class AiGatewayClient(
         AiGatewayChatRequest payload,
         CancellationToken cancellationToken)
     {
+        // [DEBUG LOG] Capture exact request BE gửi AI Gateway để compare với scenario reproduce.
+        // Tạm thời log Info; sau khi root-cause chat bug có thể downgrade về Debug hoặc xóa.
+        LogChatRequestPayload(payload);
+
         using var request = BuildRequest(HttpMethod.Post, "ai/leader/chat", payload);
         using var response = await httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
-        var result = await response.Content
-            .ReadFromJsonAsync<AiGatewayChatResponse>(AiGatewayJson.Options, cancellationToken)
-            .ConfigureAwait(false);
+        // [DEBUG LOG] Capture raw response body — đọc lần đầu để log, sau đó deserialize từ string.
+        var rawBody = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        LogChatResponseBody(rawBody);
+
+        var result = JsonSerializer.Deserialize<AiGatewayChatResponse>(rawBody, AiGatewayJson.Options);
         if (result is null)
             throw new InvalidOperationException("AI Gateway trả body rỗng.");
         return result;
+    }
+
+    /// <summary>[DEBUG] Log request payload BE gửi AI Gateway — message + context + history count.</summary>
+    private void LogChatRequestPayload(AiGatewayChatRequest payload)
+    {
+        var contextJson = payload.Context is null
+            ? "null"
+            : JsonSerializer.Serialize(payload.Context, AiGatewayJson.Options);
+
+        logger.LogInformation(
+            "[AI-GW] REQUEST → message={Message} userId={UserId} loai={Loai} convId={ConvId} historyCount={HistoryCount} hasContextSummary={HasSummary} context={Context}",
+            payload.Message,
+            payload.UserId,
+            payload.UserLoai,
+            payload.ConversationId ?? "(new)",
+            payload.History.Count,
+            !string.IsNullOrEmpty(payload.ContextSummary),
+            contextJson);
+
+        if (payload.History.Count > 0)
+        {
+            logger.LogInformation(
+                "[AI-GW] REQUEST history (last {Count}): {History}",
+                payload.History.Count,
+                JsonSerializer.Serialize(payload.History, AiGatewayJson.Options));
+        }
+    }
+
+    /// <summary>[DEBUG] Log raw response body (cắt 3KB đầu) — xem AI Gateway trả gì.</summary>
+    private void LogChatResponseBody(string rawBody)
+    {
+        const int MaxLogLength = 3000;
+        var snippet = rawBody.Length <= MaxLogLength ? rawBody : rawBody[..MaxLogLength] + "…(truncated)";
+        logger.LogInformation("[AI-GW] RESPONSE ({Length} bytes): {Body}", rawBody.Length, snippet);
     }
 
     /// <inheritdoc />

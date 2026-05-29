@@ -15,6 +15,7 @@ import 'map_providers.dart';
 import 'map_screen_palette.dart';
 import 'map_search_bar.dart';
 import 'map_station_map_body.dart';
+import 'map_viewport_state.dart';
 import 'station_map_bottom_sheet.dart';
 
 class MapShellPage extends ConsumerStatefulWidget {
@@ -47,9 +48,13 @@ class _MapShellPageState extends ConsumerState<MapShellPage> {
       if (!mounted) return;
       final ro = _chromeKey.currentContext?.findRenderObject();
       if (ro is RenderBox && ro.hasSize) {
-        final h = ro.size.height;
-        if ((h - _mapTopInsetPx).abs() > 0.5) {
-          setState(() => _mapTopInsetPx = h);
+        // Phải dùng localToGlobal để cộng cả SafeArea (status bar) + outer
+        // Padding (top:4). Chỉ lấy `ro.size.height` sẽ thiếu offset đó → banner /
+        // floating controls bị chrome (search bar + filter chips) đè lên.
+        final topLeftGlobal = ro.localToGlobal(Offset.zero);
+        final chromeBottomY = topLeftGlobal.dy + ro.size.height;
+        if ((chromeBottomY - _mapTopInsetPx).abs() > 0.5) {
+          setState(() => _mapTopInsetPx = chromeBottomY);
         }
       }
     });
@@ -86,6 +91,7 @@ class _MapShellPageState extends ConsumerState<MapShellPage> {
 
     final asyncMarkers = ref.watch(stationMapMarkersProvider);
     final filters = ref.watch(mapFiltersProvider);
+    final viewport = ref.watch(mapViewportProvider);
     // 4 provider sau (highlight / ephemeral / cheap spotlight / fuel mode) chỉ truyền xuống
     // `MapStationMapBody`. Watch trong Consumer bên trong builder để chrome (search bar /
     // filter chips / active strip) không rebuild khi tap marker.
@@ -93,19 +99,40 @@ class _MapShellPageState extends ConsumerState<MapShellPage> {
 
     return Scaffold(
       backgroundColor: MapScreenPalette.screenBackground,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
+      // Tap outside ô tìm kiếm -> ẩn bàn phím + bỏ focus. HitTestBehavior.translucent
+      // để tap vẫn pass-through xuống AppMap (pan/zoom marker tap không bị nuốt);
+      // dùng onTapDown để bắt ngay khi user chạm — không đợi nhấc tay.
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTapDown: (_) {
+          final scope = FocusScope.of(context);
+          if (scope.hasFocus) scope.unfocus();
+        },
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
           Positioned.fill(
             child: AsyncValueBody<StationMapMarkersLoadResult>(
               value: asyncMarkers,
               errorLogLabel: 'Bản đồ cây xăng (stationMapMarkersProvider)',
               loadingLabel: 'Đang tải dữ liệu bản đồ cây xăng',
               emptyMessage: 'Không có cây xăng nào có tọa độ hợp lệ.',
-              isEmpty: (r) => r.items.isEmpty && !r.keywordApplied && r.mapTotalCount == 0,
+              // Phase 2.B-viewport: chỉ short-circuit empty khi viewport CHƯA set
+              // (lần tải initial 12k trả về 0 — data thực sự lỗi). Sau khi camera
+              // idle lần đầu (viewport != null), luôn render map để user còn zoom
+              // / pan; empty case xử lý inline trong dataBuilder qua banner.
+              isEmpty: (r) =>
+                  r.items.isEmpty &&
+                  !r.keywordApplied &&
+                  r.mapTotalCount == 0 &&
+                  viewport == null,
               onRetry: () => ref.invalidate(stationMapMarkersFetchProvider),
               dataBuilder: (result) {
-                if (result.items.isEmpty) {
+                // Phase 2.B-viewport: chỉ giữ nhánh "text-only" cho trường hợp
+                // viewport CHƯA set (initial load lỗi hoặc filter quá khắt). Sau khi
+                // viewport set, luôn render map — empty cases hiển thị banner inline
+                // bên trong Stack để user còn pan/zoom.
+                if (result.items.isEmpty && viewport == null) {
                   String message;
                   if (result.keywordApplied) {
                     message =
@@ -141,6 +168,8 @@ class _MapShellPageState extends ConsumerState<MapShellPage> {
                         final ephemeralStation = ref.watch(mapEphemeralStationProvider);
                         final cheapSpotlightId = ref.watch(mapCheapSpotlightStationIdProvider);
                         final fuelMode = ref.watch(mapMarkerFuelPriceModeProvider);
+                        final selectedFuelCode = ref.watch(
+                            mapFiltersProvider.select((f) => f.fuelCode));
                         // Shell chỉ Loai=5 (Citizen): camera mặc định ~500 m quanh GPS — xem MapStationMapBody.
                         return MapStationMapBody(
                       allItems: result.items,
@@ -148,6 +177,7 @@ class _MapShellPageState extends ConsumerState<MapShellPage> {
                       cheapSpotlightStationId: cheapSpotlightId,
                       externalHighlightStationId: highlightId,
                       fuelPriceMode: fuelMode,
+                      selectedFuelCode: selectedFuelCode,
                       mapBottomPadding: sheetPad,
                       mapTopPadding: _mapTopInsetPx,
                       onDismissExternalHighlight: () {
@@ -159,7 +189,17 @@ class _MapShellPageState extends ConsumerState<MapShellPage> {
                         _mapController = c;
                         ref.read(mapAppMapControllerProvider.notifier).state = c;
                       },
-                      topOverlay: (result.truncated || result.keywordListTruncated)
+                      // Phase 2.B-viewport: cập nhật viewport state mỗi lần camera idle
+                      // (debounce 400ms ở MapStationMapBody). stationMapMarkersFetchProvider
+                      // dùng giá trị này để fetch markers trong bbox (zoom ≥ 11) hoặc dừng
+                      // fetch + chuyển sang clusters (zoom < 11).
+                      onCameraViewportChanged: (zoom, bounds) {
+                        final next = MapViewport(zoom: zoom, bounds: bounds);
+                        if (ref.read(mapViewportProvider) != next) {
+                          ref.read(mapViewportProvider.notifier).state = next;
+                        }
+                      },
+                      topOverlay: result.keywordListTruncated
                           ? Align(
                               alignment: Alignment.topCenter,
                               child: Padding(
@@ -170,27 +210,12 @@ class _MapShellPageState extends ConsumerState<MapShellPage> {
                                   color: MapScreenPalette.cardWhite.withValues(alpha: 0.96),
                                   child: Padding(
                                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        if (result.keywordListTruncated)
-                                          Text(
-                                            'Danh sách từ khóa có thể chưa đủ (giới hạn trang API).',
-                                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                                  color: MapScreenPalette.textSecondary,
-                                                ),
-                                            textAlign: TextAlign.center,
+                                    child: Text(
+                                      'Danh sách từ khóa có thể chưa đủ (giới hạn trang API).',
+                                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                            color: MapScreenPalette.textSecondary,
                                           ),
-                                        if (result.truncated)
-                                          Text(
-                                            'Bản đồ: hiển thị ${result.items.length}/${result.mapTotalCount} cây xăng có tọa độ (giới hạn tải).',
-                                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                                  color: MapScreenPalette.textSecondary,
-                                                ),
-                                            textAlign: TextAlign.center,
-                                          ),
-                                      ],
+                                      textAlign: TextAlign.center,
                                     ),
                                   ),
                                 ),
@@ -239,6 +264,7 @@ class _MapShellPageState extends ConsumerState<MapShellPage> {
             ),
           ),
         ],
+        ),
       ),
     );
   }

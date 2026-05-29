@@ -1,12 +1,15 @@
+using System.Reflection;
 using System.Text.Json;
 using System.Threading.RateLimiting;
 using Httm.XangDau.Api.Features;
+using Httm.XangDau.Api.Features.ClientTelemetry;
 using Httm.XangDau.Api.Features.LeaderAi.Security;
 using Httm.XangDau.Api.Shared.DependencyInjection;
 using Httm.XangDau.Api.Shared.Persistence;
 using Httm.XangDau.Api.Shared.Security;
 using Httm.XangDau.Api.Shared.Swagger;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -20,6 +23,13 @@ builder.Services.AddControllers().AddJsonOptions(o =>
 {
     o.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
     o.JsonSerializerOptions.DictionaryKeyPolicy = JsonNamingPolicy.CamelCase;
+});
+
+builder.Services.AddResponseCompression(o =>
+{
+    o.EnableForHttps = true;
+    o.Providers.Add<BrotliCompressionProvider>();
+    o.Providers.Add<GzipCompressionProvider>();
 });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
@@ -49,6 +59,12 @@ builder.Services.AddSwaggerGen(options =>
         BearerFormat = "JWT",
     });
     options.OperationFilter<AdminApiKeyOperationFilter>();
+    var xml = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xml);
+    if (File.Exists(xmlPath))
+    {
+        options.IncludeXmlComments(xmlPath, includeControllerXmlComments: true);
+    }
 });
 
 builder.Services.AddInfrastructure(builder.Configuration);
@@ -89,6 +105,18 @@ builder.Services.AddRateLimiter(options =>
                 Window = TimeSpan.FromMinutes(15),
                 QueueLimit = 0,
             }));
+
+    // Bản đồ HTTM công khai — tránh scrape hàng loạt.
+    options.AddPolicy(
+        "public-httm",
+        httpContext => RateLimitPartition.GetFixedWindowLimiter(
+            PartitionKey(httpContext),
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 120,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+            }));
 });
 
 var corsOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
@@ -106,6 +134,8 @@ app.SeedFuelProductCatalogIfNeeded();
 
 app.UseExceptionHandler();
 app.UseStatusCodePages();
+
+app.UseResponseCompression();
 
 if (app.Environment.IsDevelopment())
 {
@@ -132,6 +162,9 @@ app.UseRateLimiter();
 
 // Loca AI Leader rate limit — chỉ áp cho prefix /api/leader-ai (middleware tự skip route khác).
 app.UseMiddleware<RateLimitMiddleware>();
+
+// Client telemetry — sample 1% (cấu hình `Telemetry:SampleRate`) để track adoption phiên bản mobile.
+app.UseMiddleware<ClientVersionLogMiddleware>();
 
 app.MapControllers();
 
