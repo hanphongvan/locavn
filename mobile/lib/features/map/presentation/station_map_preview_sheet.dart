@@ -115,6 +115,20 @@ class _StationMapPreviewSheetBodyState extends ConsumerState<_StationMapPreviewS
     final ron = detail?.priceRon95 ?? station.priceRon95;
     final die = detail?.priceDiesel ?? station.priceDiesel;
     final e5 = _tryE5Price(detail);
+    final selectedFuelCode = ref.watch(mapFiltersProvider.select((f) => f.fuelCode));
+    final selectedFuelLabel = selectedFuelCode == null
+        ? null
+        : ref.watch(fuelProductLeavesProvider).maybeWhen(
+              data: (leaves) {
+                for (final l in leaves) {
+                  if (l.code.toUpperCase() == selectedFuelCode.toUpperCase()) {
+                    return l.name;
+                  }
+                }
+                return selectedFuelCode;
+              },
+              orElse: () => selectedFuelCode,
+            );
     final expanded = _extent >= _expandThreshold;
 
     return NotificationListener<DraggableScrollableNotification>(
@@ -171,7 +185,15 @@ class _StationMapPreviewSheetBodyState extends ConsumerState<_StationMapPreviewS
                     ],
                   ),
                   const SizedBox(height: 14),
-                  StationPreviewPriceQuickView(ron95: ron, diesel: die, e5Price: e5),
+                  StationPreviewPriceQuickView(
+                    ron95: ron,
+                    diesel: die,
+                    e5Price: e5,
+                    selectedFuelLabel: selectedFuelLabel,
+                    selectedFuelPrice: selectedFuelCode == null
+                        ? null
+                        : station.priceForSelectedFuel,
+                  ),
                   const SizedBox(height: 14),
                   catalogAsync.when(
                     data: (catalog) => StationPreviewServicesRow(

@@ -168,6 +168,8 @@ class _MapShellPageState extends ConsumerState<MapShellPage> {
                         final ephemeralStation = ref.watch(mapEphemeralStationProvider);
                         final cheapSpotlightId = ref.watch(mapCheapSpotlightStationIdProvider);
                         final fuelMode = ref.watch(mapMarkerFuelPriceModeProvider);
+                        final selectedFuelCode = ref.watch(
+                            mapFiltersProvider.select((f) => f.fuelCode));
                         // Shell chỉ Loai=5 (Citizen): camera mặc định ~500 m quanh GPS — xem MapStationMapBody.
                         return MapStationMapBody(
                       allItems: result.items,
@@ -175,6 +177,7 @@ class _MapShellPageState extends ConsumerState<MapShellPage> {
                       cheapSpotlightStationId: cheapSpotlightId,
                       externalHighlightStationId: highlightId,
                       fuelPriceMode: fuelMode,
+                      selectedFuelCode: selectedFuelCode,
                       mapBottomPadding: sheetPad,
                       mapTopPadding: _mapTopInsetPx,
                       onDismissExternalHighlight: () {

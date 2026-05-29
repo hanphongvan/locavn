@@ -136,6 +136,47 @@ public sealed class StationMapMarkersDataAccess(IConfiguration configuration) : 
     }
 
     /// <inheritdoc />
+    public async Task<(long TotalCount, IReadOnlyList<StationMapMarkersV2SqlRow> Rows)> ListPagedV2Async(
+        int skip,
+        int take,
+        string? provinceMaOrNull,
+        int? quanHuyenIdOrNull,
+        string? statusOrNull,
+        string? keywordOrNull,
+        string? fuelCodeOrNull,
+        byte dayOfWeek,
+        TimeOnly nowTime,
+        int retailCapDonViId,
+        CancellationToken cancellationToken = default)
+    {
+        await using var conn = new SqlConnection(_connectionString);
+        await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+        var cmd = new CommandDefinition(
+            "dbo.sp_Api_StationMap_ListPaged_V2",
+            new
+            {
+                RetailCapDonViId = retailCapDonViId,
+                DayOfWeek = dayOfWeek,
+                NowTime = nowTime.ToTimeSpan(),
+                ProvinceCode = provinceMaOrNull,
+                DistrictQuanHuyenId = quanHuyenIdOrNull,
+                Status = statusOrNull,
+                Keyword = keywordOrNull,
+                FuelCode = fuelCodeOrNull,
+                Skip = skip,
+                Take = take,
+            },
+            commandType: CommandType.StoredProcedure,
+            cancellationToken: cancellationToken);
+
+        await using var multi = await conn.QueryMultipleAsync(cmd).ConfigureAwait(false);
+        var total = await multi.ReadSingleAsync<long>().ConfigureAwait(false);
+        var rows = (await multi.ReadAsync<StationMapMarkersV2SqlRow>().ConfigureAwait(false)).ToList();
+        return (total, rows);
+    }
+
+    /// <inheritdoc />
     public async Task<IReadOnlyList<StationMapProvinceClusterSqlRow>> ProvinceClustersAsync(
         string? statusOrNull,
         string? keywordOrNull,

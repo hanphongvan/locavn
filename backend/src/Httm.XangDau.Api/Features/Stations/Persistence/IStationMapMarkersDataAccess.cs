@@ -60,4 +60,23 @@ public interface IStationMapMarkersDataAccess
         TimeOnly nowTime,
         int retailCapDonViId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// V2 — <c>dbo.sp_Api_StationMap_ListPaged_V2</c>. Thêm <paramref name="fuelCodeOrNull"/>
+    /// (lọc trạm có <c>StationStoreServices.ServiceCode = @FuelCode</c> + <c>IsActive</c>);
+    /// trả về <c>PriceRon95</c>, <c>PriceDiesel</c>, <c>PriceForSelectedFuel</c> lấy trực tiếp từ
+    /// <c>StationStoreServices.Price</c> (không gọi <c>fuelReporting</c> snapshot riêng như V1).
+    /// </summary>
+    Task<(long TotalCount, IReadOnlyList<StationMapMarkersV2SqlRow> Rows)> ListPagedV2Async(
+        int skip,
+        int take,
+        string? provinceMaOrNull,
+        int? quanHuyenIdOrNull,
+        string? statusOrNull,
+        string? keywordOrNull,
+        string? fuelCodeOrNull,
+        byte dayOfWeek,
+        TimeOnly nowTime,
+        int retailCapDonViId,
+        CancellationToken cancellationToken = default);
 }

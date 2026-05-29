@@ -63,7 +63,7 @@ class StationPreviewServicesRow extends StatelessWidget {
               for (final s in services)
                 Chip(
                   avatar: Icon(
-                    storeServiceIconData(s.iconKey),
+                    storeServiceIconForCode(s.serviceCode, s.iconKey),
                     size: 18,
                     color: s.isActive
                         ? StationDetailShellTheme.primary
@@ -108,7 +108,7 @@ class StationPreviewServicesRow extends StatelessWidget {
             for (final code in codes)
               Chip(
                 avatar: Icon(
-                  storeServiceIconData(_iconKeyForCode(code)),
+                  storeServiceIconForCode(code, _iconKeyForCode(code)),
                   size: 18,
                   color: StationDetailShellTheme.primary,
                 ),

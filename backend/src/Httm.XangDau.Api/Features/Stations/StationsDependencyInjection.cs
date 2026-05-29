@@ -12,6 +12,7 @@ public static class StationsDependencyInjection
         services.AddScoped<IStationListSearchDataAccess, StationListSearchDataAccess>();
         services.AddScoped<IStationMapMarkersDataAccess, StationMapMarkersDataAccess>();
         services.AddScoped<IStationReadService, StationReadService>();
+        services.AddScoped<IFuelProductReadService, FuelProductReadService>();
         services.AddScoped<IStationReviewService, StationReviewService>();
         services.AddScoped<IStationSpotlightReadService, StationSpotlightReadService>();
         return services;

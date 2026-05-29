@@ -13,7 +13,9 @@ import '../../../core/network/dio_provider.dart';
 import '../../../core/network/json_utils.dart';
 import 'models/paged_stations_response.dart';
 import 'models/station_detail_dto.dart';
+import 'models/fuel_product_leaf.dart';
 import 'models/station_list_item.dart';
+import 'models/station_distributor.dart';
 import 'models/station_map_item.dart';
 import 'models/station_map_markers_load_result.dart';
 import 'models/station_map_province_cluster.dart';
@@ -111,6 +113,42 @@ class StationsApi {
     });
   }
 
+  /// V2 — `GET /api/stations/map/v2`. Khi [fuelCode] non-null, server lọc trạm có
+  /// `StationStoreServices.ServiceCode == fuelCode` (active) và đính kèm
+  /// `priceForSelectedFuel`. Giá `priceRon95`/`priceDiesel` ở V2 lấy từ
+  /// `StationStoreServices.Price` (không phải snapshot reporting như V1).
+  Future<PagedStationsResponse<StationMapItem>> getMapSummaryV2({
+    int skip = 0,
+    int take = 0,
+    String? provinceCode,
+    String? districtCode,
+    String? status,
+    String? keyword,
+    String? fuelCode,
+  }) async {
+    final t = (take <= 0 ? 50 : take).clamp(1, 100);
+    final response = await _getWithConnectionRetry(
+      ApiEndpoints.stationsMapV2,
+      queryParameters: <String, dynamic>{
+        'skip': skip,
+        'take': t,
+        if (provinceCode != null && provinceCode.isNotEmpty) 'provinceCode': provinceCode,
+        if (districtCode != null && districtCode.isNotEmpty) 'districtCode': districtCode,
+        if (status != null && status.isNotEmpty) 'status': status,
+        if (keyword != null && keyword.isNotEmpty) 'keyword': keyword,
+        if (fuelCode != null && fuelCode.isNotEmpty) 'fuelCode': fuelCode,
+      },
+      debugLabel: 'getMapSummaryV2',
+    );
+    return ApiResponseHandler.decode(response, (data) {
+      final m = JsonUtils.readMap(data);
+      if (m == null) {
+        throw const FormatException('Expected map for PagedStationsResponse');
+      }
+      return PagedStationsResponse.fromJson(m, StationMapItem.fromJson);
+    });
+  }
+
   /// `GET /api/stations/map/bounds` (Phase 2.G) — markers trong bounding box
   /// + optional [keyword]. Dùng cho zoom-aware viewport loading (zoom ≥ 11).
   /// Cap server: take mặc định 500, max 1000.
@@ -144,6 +182,26 @@ class StationsApi {
         throw const FormatException('Expected map for PagedStationsResponse');
       }
       return PagedStationsResponse.fromJson(m, StationMapItem.fromJson);
+    });
+  }
+
+  /// `GET /api/stations/distributors` — đầu mối (CapDonViId=235) có trạm bán lẻ. Mobile
+  /// dùng cho bottom sheet lọc theo doanh nghiệp đầu mối trên thanh tìm kiếm.
+  Future<List<StationDistributor>> getDistributors() async {
+    final response = await _getWithConnectionRetry(
+      ApiEndpoints.stationsDistributors,
+      debugLabel: 'getDistributors',
+    );
+    return ApiResponseHandler.decode(response, (data) {
+      final list = JsonUtils.readList(data);
+      if (list == null) {
+        throw const FormatException('Expected list for Distributors');
+      }
+      return list
+          .map((e) => JsonUtils.readMap(e))
+          .where((m) => m != null)
+          .map((m) => StationDistributor.fromJson(m!))
+          .toList();
     });
   }
 
@@ -351,6 +409,189 @@ class StationsApi {
             districtCode: districtCode,
             status: status,
             keyword: keyword,
+          );
+          all.addAll(page.items);
+        }
+      }
+      start = end + 1;
+    }
+  }
+
+  /// V2 — đồng tử [loadMapMarkersPaged] nhưng gọi `/api/stations/map/v2` (kèm [fuelCode]
+  /// khi non-null). Giá `priceForSelectedFuel` chỉ có khi server nhận `fuelCode`.
+  Future<StationMapMarkersLoadResult> loadMapMarkersPagedV2({
+    String? provinceCode,
+    String? districtCode,
+    String? status,
+    String? keyword,
+    String? fuelCode,
+    int pageSize = 50,
+    int maxPages = 15,
+  }) async {
+    final take = pageSize.clamp(1, 100);
+    final first = await getMapSummaryV2(
+      skip: 0,
+      take: take,
+      provinceCode: provinceCode,
+      districtCode: districtCode,
+      status: status,
+      keyword: keyword,
+      fuelCode: fuelCode,
+    );
+    final totalCount = first.totalCount;
+    final all = List<StationMapItem>.from(first.items);
+
+    if (first.items.isEmpty) {
+      return StationMapMarkersLoadResult(
+        items: all,
+        mapTotalCount: totalCount,
+        truncated: false,
+      );
+    }
+
+    if (first.items.length < take) {
+      final resolvedTotal = totalCount > 0 ? totalCount : all.length;
+      return StationMapMarkersLoadResult(
+        items: all,
+        mapTotalCount: resolvedTotal,
+        truncated: false,
+      );
+    }
+
+    if (totalCount > 0 && all.length >= totalCount) {
+      return StationMapMarkersLoadResult(
+        items: all,
+        mapTotalCount: totalCount,
+        truncated: false,
+      );
+    }
+
+    if (totalCount <= 0) {
+      return _loadMapMarkersSequentialAfterFirstV2(
+        all: all,
+        take: take,
+        maxPages: maxPages,
+        provinceCode: provinceCode,
+        districtCode: districtCode,
+        status: status,
+        keyword: keyword,
+        fuelCode: fuelCode,
+      );
+    }
+
+    final totalPages = ((totalCount + take - 1) ~/ take).clamp(1, 1 << 20);
+    final maxExtra = math.max(0, maxPages - 1);
+    final extraPages = math.min(maxExtra, totalPages - 1);
+    if (extraPages <= 0) {
+      return StationMapMarkersLoadResult(
+        items: all,
+        mapTotalCount: totalCount,
+        truncated: all.length < totalCount,
+      );
+    }
+
+    await _appendMapPagesBatchedV2(
+      all: all,
+      take: take,
+      firstPageIndex: 1,
+      lastPageIndex: extraPages,
+      provinceCode: provinceCode,
+      districtCode: districtCode,
+      status: status,
+      keyword: keyword,
+      fuelCode: fuelCode,
+    );
+
+    final truncated = all.length < totalCount;
+    return StationMapMarkersLoadResult(
+      items: all,
+      mapTotalCount: totalCount,
+      truncated: truncated,
+    );
+  }
+
+  Future<StationMapMarkersLoadResult> _loadMapMarkersSequentialAfterFirstV2({
+    required List<StationMapItem> all,
+    required int take,
+    required int maxPages,
+    String? provinceCode,
+    String? districtCode,
+    String? status,
+    String? keyword,
+    String? fuelCode,
+  }) async {
+    var skip = take;
+    for (var i = 1; i < maxPages; i++) {
+      final page = await getMapSummaryV2(
+        skip: skip,
+        take: take,
+        provinceCode: provinceCode,
+        districtCode: districtCode,
+        status: status,
+        keyword: keyword,
+        fuelCode: fuelCode,
+      );
+      all.addAll(page.items);
+      if (page.items.isEmpty || page.items.length < take) {
+        return StationMapMarkersLoadResult(
+          items: all,
+          mapTotalCount: all.length,
+          truncated: false,
+        );
+      }
+      skip += take;
+    }
+    return StationMapMarkersLoadResult(
+      items: all,
+      mapTotalCount: all.length,
+      truncated: true,
+    );
+  }
+
+  Future<void> _appendMapPagesBatchedV2({
+    required List<StationMapItem> all,
+    required int take,
+    required int firstPageIndex,
+    required int lastPageIndex,
+    String? provinceCode,
+    String? districtCode,
+    String? status,
+    String? keyword,
+    String? fuelCode,
+  }) async {
+    var start = firstPageIndex;
+    while (start <= lastPageIndex) {
+      final end = math.min(start + _mapPageConcurrency - 1, lastPageIndex);
+      final batch = <Future<PagedStationsResponse<StationMapItem>>>[];
+      for (var p = start; p <= end; p++) {
+        batch.add(
+          getMapSummaryV2(
+            skip: p * take,
+            take: take,
+            provinceCode: provinceCode,
+            districtCode: districtCode,
+            status: status,
+            keyword: keyword,
+            fuelCode: fuelCode,
+          ),
+        );
+      }
+      try {
+        final pages = await Future.wait(batch);
+        for (final page in pages) {
+          all.addAll(page.items);
+        }
+      } catch (e, st) {
+        logAppError('loadMapMarkersPagedV2 parallel batch pages $start-$end', e, st);
+        for (var p = start; p <= end; p++) {
+          final page = await getMapSummaryV2(
+            skip: p * take,
+            take: take,
+            provinceCode: provinceCode,
+            districtCode: districtCode,
+            status: status,
+            keyword: keyword,
+            fuelCode: fuelCode,
           );
           all.addAll(page.items);
         }
@@ -579,6 +820,23 @@ class StationsApi {
       }
       return data
           .map((e) => StoreServiceCatalogItem.fromJson(JsonUtils.readMap(e)!))
+          .toList(growable: false);
+    });
+  }
+
+  /// Public leaves of the `FuelProducts` tree for map filter chips
+  /// (`GET /api/stations/fuel-products/leaves`).
+  Future<List<FuelProductLeaf>> getFuelProductLeaves() async {
+    final response = await _getWithConnectionRetry(
+      ApiEndpoints.stationsFuelProductLeaves,
+      debugLabel: 'getFuelProductLeaves',
+    );
+    return ApiResponseHandler.decode(response, (data) {
+      if (data is! List<dynamic>) {
+        throw const FormatException('Expected JSON array for fuel-products leaves');
+      }
+      return data
+          .map((e) => FuelProductLeaf.fromJson(JsonUtils.readMap(e)!))
           .toList(growable: false);
     });
   }

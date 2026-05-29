@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/map/app_lat_lng.dart';
 import '../../../core/map/app_map_controller.dart';
+import '../../stations/data/models/fuel_product_leaf.dart';
+import '../../stations/data/models/station_distributor.dart';
 import '../../stations/data/models/station_map_item.dart';
 import '../../store_services/data/models/store_service_catalog_item.dart';
 import '../../stations/data/models/station_map_markers_load_result.dart';
@@ -16,6 +18,14 @@ import 'map_viewport_state.dart';
 
 final mapFiltersProvider = StateProvider<MapFilters>((ref) => const MapFilters());
 
+/// Đầu mối (CapDonViId=235) có trạm bán lẻ — dùng cho bottom sheet lọc brand
+/// trên thanh tìm kiếm. Không autoDispose để cache giữa các lần mở sheet.
+final mapDistributorsProvider =
+    FutureProvider<List<StationDistributor>>((ref) async {
+  final api = ref.watch(stationsApiProvider);
+  return api.getDistributors();
+});
+
 /// Public store-service catalog for map filter chips (same payload as admin catalog).
 final stationStoreServiceCatalogProvider =
     FutureProvider.autoDispose<List<StoreServiceCatalogItem>>((ref) async {
@@ -23,7 +33,14 @@ final stationStoreServiceCatalogProvider =
   return api.getStoreServicesCatalog();
 });
 
-/// Chỉ các trường kích hoạt tải lại từ API (`GET /api/stations/map` + ∩ danh sách từ khóa).
+/// Public leaves of the `FuelProducts` tree (mã + tên) cho chip "Loại nhiên liệu" động.
+/// Keep cache giữa các lần mở bottom sheet (không autoDispose).
+final fuelProductLeavesProvider = FutureProvider<List<FuelProductLeaf>>((ref) async {
+  final api = ref.watch(stationsApiProvider);
+  return api.getFuelProductLeaves();
+});
+
+/// Chỉ các trường kích hoạt tải lại từ API (`GET /api/stations/map/v2` + ∩ danh sách từ khóa).
 @immutable
 class MapApiFilterKey {
   const MapApiFilterKey({
@@ -31,12 +48,14 @@ class MapApiFilterKey {
     required this.districtCode,
     required this.keyword,
     required this.status,
+    required this.fuelCode,
   });
 
   final String? provinceCode;
   final String? districtCode;
   final String? keyword;
   final String? status;
+  final String? fuelCode;
 
   @override
   bool operator ==(Object other) =>
@@ -46,10 +65,11 @@ class MapApiFilterKey {
           provinceCode == other.provinceCode &&
           districtCode == other.districtCode &&
           keyword == other.keyword &&
-          status == other.status;
+          status == other.status &&
+          fuelCode == other.fuelCode;
 
   @override
-  int get hashCode => Object.hash(provinceCode, districtCode, keyword, status);
+  int get hashCode => Object.hash(provinceCode, districtCode, keyword, status, fuelCode);
 }
 
 final mapApiFilterKeyProvider = Provider<MapApiFilterKey>((ref) {
@@ -65,6 +85,7 @@ final mapApiFilterKeyProvider = Provider<MapApiFilterKey>((ref) {
     districtCode: norm(f.districtCode),
     keyword: (kw == null || kw.isEmpty) ? null : kw,
     status: _statusQuery(f.status),
+    fuelCode: norm(f.fuelCode),
   );
 });
 
@@ -158,11 +179,12 @@ final stationMapMarkersFetchProvider = FutureProvider<StationMapMarkersLoadResul
   final api = ref.watch(stationsApiProvider);
 
   final kw = (key.keyword == null || key.keyword!.isEmpty) ? null : key.keyword;
-  final mapResult = await api.loadMapMarkersPaged(
+  final mapResult = await api.loadMapMarkersPagedV2(
     provinceCode: key.provinceCode,
     districtCode: key.districtCode,
     status: key.status,
     keyword: kw,
+    fuelCode: key.fuelCode,
   );
   return StationMapMarkersLoadResult(
     items: mapResult.items,
@@ -201,24 +223,17 @@ bool _stationPassesClientFilters(StationMapItem m, MapFilters f) {
       return false;
   }
 
-  switch (f.fuelType) {
-    case MapFuelTypeFilter.all:
-    case MapFuelTypeFilter.lpg:
-      break;
-    case MapFuelTypeFilter.petrol:
-      if (m.priceRon95 == null) return false;
-      break;
-    case MapFuelTypeFilter.diesel:
-      if (m.priceDiesel == null) return false;
-      break;
-  }
+  // Fuel filter đã làm server-side tại `/api/stations/map/v2?fuelCode=...`
+  // (xem `stationMapMarkersFetchProvider`); không lọc lại client-side.
 
   if (f.hasPriceFilter) {
     final lo = f.priceMinDong.toDouble();
     final hi = f.priceMaxDong.toDouble();
     final prices = <double>[
-      if (m.priceRon95 != null) m.priceRon95!,
-      if (m.priceDiesel != null) m.priceDiesel!,
+      // Khi user chọn fuelCode cụ thể → check đúng giá fuel đó (V2 đính kèm).
+      if (f.fuelCode != null && m.priceForSelectedFuel != null) m.priceForSelectedFuel!,
+      if (f.fuelCode == null && m.priceRon95 != null) m.priceRon95!,
+      if (f.fuelCode == null && m.priceDiesel != null) m.priceDiesel!,
     ];
     if (prices.isEmpty) return false;
     final inBand = prices.any((p) => p >= lo && p <= hi);
@@ -230,6 +245,10 @@ bool _stationPassesClientFilters(StationMapItem m, MapFilters f) {
     for (final sel in f.selectedServiceCodes) {
       if (!stationCodes.contains(sel.toUpperCase())) return false;
     }
+  }
+
+  if (f.distributorId != null) {
+    if (m.parentDonViId != f.distributorId) return false;
   }
 
   // Đánh giá: DTO map chưa có điểm — giữ nguyên danh sách (chip vẫn hiện trong tóm tắt).

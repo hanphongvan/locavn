@@ -11,19 +11,29 @@ class StationPreviewPriceQuickView extends StatelessWidget {
     required this.ron95,
     required this.diesel,
     this.e5Price,
+    this.selectedFuelLabel,
+    this.selectedFuelPrice,
   });
 
   final double? ron95;
   final double? diesel;
   final double? e5Price;
 
+  /// Khi non-null, chỉ hiển thị 1 dòng cho fuel mobile đang lọc (đồng bộ chip "Loại nhiên liệu").
+  final String? selectedFuelLabel;
+  final double? selectedFuelPrice;
+
   @override
   Widget build(BuildContext context) {
-    final rows = <({String label, double? v})>[
-      (label: StationMapPreviewStrings.labelRon95, v: ron95),
-      if (e5Price != null) (label: StationMapPreviewStrings.labelE5, v: e5Price),
-      (label: StationMapPreviewStrings.labelDo, v: diesel),
-    ];
+    final rows = selectedFuelLabel != null
+        ? <({String label, double? v})>[
+            (label: selectedFuelLabel!, v: selectedFuelPrice),
+          ]
+        : <({String label, double? v})>[
+            (label: StationMapPreviewStrings.labelRon95, v: ron95),
+            if (e5Price != null) (label: StationMapPreviewStrings.labelE5, v: e5Price),
+            (label: StationMapPreviewStrings.labelDo, v: diesel),
+          ];
 
     return DecoratedBox(
       decoration: BoxDecoration(

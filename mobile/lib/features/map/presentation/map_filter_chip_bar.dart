@@ -47,7 +47,20 @@ class _MapFilterChipBarState extends ConsumerState<MapFilterChipBar> {
   @override
   Widget build(BuildContext context) {
     final shortcut = ref.watch(mapDiscoveryShortcutProvider);
-    final hasServiceFilter = ref.watch(mapFiltersProvider).selectedServiceCodes.isNotEmpty;
+    final filters = ref.watch(mapFiltersProvider);
+    final hasServiceFilter = filters.selectedServiceCodes.isNotEmpty;
+    // Lá E5 hiện trong seeder là `E5RON92` ([[fuel_data_two_sources]]). Đổi sang `E5` nếu
+    // sau này admin/seeder thay code chính tắc.
+    const e5FuelCode = 'E5RON92';
+    final isE5Selected = (filters.fuelCode ?? '').toUpperCase() == e5FuelCode;
+
+    void toggleE5() {
+      final cur = ref.read(mapFiltersProvider);
+      ref.read(mapFiltersProvider.notifier).state = cur.copyWith(
+        fuelCode: isE5Selected ? null : e5FuelCode,
+      );
+      mapClearCheapSpotlightMarker(ref);
+    }
 
     Future<void> onNearest() async {
       if (_nearestLoading) return;
@@ -229,6 +242,13 @@ class _MapFilterChipBarState extends ConsumerState<MapFilterChipBar> {
             label: 'Rẻ nhất',
             busy: _cheapestLoading,
             onTap: () => unawaited(onCheapest()),
+          ),
+          const SizedBox(width: 10),
+          _MapFilterPill(
+            selected: isE5Selected,
+            icon: Icons.local_gas_station_outlined,
+            label: 'Xăng E5',
+            onTap: toggleE5,
           ),
           const SizedBox(width: 10),
           _MapFilterPill(

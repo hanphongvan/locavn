@@ -150,7 +150,7 @@ class _PickerTile extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Icon(storeServiceIconData(item.iconKey), color: StorePriceDesignTokens.focusBlue),
+              Icon(storeServiceIconForCode(item.serviceCode, item.iconKey), color: StorePriceDesignTokens.focusBlue),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(

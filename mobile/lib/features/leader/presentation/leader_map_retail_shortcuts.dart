@@ -107,7 +107,7 @@ class _LeaderRetailServicesSheetState extends ConsumerState<_LeaderRetailService
                             FilterChip(
                               label: Text(item.defaultDisplayName),
                               avatar: Icon(
-                                storeServiceIconData(item.iconKey),
+                                storeServiceIconForCode(item.serviceCode, item.iconKey),
                                 size: 22,
                                 color: LeaderTheme.navy,
                               ),

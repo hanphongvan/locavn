@@ -170,7 +170,7 @@ class StationStoreServicesCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Icon(
-                    storeServiceIconData(sorted[i].iconKey),
+                    storeServiceIconForCode(sorted[i].serviceCode, sorted[i].iconKey),
                     size: 22,
                     color: sorted[i].isActive
                         ? StationDetailShellTheme.primary

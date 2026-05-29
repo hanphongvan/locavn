@@ -22,6 +22,21 @@ public interface IStationReadService
         string? keyword,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// V2 — <c>GET /api/stations/map/v2</c>. Thêm <paramref name="fuelCode"/> (khớp <c>StationStoreServices.ServiceCode</c>
+    /// với <c>FuelProducts.Code</c>); giá đính kèm trong SP (không gọi fuelReporting riêng).
+    /// V1 vẫn giữ nguyên cho app version cũ.
+    /// </summary>
+    Task<(PagedStationsResponse<StationMapItemV2Dto> Data, string? Error)> MapV2Async(
+        int skip,
+        int take,
+        string? provinceCode,
+        string? districtCode,
+        string? status,
+        string? keyword,
+        string? fuelCode,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Trạm bán lẻ trong khung nhìn (SP <c>dbo.sp_Leader_Map_RetailStations_ListByBounds</c>) + giá / giờ mở như <see cref="MapAsync"/>.</summary>
     Task<(PagedStationsResponse<StationMapItemDto> Data, string? Error)> MapByBoundsAsync(
         int skip,
@@ -57,4 +72,10 @@ public interface IStationReadService
         CancellationToken cancellationToken = default);
 
     Task<(StationDetailDto? Data, string? Error)> GetDetailAsync(int id, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Danh sách đầu mối (<c>DM_DonVi.CapDonViId=235</c>) có ít nhất 1 trạm bán lẻ (<c>CapDonViId=248</c>).
+    /// Sắp theo số trạm giảm dần. Map qua <see cref="IStationBrandRegistry"/> để gắn slug brand nếu cấu hình.
+    /// </summary>
+    Task<IReadOnlyList<StationDistributorDto>> GetDistributorsAsync(CancellationToken cancellationToken = default);
 }

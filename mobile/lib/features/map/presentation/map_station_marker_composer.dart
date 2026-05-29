@@ -61,16 +61,21 @@ abstract final class MapStationMarkerComposer {
     double? priceRon95,
     double? priceDiesel,
     String? brandKey,
+    String? selectedFuelCode,
   }) {
     // brand suffix làm cache key duy nhất per-brand+kind → 200 trạm cùng (brand,kind,price)
     // dùng chung 1 bitmap.
     final brandSuffix = brandKey == null ? '' : '_$brandKey';
+    // fc suffix để khi user đổi fuelCode lọc → cache không trả icon RON cũ.
+    final fcSuffix = selectedFuelCode == null ? '' : '_fc${selectedFuelCode.toUpperCase()}';
     if (displayBothFuelPrices) {
-      return '${stationId}_${kind.name}${brandSuffix}_${selected ? 1 : 0}_${dpr.toStringAsFixed(1)}_dual_'
+      return '${stationId}_${kind.name}$brandSuffix$fcSuffix'
+          '_${selected ? 1 : 0}_${dpr.toStringAsFixed(1)}_dual_'
           '${priceRon95?.round() ?? -1}_${priceDiesel?.round() ?? -1}';
     }
 
-    return '${stationId}_${kind.name}${brandSuffix}_${selected ? 1 : 0}_${dpr.toStringAsFixed(1)}_${fuel.name}_${price?.round() ?? -1}';
+    return '${stationId}_${kind.name}$brandSuffix$fcSuffix'
+        '_${selected ? 1 : 0}_${dpr.toStringAsFixed(1)}_${fuel.name}_${price?.round() ?? -1}';
   }
 
   static void _remember(String key, AppMapMarkerIcon d) {
@@ -112,9 +117,14 @@ abstract final class MapStationMarkerComposer {
     required MapMarkerFuelPriceMode fuelMode,
     /// `true`: hai dòng giá (RON95 + diesel). `false`: một dòng theo [fuelMode] (bản đồ Lãnh đạo dùng false).
     bool displayBothFuelPrices = false,
+    /// Khi non-null, marker ưu tiên `item.priceForSelectedFuel` thay vì giá theo [fuelMode]
+    /// — đồng bộ với bộ lọc fuelCode mobile gửi xuống `/api/stations/map/v2`.
+    String? selectedFuelCode,
   }) async {
     final dpr = devicePixelRatio.clamp(2.0, 3.0);
-    final price = _price(item, fuelMode);
+    final price = selectedFuelCode != null
+        ? item.priceForSelectedFuel
+        : _price(item, fuelMode);
 
     // Brand bundled? Cache key per-brand để bitmap tái dùng giữa 200 trạm cùng brand.
     // Brand chưa bundle hoặc PNG placeholder → null → cache key như chế độ marker chung.
@@ -131,6 +141,7 @@ abstract final class MapStationMarkerComposer {
       priceRon95: item.priceRon95,
       priceDiesel: item.priceDiesel,
       brandKey: brandKey,
+      selectedFuelCode: selectedFuelCode,
     );
     final cached = _cache[key];
     if (cached != null) {

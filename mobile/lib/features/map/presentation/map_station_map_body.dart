@@ -45,6 +45,7 @@ class MapStationMapBody extends StatefulWidget {
     this.mapBottomPadding = 0,
     this.mapTopPadding = 0,
     this.fuelPriceMode = MapMarkerFuelPriceMode.ron95,
+    this.selectedFuelCode,
     this.skipEmptyViewportRecovery = true,
     this.onCameraViewportChanged,
   });
@@ -75,8 +76,11 @@ class MapStationMapBody extends StatefulWidget {
   /// Vùng UI phủ phía trên (header + tìm kiếm + chip) — đẩy UI bản đồ / controls xuống.
   final double mapTopPadding;
 
-  /// Giá hiển thị trên marker (RON95 / Diesel).
+  /// Giá hiển thị trên marker (RON95 / Diesel) khi không có fuelCode lọc.
   final MapMarkerFuelPriceMode fuelPriceMode;
+
+  /// Khi non-null, marker dùng `priceForSelectedFuel` (đồng bộ chip "Loại nhiên liệu" bộ lọc).
+  final String? selectedFuelCode;
 
   /// Khi `false`, nếu viewport không có marker nhưng [allItems] không rỗng, tự fit camera tới vùng có trạm (hữu ích cho bản đồ "toàn quốc").
   /// Mặc định `true` cho UX người dân: giữ khung ~500 m quanh GPS.
@@ -503,6 +507,7 @@ class _MapStationMapBodyState extends State<MapStationMapBody> {
           selected: selected,
           devicePixelRatio: dpr,
           fuelMode: widget.fuelPriceMode,
+          selectedFuelCode: widget.selectedFuelCode,
         );
         if (!mounted) return markers;
         markers.add(
@@ -534,6 +539,7 @@ class _MapStationMapBodyState extends State<MapStationMapBody> {
     final overlayChanged = oldWidget.overlayStation?.stationId != widget.overlayStation?.stationId;
     final cheapChanged = oldWidget.cheapSpotlightStationId != widget.cheapSpotlightStationId;
     final fuelChanged = oldWidget.fuelPriceMode != widget.fuelPriceMode;
+    final selectedFuelCodeChanged = oldWidget.selectedFuelCode != widget.selectedFuelCode;
     final recoveryChanged = oldWidget.skipEmptyViewportRecovery != widget.skipEmptyViewportRecovery;
     final padChanged = oldWidget.mapBottomPadding != widget.mapBottomPadding;
     final topPadChanged = oldWidget.mapTopPadding != widget.mapTopPadding;
@@ -545,6 +551,7 @@ class _MapStationMapBodyState extends State<MapStationMapBody> {
         overlayChanged ||
         cheapChanged ||
         fuelChanged ||
+        selectedFuelCodeChanged ||
         recoveryChanged) {
       _kickApplyMarkersSoon();
     } else if (padChanged || topPadChanged) {

@@ -218,6 +218,77 @@ public sealed class StationReadService(
     }
 
     /// <inheritdoc />
+    public async Task<(PagedStationsResponse<StationMapItemV2Dto> Data, string? Error)> MapV2Async(
+        int skip,
+        int take,
+        string? provinceCode,
+        string? districtCode,
+        string? status,
+        string? keyword,
+        string? fuelCode,
+        CancellationToken cancellationToken = default)
+    {
+        if (take < 1)
+            take = StationReadValidator.DefaultTake;
+
+        var (_, dow, nowTime) = StationVietnamClock.NowParts(DateTime.UtcNow);
+        var dowByte = (byte)dow;
+
+        var err = StationReadValidator.ValidatePagination(skip, take)
+                  ?? StationReadValidator.ValidateStatus(status);
+        if (err is not null)
+            return (EmptyPage<StationMapItemV2Dto>(skip, take), err);
+
+        var keywordTrim = string.IsNullOrWhiteSpace(keyword) ? null : keyword.Trim();
+        if (keywordTrim is { Length: > StationReadValidator.MaxKeywordLength })
+            return (EmptyPage<StationMapItemV2Dto>(skip, take), $"keyword max length is {StationReadValidator.MaxKeywordLength}.");
+
+        // Same backward-compat trick as V1: legacy mobile builds short-circuit pagination via
+        // totalCount >= items.Count when no keyword. Server-side filter does the heavy lifting
+        // when keyword/fuelCode are present.
+        if (skip == 0 && keywordTrim is null && string.IsNullOrWhiteSpace(fuelCode))
+            take = 50000;
+
+        int? districtQuanHuyenId = null;
+        if (!string.IsNullOrWhiteSpace(districtCode))
+        {
+            if (!StationReadValidator.TryParseDistrictCode(districtCode, out var qhid, out var dErr))
+                return (EmptyPage<StationMapItemV2Dto>(skip, take), dErr);
+            districtQuanHuyenId = qhid;
+        }
+
+        var provinceTrim = string.IsNullOrWhiteSpace(provinceCode) ? null : provinceCode.Trim();
+        var provErr = await ValidateProvinceMaExistsAsync(provinceTrim, cancellationToken);
+        if (provErr is not null)
+            return (EmptyPage<StationMapItemV2Dto>(skip, take), provErr);
+
+        var fuelTrim = string.IsNullOrWhiteSpace(fuelCode) ? null : fuelCode.Trim();
+        if (fuelTrim is { Length: > 50 })
+            return (EmptyPage<StationMapItemV2Dto>(skip, take), "fuelCode max length is 50.");
+
+        var (totalLong, sqlRows) = await stationMapMarkers
+            .ListPagedV2Async(
+                skip,
+                take,
+                provinceTrim,
+                districtQuanHuyenId,
+                status,
+                keywordTrim,
+                fuelTrim,
+                dowByte,
+                nowTime,
+                PetrolRetailConstants.CapDonViId,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        var total = totalLong > int.MaxValue ? int.MaxValue : (int)totalLong;
+        var merged = await BuildMapStationItemsV2Async(sqlRows, dow, dowByte, nowTime, cancellationToken)
+            .ConfigureAwait(false);
+
+        return (new PagedStationsResponse<StationMapItemV2Dto>(merged, total, skip, take), null);
+    }
+
+    /// <inheritdoc />
     public async Task<(PagedStationsResponse<StationMapItemDto> Data, string? Error)> MapByBoundsAsync(
         int skip,
         int take,
@@ -456,6 +527,31 @@ public sealed class StationReadService(
         return (dto, null);
     }
 
+    public async Task<IReadOnlyList<StationDistributorDto>> GetDistributorsAsync(CancellationToken cancellationToken = default)
+    {
+        // GROUP BY parent — chỉ đầu mối có >=1 trạm bán lẻ. Tên lấy 1 lần từ join.
+        // Sort theo số trạm desc để mobile hiển thị top brand trước.
+        var rows = await (
+            from child in db.DmDonVis.AsNoTracking()
+            where child.CapDonViId == PetrolRetailConstants.CapDonViId
+                && child.CapTrenId != null
+            join parent in db.DmDonVis.AsNoTracking()
+                on child.CapTrenId equals parent.Id
+            where parent.CapDonViId == PetrolWholesaleConstants.CapDonViId
+            group child by new { Id = parent.Id, Name = parent.Ten } into g
+            orderby g.Count() descending, g.Key.Name
+            select new { g.Key.Id, g.Key.Name, Count = g.Count() }
+        ).ToListAsync(cancellationToken);
+
+        return rows
+            .Select(r =>
+            {
+                var brand = brandRegistry.Resolve(r.Id);
+                return new StationDistributorDto(r.Id, r.Name, r.Count, brand?.Key, brand?.LogoUrl);
+            })
+            .ToList();
+    }
+
     private static TimeOnly? ToTimeOnly(TimeSpan? value) =>
         value is null ? null : TimeOnly.FromTimeSpan(value.Value);
 
@@ -566,7 +662,100 @@ public sealed class StationReadService(
                 cl,
                 svcCodes is { Count: > 0 } ? svcCodes : Array.Empty<string>(),
                 brand?.Key,
-                brand?.LogoUrl);
+                brand?.LogoUrl,
+                parentId);
+        }).ToList();
+    }
+
+    private async Task<List<StationMapItemV2Dto>> BuildMapStationItemsV2Async(
+        IReadOnlyList<StationMapMarkersV2SqlRow> sqlRows,
+        DayOfWeek dow,
+        byte dowByte,
+        TimeOnly nowTime,
+        CancellationToken cancellationToken)
+    {
+        var ids = sqlRows.Select(r => r.StationId).ToList();
+
+        // Same batching reason as BuildMapStationItemsAsync: stay under SQL Server 2100-param cap
+        // and avoid OPENJSON translation on compat level < 130.
+        const int IdContainsBatchSize = 1000;
+
+        var activeServiceRows = new List<(int DonViId, string ServiceCode)>();
+        for (var i = 0; i < ids.Count; i += IdContainsBatchSize)
+        {
+            var batch = ids.GetRange(i, Math.Min(IdContainsBatchSize, ids.Count - i));
+            var rows = await db.StationStoreServices.AsNoTracking()
+                .Where(s => batch.Contains(s.DonViId) && s.IsActive)
+                .Select(s => new { s.DonViId, s.ServiceCode })
+                .ToListAsync(cancellationToken);
+            foreach (var r in rows)
+                activeServiceRows.Add((r.DonViId, r.ServiceCode));
+        }
+        var activeCodesByStation = activeServiceRows
+            .GroupBy(x => x.DonViId)
+            .ToDictionary(
+                g => g.Key,
+                g => (IReadOnlyList<string>)g
+                    .Select(x => x.ServiceCode)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                    .ToList());
+
+        var hours = new List<StationOperatingHour>();
+        for (var i = 0; i < ids.Count; i += IdContainsBatchSize)
+        {
+            var batch = ids.GetRange(i, Math.Min(IdContainsBatchSize, ids.Count - i));
+            var batchHours = await db.StationOperatingHours.AsNoTracking()
+                .Where(h => batch.Contains(h.DonViId))
+                .ToListAsync(cancellationToken);
+            hours.AddRange(batchHours);
+        }
+        var hoursByStation = hours.ToLookup(h => h.DonViId);
+        var openMap = StationOperationalEvaluator.BuildOpenNowMap(ids, hours, dow, nowTime);
+
+        var parentByStation = new Dictionary<int, int?>(ids.Count);
+        for (var i = 0; i < ids.Count; i += IdContainsBatchSize)
+        {
+            var batch = ids.GetRange(i, Math.Min(IdContainsBatchSize, ids.Count - i));
+            var rows = await db.DmDonVis.AsNoTracking()
+                .Where(d => batch.Contains(d.Id))
+                .Select(d => new { d.Id, d.CapTrenId })
+                .ToListAsync(cancellationToken);
+            foreach (var r in rows)
+                parentByStation[r.Id] = r.CapTrenId;
+        }
+
+        return sqlRows.Select(r =>
+        {
+            var openTime = r.OpenTime is { } ot ? TimeOnly.FromTimeSpan(ot) : (TimeOnly?)null;
+            var closeTime = r.CloseTime is { } ct ? TimeOnly.FromTimeSpan(ct) : (TimeOnly?)null;
+            var todayH = hoursByStation[r.StationId].Where(h => h.DayOfWeek == dowByte).ToList();
+            var openNowWeekly = openMap.TryGetValue(r.StationId, out var on) ? on : null;
+            var openNow = openTime is not null && closeTime is not null
+                ? StationOperationalEvaluator.IsOpenNowFromDonViTimes(openTime, closeTime, nowTime)
+                : openNowWeekly;
+            var (op, cl) = StationOperationalEvaluator.ResolveDisplayHours(openTime, closeTime, todayH);
+            activeCodesByStation.TryGetValue(r.StationId, out var svcCodes);
+            parentByStation.TryGetValue(r.StationId, out var parentId);
+            var brand = brandRegistry.Resolve(parentId);
+            return new StationMapItemV2Dto(
+                r.StationId,
+                r.StationName,
+                r.Latitude,
+                r.Longitude,
+                r.ShortAddress,
+                r.PriceRon95,
+                r.PriceDiesel,
+                r.PriceForSelectedFuel,
+                r.TrangThai,
+                openNow,
+                StationOperationalEvaluator.ToOpenStatus(openNow),
+                op,
+                cl,
+                svcCodes is { Count: > 0 } ? svcCodes : Array.Empty<string>(),
+                brand?.Key,
+                brand?.LogoUrl,
+                parentId);
         }).ToList();
     }
 

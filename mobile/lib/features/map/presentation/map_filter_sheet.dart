@@ -52,12 +52,11 @@ class _MapFilterSheetBodyState extends ConsumerState<_MapFilterSheetBody> {
   String? _districtLabel;
   late String _statusChoice;
   late MapUnitTypeFilter _unitType;
-  late MapFuelTypeFilter _fuelType;
+  String? _fuelCode;
   late MapRatingFilter _ratingFilter;
   late int _priceMinDong;
   late int _priceMaxDong;
   late Set<String> _selectedServiceCodes;
-  bool _collapsed = false;
 
   @override
   void initState() {
@@ -71,10 +70,10 @@ class _MapFilterSheetBodyState extends ConsumerState<_MapFilterSheetBody> {
     final s = f.status?.trim().toLowerCase();
     _statusChoice = (s == 'open' || s == 'closed') ? s! : 'all';
     _unitType = f.unitType;
-    _fuelType = f.fuelType;
+    _fuelCode = f.fuelCode;
     if (ref.read(portalSessionScopeProvider)?.loai == PortalLoai.leader &&
-        _fuelType == MapFuelTypeFilter.lpg) {
-      _fuelType = MapFuelTypeFilter.all;
+        MapFilters.isGasFuelCode(_fuelCode)) {
+      _fuelCode = null;
     }
     _ratingFilter = f.ratingFilter;
     _priceMinDong = f.priceMinDong;
@@ -98,7 +97,7 @@ class _MapFilterSheetBodyState extends ConsumerState<_MapFilterSheetBody> {
       districtLabel: _districtLabel,
       status: _statusChoice == 'all' ? null : _statusChoice,
       unitType: _unitType,
-      fuelType: _fuelType,
+      fuelCode: _fuelCode,
       ratingFilter: _ratingFilter,
       priceMinDong: _priceMinDong,
       priceMaxDong: _priceMaxDong,
@@ -129,7 +128,7 @@ class _MapFilterSheetBodyState extends ConsumerState<_MapFilterSheetBody> {
       _districtLabel = null;
       _statusChoice = 'all';
       _unitType = MapUnitTypeFilter.all;
-      _fuelType = MapFuelTypeFilter.all;
+      _fuelCode = null;
       _ratingFilter = MapRatingFilter.all;
       _priceMinDong = MapFilters.priceSliderMinDong;
       _priceMaxDong = MapFilters.priceSliderMaxDong;
@@ -148,10 +147,10 @@ class _MapFilterSheetBodyState extends ConsumerState<_MapFilterSheetBody> {
       final s = f.status?.trim().toLowerCase();
       _statusChoice = (s == 'open' || s == 'closed') ? s! : 'all';
       _unitType = f.unitType;
-      _fuelType = f.fuelType;
+      _fuelCode = f.fuelCode;
       if (ref.read(portalSessionScopeProvider)?.loai == PortalLoai.leader &&
-          _fuelType == MapFuelTypeFilter.lpg) {
-        _fuelType = MapFuelTypeFilter.all;
+          MapFilters.isGasFuelCode(_fuelCode)) {
+        _fuelCode = null;
       }
       _ratingFilter = f.ratingFilter;
       _priceMinDong = f.priceMinDong;
@@ -170,27 +169,19 @@ class _MapFilterSheetBodyState extends ConsumerState<_MapFilterSheetBody> {
     final showUnitTypePanel = isLeader; // Citizen (Loai=5) / guest -> ẩn 'Loại đơn vị'.
     final provincesAsync = ref.watch(geographyProvincesProvider);
     final catalogAsync = ref.watch(stationStoreServiceCatalogProvider);
+    final fuelLeavesAsync = ref.watch(fuelProductLeavesProvider);
     final screenH = MediaQuery.sizeOf(context).height;
-    final summary = _buildDraftFilters().compactSummaryLabel;
 
     return Align(
       alignment: Alignment.bottomCenter,
       child: SizedBox(
         height: screenH * 0.94,
-        child: NotificationListener<DraggableScrollableNotification>(
-          onNotification: (n) {
-            final collapsed = n.extent < 0.38;
-            if (collapsed != _collapsed) {
-              setState(() => _collapsed = collapsed);
-            }
-            return false;
-          },
-          child: DraggableScrollableSheet(
-            expand: false,
-            initialChildSize: 0.56,
-            minChildSize: 0.28,
-            maxChildSize: 0.94,
-            builder: (context, scrollController) {
+        child: DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.56,
+          minChildSize: 0.40,
+          maxChildSize: 0.94,
+          builder: (context, scrollController) {
               return DecoratedBox(
                 decoration: const BoxDecoration(
                   color: MapScreenPalette.filterSheetBackground,
@@ -243,11 +234,9 @@ class _MapFilterSheetBodyState extends ConsumerState<_MapFilterSheetBody> {
                         Expanded(
                           child: ListView(
                             controller: scrollController,
-                            physics: _collapsed ? const NeverScrollableScrollPhysics() : null,
                             padding: const EdgeInsets.fromLTRB(18, 8, 18, 8),
                             children: [
-                              if (!_collapsed) ...[
-                                if (showUnitTypePanel) ...[
+                              if (showUnitTypePanel) ...[
                                   FilterSection(
                                     title: 'Loại đơn vị',
                                     child: FilterChipGroup<MapUnitTypeFilter>(
@@ -265,23 +254,35 @@ class _MapFilterSheetBodyState extends ConsumerState<_MapFilterSheetBody> {
                                 FilterSection(
                                   title: 'Loại nhiên liệu',
                                   subtitle: hideGasFuel ? 'Vai trò Lãnh đạo: chỉ Xăng và Dầu.' : null,
-                                  child: FilterChipGroup<MapFuelTypeFilter>(
-                                    options: [
-                                      const FilterChipOption(value: MapFuelTypeFilter.all, label: 'Tất cả'),
-                                      const FilterChipOption(value: MapFuelTypeFilter.petrol, label: 'Xăng'),
-                                      const FilterChipOption(value: MapFuelTypeFilter.diesel, label: 'Dầu'),
-                                      if (!hideGasFuel)
-                                        const FilterChipOption(value: MapFuelTypeFilter.lpg, label: 'Khí'),
-                                    ],
-                                    selected:
-                                        hideGasFuel && _fuelType == MapFuelTypeFilter.lpg
-                                            ? MapFuelTypeFilter.all
-                                            : _fuelType,
-                                    onSelected: (v) {
-                                      if (hideGasFuel && v == MapFuelTypeFilter.lpg) {
-                                        return;
-                                      }
-                                      setState(() => _fuelType = v);
+                                  child: fuelLeavesAsync.when(
+                                    loading: () => const LinearProgressIndicator(),
+                                    error: (e, _) => Text(
+                                      'Không tải danh mục nhiên liệu: $e',
+                                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                            color: MapScreenPalette.filterTextSecondary,
+                                          ),
+                                    ),
+                                    data: (leaves) {
+                                      final visible = leaves
+                                          .where((l) => !hideGasFuel || !MapFilters.isGasFuelCode(l.code))
+                                          .toList();
+                                      // Force-reset chip nếu fuelCode user đang chọn không còn nằm trong catalog visible
+                                      // (vd seeder rút sản phẩm, hoặc Leader bị ẩn LPG sau khi đã chọn).
+                                      final isSelectedValid = _fuelCode == null ||
+                                          visible.any((l) => l.code.toUpperCase() == _fuelCode!.toUpperCase());
+                                      final effectiveSelected = isSelectedValid ? _fuelCode : null;
+                                      return FilterChipGroup<String?>(
+                                        options: [
+                                          const FilterChipOption<String?>(value: null, label: 'Tất cả'),
+                                          for (final leaf in visible)
+                                            FilterChipOption<String?>(value: leaf.code, label: leaf.name),
+                                        ],
+                                        selected: effectiveSelected,
+                                        onSelected: (v) {
+                                          if (hideGasFuel && MapFilters.isGasFuelCode(v)) return;
+                                          setState(() => _fuelCode = v);
+                                        },
+                                      );
                                     },
                                   ),
                                 ),
@@ -303,7 +304,7 @@ class _MapFilterSheetBodyState extends ConsumerState<_MapFilterSheetBody> {
                                         for (final item in catalog)
                                           FilterChip(
                                             avatar: Icon(
-                                              storeServiceIconData(item.iconKey),
+                                              storeServiceIconForCode(item.serviceCode, item.iconKey),
                                               size: 18,
                                               color: MapScreenPalette.filterTextPrimary,
                                             ),
@@ -502,23 +503,6 @@ class _MapFilterSheetBodyState extends ConsumerState<_MapFilterSheetBody> {
                                   },
                                 ),
                                 const SizedBox(height: 12),
-                              ] else
-                                SizedBox(
-                                  height: screenH * 0.18,
-                                  child: Center(
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                                      child: Text(
-                                        summary,
-                                        textAlign: TextAlign.center,
-                                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                              color: MapScreenPalette.filterPrimary,
-                                              fontWeight: FontWeight.w700,
-                                            ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
                             ],
                           ),
                         ),
@@ -534,7 +518,6 @@ class _MapFilterSheetBodyState extends ConsumerState<_MapFilterSheetBody> {
             },
           ),
         ),
-      ),
     );
   }
 }

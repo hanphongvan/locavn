@@ -1,6 +1,7 @@
 import '../../../../core/network/json_utils.dart';
 
-/// Backend: `StationMapItemDto`
+/// Backend: `StationMapItemDto` (V1) hoặc `StationMapItemV2Dto` (V2).
+/// [priceForSelectedFuel] chỉ có trong V2 và non-null khi request truyền `fuelCode`.
 class StationMapItem {
   const StationMapItem({
     required this.stationId,
@@ -10,6 +11,7 @@ class StationMapItem {
     this.shortAddress,
     this.priceRon95,
     this.priceDiesel,
+    this.priceForSelectedFuel,
     this.isActive,
     this.openNow,
     this.openStatus,
@@ -18,6 +20,7 @@ class StationMapItem {
     this.activeServiceCodes = const [],
     this.brandKey,
     this.brandLogoUrl,
+    this.parentDonViId,
   });
 
   final int stationId;
@@ -31,6 +34,10 @@ class StationMapItem {
 
   /// Đơn giá diesel / DO (`So_01` dòng báo cáo khớp) — đồng.
   final double? priceDiesel;
+
+  /// V2 only: giá theo fuelCode mobile đã chọn (`StationStoreServices.Price`). Null trong V1
+  /// hoặc khi V2 được gọi không truyền `fuelCode`.
+  final double? priceForSelectedFuel;
 
   /// `DM_DonVi.TrangThai` — giấy phép / hoạt động hồ sơ.
   final bool? isActive;
@@ -54,6 +61,10 @@ class StationMapItem {
   /// Remote logo URL fallback cho brand chưa bundle (cache memory client-side).
   final String? brandLogoUrl;
 
+  /// `DM_DonVi.CapTrenId` — id đầu mối (CapDonViId=235). Mobile dùng để filter client-side
+  /// khi user chọn brand trên thanh tìm kiếm.
+  final int? parentDonViId;
+
   /// `true` nếu cặp (lat, lng) hữu hạn và nằm trong dải hợp lệ.
   /// Dùng để filter những trạm có dữ liệu tọa độ hỏng (NaN, Infinity, vượt ±90/±180).
   static bool isValidCoord(double lat, double lng) =>
@@ -73,6 +84,7 @@ class StationMapItem {
       shortAddress: JsonUtils.readString(json['shortAddress']),
       priceRon95: JsonUtils.readDouble(json['priceRon95']),
       priceDiesel: JsonUtils.readDouble(json['priceDiesel']),
+      priceForSelectedFuel: JsonUtils.readDouble(json['priceForSelectedFuel']),
       isActive: JsonUtils.readBool(json['isActive']),
       openNow: JsonUtils.readBool(json['openNow']),
       openStatus: JsonUtils.readString(json['openStatus']),
@@ -81,6 +93,7 @@ class StationMapItem {
       activeServiceCodes: _readStringList(json['activeServiceCodes']),
       brandKey: JsonUtils.readString(json['brandKey']),
       brandLogoUrl: JsonUtils.readString(json['brandLogoUrl']),
+      parentDonViId: JsonUtils.readInt(json['parentDonViId']),
     );
   }
 
