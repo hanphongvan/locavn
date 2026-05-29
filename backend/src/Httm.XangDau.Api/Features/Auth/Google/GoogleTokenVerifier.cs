@@ -43,6 +43,12 @@ public sealed class GoogleTokenVerifier(
             var settings = new GoogleJsonWebSignature.ValidationSettings
             {
                 Audience = _options.AllowedAudiences,
+                // Cho phép server clock lệch ±5 phút so với Google (NTP drift) — reject token
+                // với "JWT is not yet valid" khi backend nhận token trước thời điểm Google ghi
+                // `iat`. Best practice cho mọi distributed JWT verifier. Google.Apis.Auth chỉ
+                // expose IssuedAtClockTolerance (không có ExpiryClockTolerance) — token hết hạn
+                // vẫn reject nghiêm ngặt nhưng "issued in future" thì tolerant.
+                IssuedAtClockTolerance = TimeSpan.FromMinutes(5),
             };
             var payload = await GoogleJsonWebSignature.ValidateAsync(idToken, settings).ConfigureAwait(false);
 
