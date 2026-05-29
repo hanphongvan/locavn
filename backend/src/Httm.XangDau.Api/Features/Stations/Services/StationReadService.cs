@@ -667,77 +667,61 @@ public sealed class StationReadService(
         }).ToList();
     }
 
-    private async Task<List<StationMapItemV2Dto>> BuildMapStationItemsV2Async(
+    private Task<List<StationMapItemV2Dto>> BuildMapStationItemsV2Async(
         IReadOnlyList<StationMapMarkersV2SqlRow> sqlRows,
         DayOfWeek dow,
         byte dowByte,
         TimeOnly nowTime,
         CancellationToken cancellationToken)
     {
-        var ids = sqlRows.Select(r => r.StationId).ToList();
+        // V2 đã embed mọi thứ vào SP `sp_Api_StationMap_ListPaged_V2`:
+        //   - Fuels (STUFF service codes)        → bỏ batch query StationStoreServices
+        //   - ParentDonViId (DM_DonVi.CapTrenId) → bỏ batch query DM_DonVi
+        //   - HasTodayHours + TodayOpensAt/ClosesAt/IsClosedAllDay (OUTER APPLY) → bỏ
+        //     batch query StationOperatingHours
+        // Toàn bộ enrich giờ chỉ là CPU-bound. Không còn round-trip DB ngoài SP.
 
-        // Same batching reason as BuildMapStationItemsAsync: stay under SQL Server 2100-param cap
-        // and avoid OPENJSON translation on compat level < 130.
-        const int IdContainsBatchSize = 1000;
-
-        var activeServiceRows = new List<(int DonViId, string ServiceCode)>();
-        for (var i = 0; i < ids.Count; i += IdContainsBatchSize)
+        static IReadOnlyList<string> ParseFuels(string? fuels)
         {
-            var batch = ids.GetRange(i, Math.Min(IdContainsBatchSize, ids.Count - i));
-            var rows = await db.StationStoreServices.AsNoTracking()
-                .Where(s => batch.Contains(s.DonViId) && s.IsActive)
-                .Select(s => new { s.DonViId, s.ServiceCode })
-                .ToListAsync(cancellationToken);
-            foreach (var r in rows)
-                activeServiceRows.Add((r.DonViId, r.ServiceCode));
-        }
-        var activeCodesByStation = activeServiceRows
-            .GroupBy(x => x.DonViId)
-            .ToDictionary(
-                g => g.Key,
-                g => (IReadOnlyList<string>)g
-                    .Select(x => x.ServiceCode)
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
-                    .ToList());
-
-        var hours = new List<StationOperatingHour>();
-        for (var i = 0; i < ids.Count; i += IdContainsBatchSize)
-        {
-            var batch = ids.GetRange(i, Math.Min(IdContainsBatchSize, ids.Count - i));
-            var batchHours = await db.StationOperatingHours.AsNoTracking()
-                .Where(h => batch.Contains(h.DonViId))
-                .ToListAsync(cancellationToken);
-            hours.AddRange(batchHours);
-        }
-        var hoursByStation = hours.ToLookup(h => h.DonViId);
-        var openMap = StationOperationalEvaluator.BuildOpenNowMap(ids, hours, dow, nowTime);
-
-        var parentByStation = new Dictionary<int, int?>(ids.Count);
-        for (var i = 0; i < ids.Count; i += IdContainsBatchSize)
-        {
-            var batch = ids.GetRange(i, Math.Min(IdContainsBatchSize, ids.Count - i));
-            var rows = await db.DmDonVis.AsNoTracking()
-                .Where(d => batch.Contains(d.Id))
-                .Select(d => new { d.Id, d.CapTrenId })
-                .ToListAsync(cancellationToken);
-            foreach (var r in rows)
-                parentByStation[r.Id] = r.CapTrenId;
+            if (string.IsNullOrWhiteSpace(fuels)) return Array.Empty<string>();
+            return fuels
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+                .ToList();
         }
 
-        return sqlRows.Select(r =>
+        var items = sqlRows.Select(r =>
         {
             var openTime = r.OpenTime is { } ot ? TimeOnly.FromTimeSpan(ot) : (TimeOnly?)null;
             var closeTime = r.CloseTime is { } ct ? TimeOnly.FromTimeSpan(ct) : (TimeOnly?)null;
-            var todayH = hoursByStation[r.StationId].Where(h => h.DayOfWeek == dowByte).ToList();
-            var openNowWeekly = openMap.TryGetValue(r.StationId, out var on) ? on : null;
+
+            // SP trả về tối đa 1 row hours cho hôm nay (OUTER APPLY TOP 1). Multi-slot
+            // trong cùng 1 ngày bị thu xuống slot đầu — đồng nhất với `FormatTodayDisplay`
+            // cũ vốn chỉ đọc todaysRows[0].
+            var todayH = r.HasTodayHours == true
+                ? new List<StationOperatingHour>(1)
+                {
+                    new()
+                    {
+                        DonViId = r.StationId,
+                        DayOfWeek = dowByte,
+                        OpensAt = r.TodayOpensAt is { } tooo ? TimeOnly.FromTimeSpan(tooo) : null,
+                        ClosesAt = r.TodayClosesAt is { } tccc ? TimeOnly.FromTimeSpan(tccc) : null,
+                        IsClosedAllDay = r.TodayIsClosedAllDay ?? false,
+                    },
+                }
+                : new List<StationOperatingHour>(0);
+
+            var openNowWeekly = todayH.Count > 0
+                ? StationOperationalEvaluator.IsOpenNow(todayH, nowTime)
+                : (bool?)null;
             var openNow = openTime is not null && closeTime is not null
                 ? StationOperationalEvaluator.IsOpenNowFromDonViTimes(openTime, closeTime, nowTime)
                 : openNowWeekly;
             var (op, cl) = StationOperationalEvaluator.ResolveDisplayHours(openTime, closeTime, todayH);
-            activeCodesByStation.TryGetValue(r.StationId, out var svcCodes);
-            parentByStation.TryGetValue(r.StationId, out var parentId);
-            var brand = brandRegistry.Resolve(parentId);
+            var svcCodes = ParseFuels(r.Fuels);
+            var brand = brandRegistry.Resolve(r.ParentDonViId);
             return new StationMapItemV2Dto(
                 r.StationId,
                 r.StationName,
@@ -755,8 +739,12 @@ public sealed class StationReadService(
                 svcCodes is { Count: > 0 } ? svcCodes : Array.Empty<string>(),
                 brand?.Key,
                 brand?.LogoUrl,
-                parentId);
+                r.ParentDonViId);
         }).ToList();
+
+        _ = dow;
+        _ = cancellationToken;
+        return Task.FromResult(items);
     }
 
     private async Task<string?> ValidateProvinceMaExistsAsync(string? provinceTrim, CancellationToken cancellationToken)
