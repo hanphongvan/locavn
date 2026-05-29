@@ -18,4 +18,20 @@ public sealed class StationMapMarkersV2SqlRow
     public decimal? PriceRon95 { get; init; }
     public decimal? PriceDiesel { get; init; }
     public decimal? PriceForSelectedFuel { get; init; }
+
+    /// <summary>
+    /// Comma-separated <c>StationStoreServices.ServiceCode</c> (active) — embed trong SP
+    /// để client không phải batch-query <c>WHERE DonViId IN(@batch1..@batch1000)</c> riêng.
+    /// </summary>
+    public string? Fuels { get; init; }
+
+    /// <summary><c>DM_DonVi.CapTrenId</c> — đầu mối. Embed trong SP để bỏ batch query riêng.</summary>
+    public int? ParentDonViId { get; init; }
+
+    /// <summary><c>1</c> = có row <c>StationOperatingHours</c> cho hôm nay; <c>0</c> = không.</summary>
+    public bool? HasTodayHours { get; init; }
+
+    public TimeSpan? TodayOpensAt { get; init; }
+    public TimeSpan? TodayClosesAt { get; init; }
+    public bool? TodayIsClosedAllDay { get; init; }
 }
