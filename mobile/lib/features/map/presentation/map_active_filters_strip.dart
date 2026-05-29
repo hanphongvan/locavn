@@ -87,6 +87,20 @@ class MapActiveFiltersStrip extends ConsumerWidget {
                       },
                     ),
                   ),
+                if (filters.distributorId != null)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: InputChip(
+                      avatar: const Icon(Icons.business_rounded, size: 16),
+                      label: Text(filters.distributorLabel ?? 'Đầu mối'),
+                      onDeleted: () {
+                        ref.read(mapFiltersProvider.notifier).state = filters.copyWith(
+                          distributorId: null,
+                          distributorLabel: null,
+                        );
+                      },
+                    ),
+                  ),
               ],
             ),
           ),
