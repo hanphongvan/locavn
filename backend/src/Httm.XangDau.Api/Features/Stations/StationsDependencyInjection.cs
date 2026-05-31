@@ -11,6 +11,7 @@ public static class StationsDependencyInjection
         services.AddSingleton<IStationBrandRegistry, StationBrandRegistry>();
         services.AddScoped<IStationListSearchDataAccess, StationListSearchDataAccess>();
         services.AddScoped<IStationMapMarkersDataAccess, StationMapMarkersDataAccess>();
+        services.AddScoped<IStationDetailV2DataAccess, StationDetailV2DataAccess>();
         services.AddScoped<IStationReadService, StationReadService>();
         services.AddScoped<IFuelProductReadService, FuelProductReadService>();
         services.AddScoped<IStationReviewService, StationReviewService>();

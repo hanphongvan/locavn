@@ -4,7 +4,8 @@ import '../../../../core/formatting/vnd_currency_format.dart';
 import '../../../station_detail/presentation/station_detail_shell_theme.dart';
 import 'station_map_preview_strings.dart';
 
-/// 2–3 compact fuel price rows for the collapsed sheet.
+/// Compact fuel price rows for the collapsed sheet.
+/// V2: ưu tiên [pricesList] (từ `StationStoreServices`). Fallback về RON95/E5/Diesel cũ.
 class StationPreviewPriceQuickView extends StatelessWidget {
   const StationPreviewPriceQuickView({
     super.key,
@@ -13,6 +14,7 @@ class StationPreviewPriceQuickView extends StatelessWidget {
     this.e5Price,
     this.selectedFuelLabel,
     this.selectedFuelPrice,
+    this.pricesList,
   });
 
   final double? ron95;
@@ -23,17 +25,23 @@ class StationPreviewPriceQuickView extends StatelessWidget {
   final String? selectedFuelLabel;
   final double? selectedFuelPrice;
 
+  /// V2: danh sách giá đầy đủ từ `StationDetailDto.prices`. Khi có & non-empty,
+  /// render toàn bộ list này thay cho 2-3 dòng RON95/E5/Diesel cố định.
+  final List<({String label, double? price})>? pricesList;
+
   @override
   Widget build(BuildContext context) {
     final rows = selectedFuelLabel != null
         ? <({String label, double? v})>[
             (label: selectedFuelLabel!, v: selectedFuelPrice),
           ]
-        : <({String label, double? v})>[
-            (label: StationMapPreviewStrings.labelRon95, v: ron95),
-            if (e5Price != null) (label: StationMapPreviewStrings.labelE5, v: e5Price),
-            (label: StationMapPreviewStrings.labelDo, v: diesel),
-          ];
+        : (pricesList != null && pricesList!.isNotEmpty)
+            ? pricesList!.map((p) => (label: p.label, v: p.price)).toList()
+            : <({String label, double? v})>[
+                (label: StationMapPreviewStrings.labelRon95, v: ron95),
+                if (e5Price != null) (label: StationMapPreviewStrings.labelE5, v: e5Price),
+                (label: StationMapPreviewStrings.labelDo, v: diesel),
+              ];
 
     return DecoratedBox(
       decoration: BoxDecoration(

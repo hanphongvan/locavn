@@ -19,6 +19,7 @@ public sealed class StationReadService(
     IFuelReportingReadService fuelReporting,
     IStationListSearchDataAccess stationListSearch,
     IStationMapMarkersDataAccess stationMapMarkers,
+    IStationDetailV2DataAccess stationDetailV2,
     IStationBrandRegistry brandRegistry) : IStationReadService
 {
     public async Task<(PagedStationsResponse<StationListItemDto> Data, string? Error)> ListAsync(
@@ -520,6 +521,125 @@ public sealed class StationReadService(
             weekly.Count == 0 ? null : weekly,
             repPrices,
             repStock,
+            mapPx.PriceRon95,
+            mapPx.PriceDiesel,
+            storeServiceRows.Count == 0 ? null : storeServiceRows);
+
+        return (dto, null);
+    }
+
+    /// <inheritdoc />
+    public async Task<(StationDetailV2Dto? Data, string? Error)> GetDetailV2Async(int id, CancellationToken cancellationToken = default)
+    {
+        if (id <= 0)
+            return (null, "id must be a positive integer.");
+
+        var (_, dow, nowTime) = StationVietnamClock.NowParts(DateTime.UtcNow);
+        var dowByte = (byte)dow;
+
+        // 1. SP V2 — trả station info + price list.
+        var (info, priceRows) = await stationDetailV2
+            .GetByIdAsync(id, PetrolRetailConstants.CapDonViId, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (info is null)
+            return (null, null); // 404 ở controller
+
+        // Coords sanitize (cùng rule với V1).
+        double? lat = null;
+        double? lng = null;
+        var rawLat = info.Latitude.HasValue ? (decimal?)(decimal)info.Latitude.Value : null;
+        var rawLng = info.Longitude.HasValue ? (decimal?)(decimal)info.Longitude.Value : null;
+        if (StationCoordinateRules.TryToDisplayCoordinates(rawLat, rawLng, out var la, out var ln))
+        {
+            lat = la;
+            lng = ln;
+        }
+
+        var districtCode = info.DistrictId is { } qid ? qid.ToString(CultureInfo.InvariantCulture) : null;
+
+        // 2. Stock từ helper cũ (anh chọn giữ section "Tồn kho hiện tại"). Đây là 1 helper trả
+        //    cả (prices, stock); em chỉ lấy phần stock, prices V2 đã dùng từ SP.
+        var (_, repStock) = await fuelReporting.GetReportingSnapshotsForStationAsync(id, cancellationToken);
+
+        // 3. Map snapshot prices (PriceRon95/PriceDiesel fallback hiển thị).
+        var priceMap = await fuelReporting.GetMapPriceSnapshotsForStationsAsync(new[] { id }, cancellationToken);
+        priceMap.TryGetValue(id, out var mapPx);
+        mapPx ??= new MapStationPrices(null, null);
+
+        // 4. Operating hours (cần cho weekly schedule + display giờ hôm nay).
+        var hours = await db.StationOperatingHours.AsNoTracking()
+            .Where(h => h.DonViId == id)
+            .OrderBy(h => h.DayOfWeek)
+            .ToListAsync(cancellationToken);
+
+        var openTime = info.OpenTime is { } ot ? TimeOnly.FromTimeSpan(ot) : (TimeOnly?)null;
+        var closeTime = info.CloseTime is { } ct ? TimeOnly.FromTimeSpan(ct) : (TimeOnly?)null;
+        var todayH = hours.Where(h => h.DayOfWeek == dowByte).ToList();
+        var openNow = openTime is not null && closeTime is not null
+            ? StationOperationalEvaluator.IsOpenNowFromDonViTimes(openTime, closeTime, nowTime)
+            : StationOperationalEvaluator.IsOpenNow(todayH, nowTime);
+        var (op, cl) = StationOperationalEvaluator.ResolveDisplayHours(openTime, closeTime, todayH);
+        var weekly = hours
+            .Select(h => new StationOperatingSlotDto(
+                h.DayOfWeek,
+                h.IsClosedAllDay,
+                h.OpensAt?.ToString("HH:mm"),
+                h.ClosesAt?.ToString("HH:mm")))
+            .ToList();
+
+        // 5. Store services — V2 loại các mã nhiên liệu (E5*/E10*/DIESEL*/RON*) vì chúng đã
+        //    hiển thị ở section "Giá xăng dầu" (Prices list). Section "Dịch vụ tại trạm" chỉ
+        //    còn dịch vụ phụ trợ (RESTROOM, CAR_WASH, ATM, WIFI, …).
+        var storeServiceRows = await db.StationStoreServices.AsNoTracking()
+            .Where(s => s.DonViId == id)
+            .Where(s => !(
+                s.ServiceCode.StartsWith("E5")
+                || s.ServiceCode.StartsWith("E10")
+                || s.ServiceCode.StartsWith("DIESEL")
+                || s.ServiceCode.StartsWith("RON")))
+            .OrderBy(s => s.SortOrder)
+            .ThenBy(s => s.DisplayName)
+            .Select(s => new StationDetailStoreServiceDto(
+                s.ServiceCode,
+                s.DisplayName,
+                s.IconKey,
+                s.IsActive,
+                s.Price,
+                s.SortOrder))
+            .ToListAsync(cancellationToken);
+
+        // 6. Map SP price rows → DTO.
+        var prices = priceRows
+            .Select(r => new StationDetailPriceItemDto(r.ServiceCode, r.DisplayName, r.Price, r.SortOrder))
+            .ToList();
+
+        var dto = new StationDetailV2Dto(
+            info.StationId,
+            info.StationCode,
+            info.StationName,
+            info.Phone,
+            info.Email,
+            info.AddressLine,
+            info.LicenseNumber,
+            info.LicenseDate,
+            info.LicenseExpiryDate,
+            lat,
+            lng,
+            info.ProvinceCode,
+            info.ProvinceName,
+            info.WardCode,
+            info.WardName,
+            info.DistrictId,
+            districtCode,
+            info.IsActive,
+            openNow,
+            StationOperationalEvaluator.ToOpenStatus(openNow),
+            op,
+            cl,
+            weekly.Count == 0 ? null : weekly,
+            repStock,
+            prices,
             mapPx.PriceRon95,
             mapPx.PriceDiesel,
             storeServiceRows.Count == 0 ? null : storeServiceRows);

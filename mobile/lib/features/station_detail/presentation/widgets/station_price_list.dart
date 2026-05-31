@@ -20,6 +20,14 @@ class StationPriceList extends StatelessWidget {
   final StationDetailDto data;
 
   List<_PriceRow> _rows() {
+    // V2: ưu tiên `prices` từ StationStoreServices (ServiceCode E5/E10/DIESEL/RON).
+    final pricesV2 = data.prices;
+    if (pricesV2 != null && pricesV2.isNotEmpty) {
+      return pricesV2
+          .map((p) => _PriceRow(label: p.displayName, valueVnd: p.price))
+          .toList();
+    }
+    // V1 fallback: latestReportingPrices từ QT_TK_ThongKe.
     final p = data.latestReportingPrices;
     if (p != null && p.lines.isNotEmpty) {
       return p.lines.map((line) {
@@ -28,6 +36,7 @@ class StationPriceList extends StatelessWidget {
         return _PriceRow(label: label, valueVnd: v, when: line.thoiDiemDinhGia);
       }).toList();
     }
+    // Cuối cùng fallback PriceRon95 / PriceDiesel từ map snapshot.
     final out = <_PriceRow>[];
     if (data.priceRon95 != null) {
       out.add(_PriceRow(label: StationDetailStrings.labelRon95, valueVnd: data.priceRon95));

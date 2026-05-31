@@ -40,10 +40,24 @@ class StationPreviewServicesRow extends StatelessWidget {
     return null;
   }
 
+  /// Service code là nhiên liệu (E5*/E10*/DIESEL*/RON*) — đã hiển thị ở section
+  /// "Giá xăng dầu" / list giá → loại khỏi section "Dịch vụ".
+  static bool _isFuelCode(String code) {
+    final u = code.trim().toUpperCase();
+    return u.startsWith('E5')
+        || u.startsWith('E10')
+        || u.startsWith('DIESEL')
+        || u.startsWith('RON');
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final services = detail?.storeServices;
+    // Path A: detail loaded — backend V2 đã filter fuel codes; vẫn filter client-side
+    // defensively phòng V1 endpoint hoặc edge case.
+    final services = detail?.storeServices
+        ?.where((s) => !_isFuelCode(s.serviceCode))
+        .toList();
     if (services != null && services.isNotEmpty) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -87,7 +101,9 @@ class StationPreviewServicesRow extends StatelessWidget {
       );
     }
 
-    final codes = station.activeServiceCodes;
+    // Path B: chưa có detail — dùng activeServiceCodes từ SP map V2 (Fuels column).
+    // Fuels include mọi service active gồm cả nhiên liệu → filter ra E5*/E10*/DIESEL*/RON*.
+    final codes = station.activeServiceCodes.where((c) => !_isFuelCode(c)).toList();
     if (codes.isEmpty) return const SizedBox.shrink();
 
     return Column(

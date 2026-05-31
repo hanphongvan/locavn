@@ -854,4 +854,21 @@ class StationsApi {
       return StationDetailDto.fromJson(m);
     });
   }
+
+  /// V2 — `GET /api/stations/{id}/v2`. Thay `latestReportingPrices` cũ bằng `prices`
+  /// — danh sách giá từ `StationStoreServices` (ServiceCode bắt đầu E5/E10/DIESEL/RON).
+  /// V1 (`getStationDetail`) giữ nguyên cho app đã release.
+  Future<StationDetailDto> getStationDetailV2(int stationId) async {
+    final response = await _getWithConnectionRetry(
+      ApiEndpoints.stationByIdV2(stationId),
+      debugLabel: 'getStationDetailV2',
+    );
+    return ApiResponseHandler.decode(response, (data) {
+      final m = JsonUtils.readMap(data);
+      if (m == null) {
+        throw const FormatException('Expected map for StationDetailDto (V2)');
+      }
+      return StationDetailDto.fromJson(m);
+    });
+  }
 }
