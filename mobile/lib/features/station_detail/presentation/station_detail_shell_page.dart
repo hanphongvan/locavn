@@ -138,7 +138,6 @@ class _StationDetailBody extends StatelessWidget {
                 SizedBox(height: gap),
                 StationAreaCard(
                   province: _provinceLine(data),
-                  district: _districtLine(data),
                   ward: _wardLine(data),
                 ),
               ],
@@ -199,8 +198,6 @@ List<String> _fullAddressLines(StationDetailDto d) {
   final tail = <String>[];
   final ward = stationDetailNonEmpty(d.wardName);
   if (ward != null) tail.add(ward);
-  final dist = _districtLine(d);
-  if (dist != StationDetailStrings.emDash) tail.add(dist);
   final prov = stationDetailNonEmpty(d.provinceName);
   if (prov != null) tail.add(prov);
   if (tail.isNotEmpty) {
@@ -227,9 +224,7 @@ bool _hasAdminArea(StationDetailDto d) {
   return stationDetailNonEmpty(d.provinceName) != null ||
       stationDetailNonEmpty(d.provinceCode) != null ||
       stationDetailNonEmpty(d.wardName) != null ||
-      stationDetailNonEmpty(d.wardCode) != null ||
-      d.districtId != null ||
-      stationDetailNonEmpty(d.districtCode) != null;
+      stationDetailNonEmpty(d.wardCode) != null;
 }
 
 bool _hasContact(StationDetailDto d) =>
@@ -240,15 +235,6 @@ String _provinceLine(StationDetailDto d) {
   final code = stationDetailNonEmpty(d.provinceCode);
   if (name != null && code != null) return '$name (mã $code)';
   return name ?? code ?? StationDetailStrings.emDash;
-}
-
-String _districtLine(StationDetailDto d) {
-  final code = stationDetailNonEmpty(d.districtCode);
-  final id = d.districtId;
-  if (code != null && id != null) return 'Mã $code · ID $id';
-  if (code != null) return 'Mã $code';
-  if (id != null) return 'ID quận/huyện: $id';
-  return StationDetailStrings.emDash;
 }
 
 String _wardLine(StationDetailDto d) {

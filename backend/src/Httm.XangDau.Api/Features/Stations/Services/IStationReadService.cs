@@ -74,6 +74,14 @@ public interface IStationReadService
     Task<(StationDetailDto? Data, string? Error)> GetDetailAsync(int id, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// V2 — <c>GET /api/stations/{id}/v2</c>. Dùng SP <c>sp_Api_StationDetail_GetById_V2</c> trả
+    /// về thông tin station + danh sách giá nhiên liệu từ <c>StationStoreServices</c>
+    /// (<c>ServiceCode</c> bắt đầu E5/E10/DIESEL/RON). Bỏ <c>LatestReportingPrices</c>; giữ
+    /// <c>LatestReportingStock</c>. V1 vẫn dùng cho app đã release.
+    /// </summary>
+    Task<(StationDetailV2Dto? Data, string? Error)> GetDetailV2Async(int id, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Danh sách đầu mối (<c>DM_DonVi.CapDonViId=235</c>) có ít nhất 1 trạm bán lẻ (<c>CapDonViId=248</c>).
     /// Sắp theo số trạm giảm dần. Map qua <see cref="IStationBrandRegistry"/> để gắn slug brand nếu cấu hình.
     /// </summary>

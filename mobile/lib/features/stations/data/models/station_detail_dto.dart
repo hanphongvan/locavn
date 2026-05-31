@@ -30,6 +30,33 @@ class StationOperatingSlot {
   }
 }
 
+/// Backend: `StationDetailPriceItemDto` — 1 dòng giá nhiên liệu của cây xăng (V2).
+/// Lấy từ `StationStoreServices` với ServiceCode bắt đầu E5/E10/DIESEL/RON.
+class StationDetailPriceItem {
+  const StationDetailPriceItem({
+    required this.serviceCode,
+    required this.displayName,
+    this.price,
+    required this.sortOrder,
+  });
+
+  final String serviceCode;
+  final String displayName;
+  final double? price;
+  final int sortOrder;
+
+  static StationDetailPriceItem? tryParse(dynamic raw) {
+    final m = JsonUtils.readMap(raw);
+    if (m == null) return null;
+    return StationDetailPriceItem(
+      serviceCode: JsonUtils.readStringRequired(m['serviceCode'], field: 'serviceCode'),
+      displayName: JsonUtils.readStringRequired(m['displayName'], field: 'displayName'),
+      price: JsonUtils.readDouble(m['price']),
+      sortOrder: JsonUtils.readInt(m['sortOrder']) ?? 0,
+    );
+  }
+}
+
 /// Backend: `StationDetailStoreServiceDto`
 class StationDetailStoreService {
   const StationDetailStoreService({
@@ -93,6 +120,7 @@ class StationDetailDto {
     this.priceRon95,
     this.priceDiesel,
     this.storeServices,
+    this.prices,
   });
 
   final int stationId;
@@ -126,6 +154,10 @@ class StationDetailDto {
   final double? priceDiesel;
   final List<StationDetailStoreService>? storeServices;
 
+  /// V2 only: danh sách giá nhiên liệu từ `StationStoreServices` (ServiceCode E5/E10/DIESEL/RON).
+  /// Null khi gọi V1 endpoint hoặc khi server không trả về field này.
+  final List<StationDetailPriceItem>? prices;
+
   factory StationDetailDto.fromJson(Map<String, dynamic> json) {
     List<StationOperatingSlot>? weekly;
     final w = json['weeklyOperatingHours'];
@@ -142,6 +174,15 @@ class StationDetailDto {
       services = sv
           .map(StationDetailStoreService.tryParse)
           .whereType<StationDetailStoreService>()
+          .toList();
+    }
+
+    List<StationDetailPriceItem>? prices;
+    final pr = json['prices'];
+    if (pr is List<dynamic>) {
+      prices = pr
+          .map(StationDetailPriceItem.tryParse)
+          .whereType<StationDetailPriceItem>()
           .toList();
     }
 
@@ -174,6 +215,7 @@ class StationDetailDto {
       priceRon95: JsonUtils.readDouble(json['priceRon95']),
       priceDiesel: JsonUtils.readDouble(json['priceDiesel']),
       storeServices: services?.isEmpty ?? true ? null : services,
+      prices: prices?.isEmpty ?? true ? null : prices,
     );
   }
 }

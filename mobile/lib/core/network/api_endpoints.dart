@@ -25,6 +25,11 @@ abstract final class ApiEndpoints {
   static const stationsTopRated = '/api/stations/top-rated';
   static String stationById(int id) => '/api/stations/$id';
 
+  /// V2 — detail cây xăng cho citizen. SP `sp_Api_StationDetail_GetById_V2`.
+  /// Thay `latestReportingPrices` cũ bằng `prices` list từ `StationStoreServices`
+  /// (ServiceCode bắt đầu E5/E10/DIESEL/RON). V1 vẫn dùng cho app đã release.
+  static String stationByIdV2(int id) => '/api/stations/$id/v2';
+
   static String stationReviews(int stationId) => '/api/stations/$stationId/reviews';
 
   /// Đánh giá cây xăng do tài khoản đã gửi (`MyStationReviewsController`).

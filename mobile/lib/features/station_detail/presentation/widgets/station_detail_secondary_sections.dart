@@ -226,12 +226,10 @@ class StationAreaCard extends StatelessWidget {
   const StationAreaCard({
     super.key,
     required this.province,
-    required this.district,
     required this.ward,
   });
 
   final String province;
-  final String district;
   final String ward;
 
   @override
@@ -241,8 +239,6 @@ class StationAreaCard extends StatelessWidget {
       child: Column(
         children: [
           _kvRow(context, StationDetailStrings.labelProvince, province),
-          const SizedBox(height: 10),
-          _kvRow(context, StationDetailStrings.labelDistrict, district),
           const SizedBox(height: 10),
           _kvRow(context, StationDetailStrings.labelWard, ward),
         ],

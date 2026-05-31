@@ -175,6 +175,26 @@ public sealed class StationsController(
         return Ok(data);
     }
 
+    /// <summary>
+    /// V2 — Detail cây xăng cho citizen. Dùng SP <c>sp_Api_StationDetail_GetById_V2</c>.
+    /// Thay <c>latestReportingPrices</c> (10 dòng giá từ QT_TK_ThongKe) bằng <c>prices</c>
+    /// — danh sách giá từ <c>StationStoreServices</c> với <c>ServiceCode</c> bắt đầu
+    /// E5/E10/DIESEL/RON. V1 vẫn dùng cho app đã release.
+    /// </summary>
+    [HttpGet("{id:int}/v2")]
+    [ProducesResponseType(typeof(StationDetailV2Dto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<StationDetailV2Dto>> GetByIdV2(int id, CancellationToken cancellationToken = default)
+    {
+        var (data, err) = await stationRead.GetDetailV2Async(id, cancellationToken);
+        if (err is not null)
+            return BadRequest(Problem(400, err));
+        if (data is null)
+            return NotFound();
+        return Ok(data);
+    }
+
     private static ProblemDetails Problem(int status, string detail) =>
         new() { Status = status, Title = "Invalid request", Detail = detail };
 }

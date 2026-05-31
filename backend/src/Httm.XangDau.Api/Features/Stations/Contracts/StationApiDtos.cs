@@ -157,6 +157,55 @@ public sealed record StationDetailDto(
     /// <summary>Rows from <c>StationStoreServices</c> when present.</summary>
     IReadOnlyList<StationDetailStoreServiceDto>? StoreServices = null);
 
+/// <summary>
+/// Một dòng giá nhiên liệu của cây xăng (V2) — lấy từ <c>StationStoreServices</c> với
+/// <c>ServiceCode</c> bắt đầu bằng <c>E5</c> / <c>E10</c> / <c>DIESEL</c> / <c>RON</c>.
+/// </summary>
+public sealed record StationDetailPriceItemDto(
+    string ServiceCode,
+    string DisplayName,
+    decimal? Price,
+    int SortOrder);
+
+/// <summary>
+/// Detail row V2 cho <c>GET /api/stations/{id}/v2</c>. Khác V1:
+/// - Bỏ <c>LatestReportingPrices</c> (giá báo cáo <c>QT_TK_ThongKe</c>); thay bằng
+///   <see cref="Prices"/> lấy trực tiếp từ <c>StationStoreServices</c>.
+/// - Giữ <c>LatestReportingStock</c> (data tồn kho hiển thị section "Tồn kho hiện tại").
+/// - Giữ <c>PriceRon95</c>, <c>PriceDiesel</c> (fallback từ map snapshot cũ).
+/// V1 vẫn tồn tại cho app đã release.
+/// </summary>
+public sealed record StationDetailV2Dto(
+    int StationId,
+    string StationCode,
+    string StationName,
+    string? Phone,
+    string? Email,
+    string? AddressLine,
+    string? LicenseNumber,
+    DateTime? LicenseDate,
+    DateTime? LicenseExpiryDate,
+    double? Latitude,
+    double? Longitude,
+    string? ProvinceCode,
+    string? ProvinceName,
+    string? WardCode,
+    string? WardName,
+    int? DistrictId,
+    string? DistrictCode,
+    bool? IsActive,
+    bool? OpenNow,
+    string? OpenStatus,
+    string? OpeningTime,
+    string? ClosingTime,
+    IReadOnlyList<StationOperatingSlotDto>? WeeklyOperatingHours,
+    StationReportingStockDto? LatestReportingStock,
+    /// <summary>Danh sách giá nhiên liệu của cây xăng (V2). Rỗng khi station chưa khai báo.</summary>
+    IReadOnlyList<StationDetailPriceItemDto> Prices,
+    decimal? PriceRon95 = null,
+    decimal? PriceDiesel = null,
+    IReadOnlyList<StationDetailStoreServiceDto>? StoreServices = null);
+
 /// <summary>Single-station spotlight for nearest / cheapest / top-rated search APIs.</summary>
 public sealed record StationSpotlightDto(
     int StationId,

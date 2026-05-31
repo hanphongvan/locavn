@@ -193,6 +193,9 @@ class _StationMapPreviewSheetBodyState extends ConsumerState<_StationMapPreviewS
                     selectedFuelPrice: selectedFuelCode == null
                         ? null
                         : station.priceForSelectedFuel,
+                    pricesList: detail?.prices
+                        ?.map((p) => (label: p.displayName, price: p.price))
+                        .toList(),
                   ),
                   const SizedBox(height: 14),
                   catalogAsync.when(
