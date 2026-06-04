@@ -29,6 +29,7 @@ public static class HttmDependencyInjection
 
         // Public Submissions (đề xuất cập nhật/tạo mới) — bảng tạm + admin review + upload ảnh/giấy tờ.
         services.AddScoped<IHttmSubmissionRepository, HttmSubmissionRepository>();
+        services.AddScoped<HttmSubmissionExcelExporter>();
         services.AddScoped<IHttmSubmissionService, HttmSubmissionService>();
         services.AddScoped<IPublicSubmissionFileStorage, PublicSubmissionFileStorage>();
         return services;
