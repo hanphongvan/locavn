@@ -36,6 +36,16 @@
     <button mat-flat-button color="primary" (click)="applyFilter()" [disabled]="loading()">
       <mat-icon>search</mat-icon> Lọc
     </button>
+
+    <button
+      mat-stroked-button
+      (click)="exportExcel()"
+      [disabled]="exporting() || loading()"
+      matTooltip="Xuất tất cả đề xuất khớp bộ lọc (mọi trang) ra Excel"
+    >
+      <mat-icon>download</mat-icon>
+      {{ exporting() ? 'Đang xuất…' : 'Xuất Excel' }}
+    </button>
   </div>
 
   <table mat-table [dataSource]="items()" class="submissions-list__table">

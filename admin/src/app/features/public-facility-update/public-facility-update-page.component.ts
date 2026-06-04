@@ -238,6 +238,11 @@ export class PublicFacilityUpdatePageComponent implements OnInit {
       return;
     }
     const v = this.form.getRawValue();
+    // Lat/Lng: coi 0 (hoặc null) là "chưa nhập". Chỉ gửi khi CẢ HAI hợp lệ để
+    // thỏa ràng buộc backend "Lat và Lng phải cùng có hoặc cùng không".
+    const hasCoords = !!v.lat && !!v.lng;
+    const lat = hasCoords ? v.lat! : undefined;
+    const lng = hasCoords ? v.lng! : undefined;
     const payload: HttmFacilityCreateRequest = {
       name: v.name,
       httmType: v.httmType,
@@ -246,8 +251,8 @@ export class PublicFacilityUpdatePageComponent implements OnInit {
       districtCode: v.districtCode ?? undefined,
       wardCode: v.wardCode ?? undefined,
       addressDetail: v.addressDetail ?? undefined,
-      lat: v.lat ?? undefined,
-      lng: v.lng ?? undefined,
+      lat,
+      lng,
       gpsAccuracy: v.gpsAccuracy ?? undefined,
       landArea: v.landArea ?? undefined,
       floorArea: v.floorArea ?? undefined,

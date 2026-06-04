@@ -178,6 +178,7 @@ public sealed class HttmFacilityService(
         if (!CanMutate())
             return (null, "FORBIDDEN", StatusCodes.Status403Forbidden);
 
+        request.NormalizeCoordinates();
         var vr = await createValidator.ValidateAsync(request, cancellationToken).ConfigureAwait(false);
         if (!vr.IsValid)
             return (null, FormatValidation(vr), StatusCodes.Status400BadRequest);
@@ -230,6 +231,7 @@ public sealed class HttmFacilityService(
                 existing.ProvinceCode))
             return (false, "SCOPE_VIOLATION", StatusCodes.Status403Forbidden);
 
+        request.NormalizeCoordinates();
         var vr = await createValidator.ValidateAsync(request, cancellationToken).ConfigureAwait(false);
         if (!vr.IsValid)
             return (false, FormatValidation(vr), StatusCodes.Status400BadRequest);
@@ -307,6 +309,7 @@ public sealed class HttmFacilityService(
                 existing.ProvinceCode))
             return (false, "SCOPE_VIOLATION", StatusCodes.Status403Forbidden);
 
+        request.NormalizeCoordinates();
         var vr = await updateValidator.ValidateAsync(request, cancellationToken).ConfigureAwait(false);
         if (!vr.IsValid)
             return (false, FormatValidation(vr), StatusCodes.Status400BadRequest);

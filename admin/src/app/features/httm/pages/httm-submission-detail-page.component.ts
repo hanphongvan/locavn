@@ -9,6 +9,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
+import { ApiRequestError } from '../../../core/http/api-request-error';
 import { API_BASE_URL } from '../../../core/tokens/api-base-url.token';
 import type { HttmFacilityCreateRequest, HttmFacilityDto } from '../models/httm-facility.model';
 import type { HttmSubmissionDetail } from '../models/httm-submission.model';
@@ -70,6 +71,7 @@ export class HttmSubmissionDetailPageComponent implements OnInit {
   readonly loading = signal(true);
   readonly detail = signal<HttmSubmissionDetail | null>(null);
   readonly working = signal(false);
+  readonly exporting = signal(false);
   readonly approveNotes = signal('');
   readonly rejectReason = signal('');
 
@@ -110,8 +112,14 @@ export class HttmSubmissionDetailPageComponent implements OnInit {
         this.snack.open(`Đã duyệt — facility Id: ${r.mergedFacilityId}`, 'OK', { duration: 6000 });
         this.load(d.id);
       },
-      error: (e) =>
-        this.snack.open(`Approve thất bại: ${e?.error?.detail ?? 'lỗi'}`, 'Đóng', { duration: 8000 }),
+      error: (e) => {
+        this.working.set(false);
+        this.snack.open(
+          `Approve thất bại: ${e instanceof ApiRequestError ? e.message : 'lỗi'}`,
+          'Đóng',
+          { duration: 8000 },
+        );
+      },
       complete: () => this.working.set(false),
     });
   }
@@ -130,9 +138,49 @@ export class HttmSubmissionDetailPageComponent implements OnInit {
         this.snack.open('Đã từ chối đề xuất.', 'OK');
         this.load(d.id);
       },
-      error: (e) => this.snack.open(`Reject thất bại: ${e?.error?.detail ?? 'lỗi'}`, 'Đóng'),
+      error: (e) => {
+        this.working.set(false);
+        this.snack.open(
+          `Reject thất bại: ${e instanceof ApiRequestError ? e.message : 'lỗi'}`,
+          'Đóng',
+          { duration: 8000 },
+        );
+      },
       complete: () => this.working.set(false),
     });
+  }
+
+  /** Xuất chi tiết đề xuất hiện tại ra Excel. */
+  exportExcel(): void {
+    const d = this.detail();
+    if (!d || this.exporting()) return;
+    this.exporting.set(true);
+    this.api.exportDetailExcel(d.id).subscribe({
+      next: (resp) => {
+        const blob = resp.body;
+        if (!blob) {
+          this.snack.open('Không nhận được file.', 'OK');
+          return;
+        }
+        const cd = resp.headers.get('Content-Disposition') ?? '';
+        const m = /filename\*?=(?:UTF-8'')?"?([^;\s"]+)"?/i.exec(cd);
+        const filename = m ? decodeURIComponent(m[1]) : 'de-xuat-httm-chi-tiet.xlsx';
+        this.saveBlob(blob, filename);
+      },
+      error: () => this.snack.open('Xuất Excel thất bại.', 'Đóng'),
+      complete: () => this.exporting.set(false),
+    });
+  }
+
+  private saveBlob(blob: Blob, filename: string): void {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 
   private buildDiff(proposed: HttmFacilityCreateRequest, current: HttmFacilityDto | null): DiffField[] {

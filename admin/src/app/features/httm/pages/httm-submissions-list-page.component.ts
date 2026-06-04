@@ -6,7 +6,9 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTableModule } from '@angular/material/table';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { RouterLink } from '@angular/router';
 
 import type { HttmSubmissionListItem } from '../models/httm-submission.model';
@@ -24,13 +26,16 @@ import { HttmSubmissionService } from '../services/httm-submission.service';
     MatIconModule,
     MatInputModule,
     MatSelectModule,
+    MatSnackBarModule,
     MatTableModule,
+    MatTooltipModule,
   ],
   templateUrl: './httm-submissions-list-page.component.html',
   styleUrls: ['./httm-submissions-list-page.component.scss'],
 })
 export class HttmSubmissionsListPageComponent implements OnInit {
   private readonly api = inject(HttmSubmissionService);
+  private readonly snack = inject(MatSnackBar);
 
   readonly status = signal<string>('pending');
   readonly provinceCode = signal('');
@@ -39,6 +44,7 @@ export class HttmSubmissionsListPageComponent implements OnInit {
   readonly page = signal(1);
   readonly pageSize = 20;
   readonly loading = signal(false);
+  readonly exporting = signal(false);
   readonly items = signal<HttmSubmissionListItem[]>([]);
   readonly totalCount = signal(0);
 
@@ -75,6 +81,45 @@ export class HttmSubmissionsListPageComponent implements OnInit {
   applyFilter(): void {
     this.page.set(1);
     this.reload();
+  }
+
+  /** Xuất TẤT CẢ submissions khớp filter hiện tại (mọi trang) ra Excel. */
+  exportExcel(): void {
+    if (this.exporting()) return;
+    this.exporting.set(true);
+    this.api
+      .exportExcel({
+        status: this.status() || undefined,
+        provinceCode: this.provinceCode().trim() || undefined,
+        submissionType: this.submissionType() || undefined,
+        q: this.q().trim() || undefined,
+      })
+      .subscribe({
+        next: (resp) => {
+          const blob = resp.body;
+          if (!blob) {
+            this.snack.open('Không nhận được file.', 'OK');
+            return;
+          }
+          const cd = resp.headers.get('Content-Disposition') ?? '';
+          const m = /filename\*?=(?:UTF-8'')?"?([^;\s"]+)"?/i.exec(cd);
+          const filename = m ? decodeURIComponent(m[1]) : 'de-xuat-httm.xlsx';
+          this.saveBlob(blob, filename);
+        },
+        error: () => this.snack.open('Xuất Excel thất bại.', 'Đóng'),
+        complete: () => this.exporting.set(false),
+      });
+  }
+
+  private saveBlob(blob: Blob, filename: string): void {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 
   prevPage(): void {

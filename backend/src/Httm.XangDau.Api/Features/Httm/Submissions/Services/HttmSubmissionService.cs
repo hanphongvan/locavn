@@ -42,8 +42,23 @@ public interface IHttmSubmissionService
         ClaimsPrincipal user,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Admin: xuất TOÀN BỘ submissions khớp filter ra Excel (.xlsx) — không phân trang.</summary>
+    Task<(byte[]? Bytes, string? FileName, string? Error, int Status)> ExportAsync(
+        string? status,
+        string? provinceCode,
+        string? submissionType,
+        string? q,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Admin: detail (proposed + current để diff).</summary>
     Task<(HttmSubmissionDetailDto? Data, string? Error, int Status)> GetByIdAsync(
+        Guid id,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Admin: xuất CHI TIẾT 1 đề xuất (so sánh + đính kèm) ra Excel (.xlsx).</summary>
+    Task<(byte[]? Bytes, string? FileName, string? Error, int Status)> ExportDetailAsync(
         Guid id,
         ClaimsPrincipal user,
         CancellationToken cancellationToken = default);
@@ -73,8 +88,12 @@ public sealed class HttmSubmissionService(
     IValidator<HttmSubmissionCreateRequest> createValidator,
     IAdminPortalRequestContext portal,
     IHttpContextAccessor httpAccessor,
+    HttmSubmissionExcelExporter excelExporter,
     ILogger<HttmSubmissionService> logger) : IHttmSubmissionService
 {
+    /// <summary>Trần số dòng xuất Excel — chống truy vấn quá lớn. Hiện đủ rộng cho mọi tỉnh.</summary>
+    private const int MaxExportRows = 50000;
+
     // Phải dùng camelCase khi serialize để khớp với hợp đồng JSON public + key check ở ParsePayload.
     // Trước đây thiếu PropertyNamingPolicy → PayloadJson ghi PascalCase ("Facility") nhưng ParsePayload
     // dò "facility" (case-sensitive) → fall sang nhánh legacy → Proposed bị reset về default → màn hình trắng.
@@ -186,26 +205,74 @@ public sealed class HttmSubmissionService(
         if (!EnsureReviewer(out var err))
             return (null, err.message, err.status);
 
-        // Scope: SO_STAFF chỉ thấy submission thuộc tỉnh trong claim.
-        string? provinceCodesCsv = null;
-        if (portal.Loai == AdminPortalLoaiRoleMapper.LoaiSoStaff && !portal.IsMachineFullAccess)
-        {
-            var codes = HttmGeoScopeService.ParseProvinceCodes(user);
-            if (codes.Count == 0)
-                return (new HttmSubmissionListPageDto { TotalCount = 0, Items = [] }, null, StatusCodes.Status200OK);
-
-            if (!string.IsNullOrWhiteSpace(provinceCode)
-                && !codes.Contains(provinceCode, StringComparer.OrdinalIgnoreCase))
-                return (null, "SCOPE_VIOLATION", StatusCodes.Status403Forbidden);
-
-            if (string.IsNullOrWhiteSpace(provinceCode))
-                provinceCodesCsv = string.Join(",", codes);
-        }
+        var scope = ResolveProvinceScope(user, provinceCode);
+        if (scope.Error is { } scopeErr)
+            return (null, scopeErr.message, scopeErr.status);
+        if (scope.ScopeEmpty)
+            return (new HttmSubmissionListPageDto { TotalCount = 0, Items = [] }, null, StatusCodes.Status200OK);
 
         var data = await repo
-            .SearchAsync(status, provinceCode, provinceCodesCsv, submissionType, q, page, pageSize, cancellationToken)
+            .SearchAsync(status, provinceCode, scope.ProvinceCodesCsv, submissionType, q, page, pageSize, cancellationToken)
             .ConfigureAwait(false);
         return (data, null, StatusCodes.Status200OK);
+    }
+
+    public async Task<(byte[]? Bytes, string? FileName, string? Error, int Status)> ExportAsync(
+        string? status,
+        string? provinceCode,
+        string? submissionType,
+        string? q,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken = default)
+    {
+        if (!EnsureReviewer(out var err))
+            return (null, null, err.message, err.status);
+
+        var scope = ResolveProvinceScope(user, provinceCode);
+        if (scope.Error is { } scopeErr)
+            return (null, null, scopeErr.message, scopeErr.status);
+
+        IReadOnlyList<HttmSubmissionListItemDto> items = [];
+        if (!scope.ScopeEmpty)
+        {
+            // Lấy TOÀN BỘ dòng khớp filter trong 1 lần (page=1, pageSize=trần). Tái dùng đúng SP + scope của list.
+            var data = await repo
+                .SearchAsync(status, provinceCode, scope.ProvinceCodesCsv, submissionType, q, 1, MaxExportRows, cancellationToken)
+                .ConfigureAwait(false);
+            items = data.Items;
+            if (data.TotalCount > items.Count)
+                logger.LogWarning(
+                    "Export submissions: TotalCount {Total} vượt trần {Max} — file chỉ chứa {Count} dòng đầu.",
+                    data.TotalCount, MaxExportRows, items.Count);
+        }
+
+        var bytes = excelExporter.Build(items);
+        var fileName = $"de-xuat-httm-{DateTimeOffset.Now:yyyyMMdd-HHmmss}.xlsx";
+        return (bytes, fileName, null, StatusCodes.Status200OK);
+    }
+
+    /// <summary>
+    /// Scope tỉnh dùng chung cho list + export. SO_STAFF chỉ thấy submission thuộc tỉnh trong claim.
+    /// <c>ScopeEmpty=true</c> nghĩa là user không có tỉnh nào → caller trả rỗng (không phải lỗi).
+    /// </summary>
+    private (string? ProvinceCodesCsv, bool ScopeEmpty, (string message, int status)? Error) ResolveProvinceScope(
+        ClaimsPrincipal user, string? provinceCode)
+    {
+        if (portal.Loai != AdminPortalLoaiRoleMapper.LoaiSoStaff || portal.IsMachineFullAccess)
+            return (null, false, null);
+
+        var codes = HttmGeoScopeService.ParseProvinceCodes(user);
+        if (codes.Count == 0)
+            return (null, true, null);
+
+        if (!string.IsNullOrWhiteSpace(provinceCode)
+            && !codes.Contains(provinceCode, StringComparer.OrdinalIgnoreCase))
+            return (null, false, ("SCOPE_VIOLATION", StatusCodes.Status403Forbidden));
+
+        if (string.IsNullOrWhiteSpace(provinceCode))
+            return (string.Join(",", codes), false, null);
+
+        return (null, false, null);
     }
 
     public async Task<(HttmSubmissionDetailDto? Data, string? Error, int Status)> GetByIdAsync(
@@ -256,6 +323,21 @@ public sealed class HttmSubmissionService(
             ReviewNotes = row.ReviewNotes,
             MergedFacilityId = row.MergedFacilityId,
         }, null, StatusCodes.Status200OK);
+    }
+
+    public async Task<(byte[]? Bytes, string? FileName, string? Error, int Status)> ExportDetailAsync(
+        Guid id,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken = default)
+    {
+        // Tái dùng GetByIdAsync — đã gồm reviewer-check + scope tỉnh + 404.
+        var (data, err, status) = await GetByIdAsync(id, user, cancellationToken).ConfigureAwait(false);
+        if (data is null)
+            return (null, null, err, status);
+
+        var bytes = excelExporter.BuildDetail(data);
+        var fileName = $"de-xuat-httm-chi-tiet-{DateTimeOffset.Now:yyyyMMdd-HHmmss}.xlsx";
+        return (bytes, fileName, null, StatusCodes.Status200OK);
     }
 
     public async Task<(HttmSubmissionReviewResultDto? Data, string? Error, int Status)> ApproveAsync(
