@@ -232,18 +232,31 @@ public sealed class HttmSubmissionService(
         if (scope.Error is { } scopeErr)
             return (null, null, scopeErr.message, scopeErr.status);
 
-        IReadOnlyList<HttmSubmissionListItemDto> items = [];
+        var items = new List<HttmSubmissionListItemDto>();
         if (!scope.ScopeEmpty)
         {
-            // Lấy TOÀN BỘ dòng khớp filter trong 1 lần (page=1, pageSize=trần). Tái dùng đúng SP + scope của list.
-            var data = await repo
-                .SearchAsync(status, provinceCode, scope.ProvinceCodesCsv, submissionType, q, 1, MaxExportRows, cancellationToken)
-                .ConfigureAwait(false);
-            items = data.Items;
-            if (data.TotalCount > items.Count)
-                logger.LogWarning(
-                    "Export submissions: TotalCount {Total} vượt trần {Max} — file chỉ chứa {Count} dòng đầu.",
-                    data.TotalCount, MaxExportRows, items.Count);
+            // SP sp_Httm_Submission_Search KẸP @PageSize tối đa 100 → phải lặp phân trang để lấy
+            // TOÀN BỘ dòng khớp filter (không chỉ 100 dòng đầu). Dừng khi đủ TotalCount, hết dòng,
+            // hoặc chạm trần an toàn MaxExportRows.
+            const int pageSize = 100;
+            long total = long.MaxValue;
+            for (var page = 1; items.Count < total; page++)
+            {
+                var data = await repo
+                    .SearchAsync(status, provinceCode, scope.ProvinceCodesCsv, submissionType, q, page, pageSize, cancellationToken)
+                    .ConfigureAwait(false);
+                total = data.TotalCount;
+                if (data.Items.Count == 0)
+                    break;
+                items.AddRange(data.Items);
+                if (items.Count >= MaxExportRows)
+                {
+                    logger.LogWarning(
+                        "Export submissions: TotalCount {Total} vượt trần {Max} — file chỉ chứa {Count} dòng đầu.",
+                        total, MaxExportRows, items.Count);
+                    break;
+                }
+            }
         }
 
         var bytes = excelExporter.Build(items);
