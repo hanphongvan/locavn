@@ -84,8 +84,12 @@ public sealed class HttmFacilityCreateRequest
     public string? DistrictCode { get; init; }
     public string? WardCode { get; init; }
     public string? AddressDetail { get; init; }
-    public double? Lat { get; init; }
-    public double? Lng { get; init; }
+
+    /// <summary>Vĩ độ. Mutable để service chuẩn hoá toạ độ 0 → null (xem NormalizeCoordinates).</summary>
+    public double? Lat { get; set; }
+
+    /// <summary>Kinh độ. Mutable cùng lý do với <see cref="Lat"/>.</summary>
+    public double? Lng { get; set; }
     public string? GpsAccuracy { get; init; }
     public decimal? LandArea { get; init; }
     public decimal? FloorArea { get; init; }
@@ -119,8 +123,12 @@ public sealed class HttmFacilityUpdateRequest
     public string? DistrictCode { get; init; }
     public string? WardCode { get; init; }
     public string? AddressDetail { get; init; }
-    public double? Lat { get; init; }
-    public double? Lng { get; init; }
+
+    /// <summary>Vĩ độ. Mutable để service chuẩn hoá toạ độ 0 → null (xem NormalizeCoordinates).</summary>
+    public double? Lat { get; set; }
+
+    /// <summary>Kinh độ. Mutable cùng lý do với <see cref="Lat"/>.</summary>
+    public double? Lng { get; set; }
     /// <summary>Khi <c>true</c>, xóa toạ độ (map tới <c>@ClearLocation</c> trong SP).</summary>
     public bool ClearLocation { get; init; }
     public string? GpsAccuracy { get; init; }
@@ -168,4 +176,25 @@ public sealed class HttmFacilitySearchQuery
     public short? YearTo { get; init; }
     public int Page { get; init; } = 1;
     public int PageSize { get; init; } = 20;
+}
+
+/// <summary>
+/// Chuẩn hoá toạ độ trước khi validate/ghi DB. Nghiệp vụ coi <c>Lat=0</c> hoặc <c>Lng=0</c> là
+/// "chưa nhập" (form/app gửi 0 thay vì để trống) → ép null để không vướng ràng buộc
+/// "Lat và Lng phải cùng có hoặc cùng không". An toàn cho VN vì toạ độ thực luôn lat≈8–23, lng≈102–110,
+/// không bao giờ đúng 0.
+/// </summary>
+public static class HttmCoordinateNormalizer
+{
+    public static void NormalizeCoordinates(this HttmFacilityCreateRequest r)
+    {
+        if (r.Lat == 0) r.Lat = null;
+        if (r.Lng == 0) r.Lng = null;
+    }
+
+    public static void NormalizeCoordinates(this HttmFacilityUpdateRequest r)
+    {
+        if (r.Lat == 0) r.Lat = null;
+        if (r.Lng == 0) r.Lng = null;
+    }
 }

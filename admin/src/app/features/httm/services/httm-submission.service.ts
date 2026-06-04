@@ -113,6 +113,20 @@ export class HttmSubmissionService {
     return this.api.get<HttmSubmissionListPage>('/api/admin/httm/submissions', p).pipe(handleApiError());
   }
 
+  /** Xuất TOÀN BỘ submissions khớp filter ra Excel (.xlsx) dạng Blob để FE save-as. */
+  exportExcel(opts: { status?: string; provinceCode?: string; submissionType?: string; q?: string }) {
+    let p = new HttpParams();
+    if (opts.status) p = p.set('status', opts.status);
+    if (opts.provinceCode) p = p.set('provinceCode', opts.provinceCode);
+    if (opts.submissionType) p = p.set('submissionType', opts.submissionType);
+    if (opts.q) p = p.set('q', opts.q);
+    return this.rawHttp.get(`${this.baseUrl}/api/admin/httm/submissions/export`, {
+      params: p,
+      responseType: 'blob',
+      observe: 'response',
+    });
+  }
+
   countPending() {
     return this.api
       .get<{ pendingCount: number }>('/api/admin/httm/submissions/count-pending')
@@ -121,6 +135,14 @@ export class HttmSubmissionService {
 
   getAdminDetail(id: string) {
     return this.api.get<HttmSubmissionDetail>(`/api/admin/httm/submissions/${id}`).pipe(handleApiError());
+  }
+
+  /** Xuất CHI TIẾT 1 đề xuất (so sánh + đính kèm) ra Excel (.xlsx) dạng Blob để FE save-as. */
+  exportDetailExcel(id: string) {
+    return this.rawHttp.get(`${this.baseUrl}/api/admin/httm/submissions/${id}/export`, {
+      responseType: 'blob',
+      observe: 'response',
+    });
   }
 
   approve(id: string, body: HttmSubmissionApproveRequest) {

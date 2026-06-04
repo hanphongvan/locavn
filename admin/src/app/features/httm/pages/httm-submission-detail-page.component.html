@@ -15,6 +15,10 @@
           {{ d.status === 'pending' ? 'Chờ duyệt' : d.status === 'approved' ? 'Đã duyệt' : 'Từ chối' }}
         </span>
         <span class="muted">Gửi {{ d.submittedAt | date: 'dd/MM/yyyy HH:mm' }}</span>
+        <button mat-stroked-button (click)="exportExcel()" [disabled]="exporting()">
+          <mat-icon>download</mat-icon>
+          {{ exporting() ? 'Đang xuất…' : 'Xuất Excel' }}
+        </button>
       </div>
     </header>
 

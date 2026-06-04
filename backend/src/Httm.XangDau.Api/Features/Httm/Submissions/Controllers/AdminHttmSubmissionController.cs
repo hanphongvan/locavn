@@ -30,6 +30,27 @@ public sealed class AdminHttmSubmissionController(IHttmSubmissionService submiss
         return err is not null ? Problem(st, err) : Ok(data);
     }
 
+    /// <summary>Xuất TOÀN BỘ đề xuất khớp filter ra Excel (.xlsx) — không phân trang.</summary>
+    [HttpGet("export")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> Export(
+        [FromQuery] string? status,
+        [FromQuery] string? provinceCode,
+        [FromQuery] string? submissionType,
+        [FromQuery] string? q,
+        CancellationToken cancellationToken = default)
+    {
+        var (bytes, fileName, err, st) = await submissions
+            .ExportAsync(status, provinceCode, submissionType, q, User, cancellationToken)
+            .ConfigureAwait(false);
+        if (err is not null || bytes is null)
+            return Problem(st, err);
+        return File(
+            bytes,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            fileName);
+    }
+
     [HttpGet("count-pending")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     public async Task<IActionResult> CountPending(CancellationToken cancellationToken)
@@ -45,6 +66,23 @@ public sealed class AdminHttmSubmissionController(IHttmSubmissionService submiss
     {
         var (data, err, st) = await submissions.GetByIdAsync(id, User, cancellationToken).ConfigureAwait(false);
         return err is not null ? Problem(st, err) : Ok(data);
+    }
+
+    /// <summary>Xuất CHI TIẾT 1 đề xuất ra Excel (.xlsx) — so sánh + đính kèm.</summary>
+    [HttpGet("{id:guid}/export")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ExportDetail(Guid id, CancellationToken cancellationToken)
+    {
+        var (bytes, fileName, err, st) = await submissions
+            .ExportDetailAsync(id, User, cancellationToken)
+            .ConfigureAwait(false);
+        if (err is not null || bytes is null)
+            return Problem(st, err);
+        return File(
+            bytes,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            fileName);
     }
 
     [HttpPost("{id:guid}/approve")]
