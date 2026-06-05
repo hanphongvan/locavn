@@ -12,6 +12,18 @@ internal sealed class GlobalExceptionHandler(
         Exception exception,
         CancellationToken cancellationToken)
     {
+        // Client tự hủy request (đóng tab, F5, Angular takeUntilDestroyed unsubscribe → abort XHR)
+        // → OperationCanceledException/TaskCanceledException. KHÔNG phải lỗi server: log mức thông tin,
+        // trả 499 (Client Closed Request) và KHÔNG ghi body vì client đã ngắt kết nối.
+        if (exception is OperationCanceledException && httpContext.RequestAborted.IsCancellationRequested)
+        {
+            logger.LogInformation("Request bị client hủy: {Method} {Path}",
+                httpContext.Request.Method, httpContext.Request.Path);
+            if (!httpContext.Response.HasStarted)
+                httpContext.Response.StatusCode = 499;
+            return true;
+        }
+
         logger.LogError(exception, "Unhandled exception: {Message}", exception.Message);
 
         var problem = new ProblemDetails
