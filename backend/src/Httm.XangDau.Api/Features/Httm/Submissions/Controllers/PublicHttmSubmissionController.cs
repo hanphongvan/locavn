@@ -44,6 +44,34 @@ public sealed class PublicHttmSubmissionController(IHttmSubmissionService submis
         return dto is null ? NotFound() : Ok(dto);
     }
 
+    /// <summary>
+    /// Danh sách đề xuất BỊ TỪ CHỐI của 1 SĐT người gửi. Bắt buộc truyền <c>phone</c> (khớp chính xác)
+    /// — không có SĐT thì trả rỗng. Không trả thông tin cá nhân người gửi.
+    /// </summary>
+    [HttpGet("rejected-submissions")]
+    [ProducesResponseType(typeof(IReadOnlyList<HttmPublicRejectedSubmissionDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> RejectedList([FromQuery] string? phone, CancellationToken cancellationToken)
+    {
+        var rows = await submissions.ListPublicRejectedByPhoneAsync(phone, cancellationToken).ConfigureAwait(false);
+        return Ok(rows);
+    }
+
+    /// <summary>
+    /// Chi tiết 1 đề xuất bị từ chối để pre-fill form sửa lại. Chỉ trả khi <c>phone</c> khớp người gửi
+    /// và đề xuất đang rejected; ngược lại 404.
+    /// </summary>
+    [HttpGet("rejected-submissions/{id:guid}")]
+    [ProducesResponseType(typeof(HttmPublicRejectedDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> RejectedDetail(
+        Guid id,
+        [FromQuery] string? phone,
+        CancellationToken cancellationToken)
+    {
+        var dto = await submissions.GetPublicRejectedDetailAsync(id, phone, cancellationToken).ConfigureAwait(false);
+        return dto is null ? NotFound() : Ok(dto);
+    }
+
     /// <summary>Submit đề xuất (update hoặc create_new). Trả về <c>submissionId</c> để theo dõi.</summary>
     [HttpPost("facility-submissions")]
     [ProducesResponseType(typeof(object), StatusCodes.Status201Created)]

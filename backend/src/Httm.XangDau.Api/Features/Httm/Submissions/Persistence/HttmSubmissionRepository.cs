@@ -175,6 +175,26 @@ public sealed class HttmSubmissionRepository(IConfiguration configuration) : IHt
         return rows.ToList();
     }
 
+    public async Task<IReadOnlyList<HttmPublicRejectedSubmissionDto>> SearchRejectedByPhoneAsync(
+        string phone,
+        CancellationToken cancellationToken = default)
+    {
+        // Inline parameterized SQL (có tiền lệ trong codebase) — chỉ đọc, lọc đúng status='rejected'
+        // + SubmitterPhone khớp chính xác. KHÔNG select cột PII (tên/SĐT/email/IP).
+        const string sql = @"
+SELECT s.Id, s.SubmissionType, s.Name, s.HttmType, s.ProvinceCode, s.WardCode,
+       s.SubmittedAt, s.ReviewedAt, s.ReviewNotes
+FROM dbo.HttmFacilitySubmissions s
+WHERE s.Status = 'rejected' AND s.SubmitterPhone = @Phone
+ORDER BY s.ReviewedAt DESC, s.SubmittedAt DESC;";
+
+        await using var conn = new SqlConnection(_connectionString);
+        var rows = await conn.QueryAsync<HttmPublicRejectedSubmissionDto>(
+                new CommandDefinition(sql, new { Phone = phone }, cancellationToken: cancellationToken))
+            .ConfigureAwait(false);
+        return rows.ToList();
+    }
+
     private sealed class SearchRow
     {
         public long TotalCount { get; init; }

@@ -35,6 +35,13 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'public/rejected-submissions',
+    loadComponent: () =>
+      import('./features/public-rejected-submissions/public-rejected-submissions-page.component').then(
+        (m) => m.PublicRejectedSubmissionsPageComponent,
+      ),
+  },
+  {
     path: '',
     component: AdminShellComponent,
     canActivate: [storeAdminAuthGuard],

@@ -26,6 +26,20 @@ public interface IHttmSubmissionService
     /// <summary>Public: snapshot facility hiện tại (đã strip sensitive) để pre-fill form.</summary>
     Task<HttmFacilityDto?> GetPublicSnapshotAsync(Guid facilityId, CancellationToken cancellationToken = default);
 
+    /// <summary>Public: danh sách đề xuất BỊ TỪ CHỐI của 1 SĐT (lọc đúng SĐT, không trả PII).</summary>
+    Task<IReadOnlyList<HttmPublicRejectedSubmissionDto>> ListPublicRejectedByPhoneAsync(
+        string? phone,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Public: chi tiết 1 đề xuất bị từ chối để pre-fill form sửa lại. CHỈ trả khi đề xuất
+    /// đang ở trạng thái rejected VÀ SĐT khớp người gửi (chống đọc dữ liệu người khác). Ngược lại trả null.
+    /// </summary>
+    Task<HttmPublicRejectedDetailDto?> GetPublicRejectedDetailAsync(
+        Guid id,
+        string? phone,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Public: submit đề xuất cập nhật / tạo mới. KHÔNG ghi đè HttmFacilities — chỉ insert vào bảng tạm.</summary>
     Task<(Guid? SubmissionId, string? Error, int Status)> CreateAsync(
         HttmSubmissionCreateRequest request,
@@ -121,6 +135,45 @@ public sealed class HttmSubmissionService(
         dto.AvgRentPrice = null;
         dto.AnnualRevenue = null;
         return dto;
+    }
+
+    public async Task<IReadOnlyList<HttmPublicRejectedSubmissionDto>> ListPublicRejectedByPhoneAsync(
+        string? phone,
+        CancellationToken cancellationToken = default)
+    {
+        var normalized = phone?.Trim();
+        if (string.IsNullOrEmpty(normalized))
+            return [];
+        return await repo.SearchRejectedByPhoneAsync(normalized, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<HttmPublicRejectedDetailDto?> GetPublicRejectedDetailAsync(
+        Guid id,
+        string? phone,
+        CancellationToken cancellationToken = default)
+    {
+        var normalized = phone?.Trim();
+        if (string.IsNullOrEmpty(normalized))
+            return null;
+
+        var row = await repo.GetByIdAsync(id, cancellationToken).ConfigureAwait(false);
+        // Chỉ cho phép khi đúng đề xuất bị từ chối VÀ SĐT khớp người gửi. Sai/không khớp → null (controller 404),
+        // tránh lộ sự tồn tại + dữ liệu của đề xuất người khác.
+        if (row is null || row.Status != "rejected"
+            || !string.Equals(row.SubmitterPhone?.Trim(), normalized, StringComparison.Ordinal))
+            return null;
+
+        var wrapper = ParsePayload(row.PayloadJson);
+        return new HttmPublicRejectedDetailDto
+        {
+            Id = row.Id,
+            SubmissionType = row.SubmissionType,
+            FacilityId = row.FacilityId,
+            Proposed = wrapper.Facility,
+            ProposedImages = wrapper.Images,
+            ProposedLicenses = wrapper.Licenses,
+            ReviewNotes = row.ReviewNotes,
+        };
     }
 
     public async Task<(Guid? SubmissionId, string? Error, int Status)> CreateAsync(

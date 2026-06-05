@@ -34,6 +34,19 @@
       </span>
     </section>
 
+    @if (fromRejected() && !submittedId()) {
+      <div class="public-portal__rejected-banner">
+        <span class="material-icons" aria-hidden="true">rule</span>
+        <div>
+          <strong>Đang sửa lại một đề xuất đã bị từ chối.</strong>
+          @if (rejectedReason()) {
+            <p>Lý do từ chối: {{ rejectedReason() }}</p>
+          }
+          <p>Vui lòng chỉnh sửa thông tin theo góp ý, nhập lại thông tin người gửi rồi gửi lại.</p>
+        </div>
+      </div>
+    }
+
     @if (submittedId(); as sid) {
       <mat-card class="public-portal__card public-fu__success">
         <div class="public-fu__success-inner">

@@ -2,6 +2,39 @@ using Httm.XangDau.Api.Features.Httm.Contracts;
 
 namespace Httm.XangDau.Api.Features.Httm.Submissions.Contracts;
 
+/// <summary>
+/// 1 dòng trong danh sách PUBLIC các đề xuất bị từ chối (lọc theo SĐT người gửi).
+/// KHÔNG chứa thông tin cá nhân người gửi (tên/SĐT/email/IP) — chỉ dữ liệu hồ sơ + lý do từ chối.
+/// </summary>
+public sealed class HttmPublicRejectedSubmissionDto
+{
+    public Guid Id { get; init; }
+    public string SubmissionType { get; init; } = string.Empty;
+    public string Name { get; init; } = string.Empty;
+    public string? HttmType { get; init; }
+    public string? ProvinceCode { get; init; }
+    public string? WardCode { get; init; }
+    public DateTimeOffset SubmittedAt { get; init; }
+    public DateTimeOffset? ReviewedAt { get; init; }
+    /// <summary>Lý do từ chối (review note của cán bộ) — hiển thị để người dân biết cần sửa gì.</summary>
+    public string? ReviewNotes { get; init; }
+}
+
+/// <summary>
+/// Chi tiết 1 đề xuất bị từ chối để PRE-FILL form sửa lại (public).
+/// KHÔNG trả thông tin người gửi — người dân nhập lại khi gửi.
+/// </summary>
+public sealed class HttmPublicRejectedDetailDto
+{
+    public Guid Id { get; init; }
+    public string SubmissionType { get; init; } = string.Empty;
+    public Guid? FacilityId { get; init; }
+    public HttmFacilityCreateRequest Proposed { get; init; } = new();
+    public IReadOnlyList<HttmSubmissionImageDto> ProposedImages { get; init; } = [];
+    public IReadOnlyList<HttmSubmissionLicenseDto> ProposedLicenses { get; init; } = [];
+    public string? ReviewNotes { get; init; }
+}
+
 /// <summary>Body POST <c>/api/public/httm/facility-submissions</c>.</summary>
 public sealed class HttmSubmissionCreateRequest
 {
