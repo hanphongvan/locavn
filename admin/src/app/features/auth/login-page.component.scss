@@ -586,6 +586,18 @@
     transform: translateY(-1px);
     box-shadow: 0 12px 28px rgba(234, 88, 12, 0.45);
   }
+
+  &--secondary {
+    margin-top: 0.625rem;
+    color: #1e3a5f;
+    background: #fff;
+    border: 1px solid rgba(30, 58, 95, 0.35);
+    box-shadow: 0 4px 12px rgba(30, 58, 95, 0.12);
+
+    &:hover {
+      box-shadow: 0 8px 18px rgba(30, 58, 95, 0.2);
+    }
+  }
 }
 
 .portal-login__footer {

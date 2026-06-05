@@ -7,6 +7,8 @@ import { API_BASE_URL } from '../../../core/tokens/api-base-url.token';
 import type { HttmFacilityDto } from '../models/httm-facility.model';
 import type {
   HttmPublicFacilityRow,
+  HttmPublicRejectedDetail,
+  HttmPublicRejectedSubmission,
   HttmSubmissionApproveRequest,
   HttmSubmissionCreateRequest,
   HttmSubmissionDetail,
@@ -90,6 +92,24 @@ export class HttmSubmissionService {
   submit(body: HttmSubmissionCreateRequest) {
     return this.rawHttp
       .post<{ submissionId: string }>(`${this.baseUrl}/api/public/httm/facility-submissions`, body)
+      .pipe(handleApiError());
+  }
+
+  /** Public: danh sách đề xuất bị từ chối của 1 SĐT. */
+  listPublicRejected(phone: string) {
+    return this.rawHttp
+      .get<HttmPublicRejectedSubmission[]>(`${this.baseUrl}/api/public/httm/rejected-submissions`, {
+        params: { phone },
+      })
+      .pipe(handleApiError());
+  }
+
+  /** Public: chi tiết 1 đề xuất bị từ chối (kèm SĐT để xác thực) để pre-fill form sửa lại. */
+  getPublicRejectedDetail(id: string, phone: string) {
+    return this.rawHttp
+      .get<HttmPublicRejectedDetail>(`${this.baseUrl}/api/public/httm/rejected-submissions/${id}`, {
+        params: { phone },
+      })
       .pipe(handleApiError());
   }
 

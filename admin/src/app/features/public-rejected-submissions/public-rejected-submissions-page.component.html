@@ -1,0 +1,77 @@
+<div class="rejected-portal">
+  <header class="rejected-portal__head">
+    <app-dms-logo [size]="48" />
+    <div class="rejected-portal__head-text">
+      <h1>Đề xuất bị từ chối</h1>
+      <p>Tra cứu các đề xuất cập nhật hạ tầng của bạn đã bị từ chối, chỉnh sửa và gửi lại.</p>
+    </div>
+    <a routerLink="/login" mat-stroked-button class="rejected-portal__back">
+      <mat-icon>arrow_back</mat-icon> Về đăng nhập
+    </a>
+  </header>
+
+  <section class="rejected-portal__search">
+    <mat-form-field appearance="outline" class="rejected-portal__phone">
+      <mat-label>Số điện thoại đã dùng khi gửi</mat-label>
+      <input
+        matInput
+        [(ngModel)]="phone"
+        (keyup.enter)="search()"
+        placeholder="VD: 0912345678"
+        inputmode="tel"
+      />
+    </mat-form-field>
+    <button mat-flat-button color="primary" (click)="search()" [disabled]="loading()">
+      <mat-icon>search</mat-icon> Tra cứu
+    </button>
+  </section>
+
+  @if (loading()) {
+    <div class="rejected-portal__loading">
+      <mat-spinner [diameter]="36" />
+    </div>
+  }
+
+  @if (searched() && !loading()) {
+    @if (items().length === 0) {
+      <p class="rejected-portal__empty">
+        Không tìm thấy đề xuất bị từ chối nào cho số điện thoại này.
+      </p>
+    } @else {
+      <table mat-table [dataSource]="items()" class="rejected-portal__table">
+        <ng-container matColumnDef="submittedAt">
+          <th mat-header-cell *matHeaderCellDef>Gửi lúc</th>
+          <td mat-cell *matCellDef="let r">{{ r.submittedAt | date: 'dd/MM/yyyy HH:mm' }}</td>
+        </ng-container>
+        <ng-container matColumnDef="type">
+          <th mat-header-cell *matHeaderCellDef>Loại</th>
+          <td mat-cell *matCellDef="let r">
+            {{ r.submissionType === 'create_new' ? 'Tạo mới' : 'Cập nhật' }}
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="name">
+          <th mat-header-cell *matHeaderCellDef>Tên cơ sở</th>
+          <td mat-cell *matCellDef="let r">{{ r.name }}</td>
+        </ng-container>
+        <ng-container matColumnDef="province">
+          <th mat-header-cell *matHeaderCellDef>Tỉnh / Xã</th>
+          <td mat-cell *matCellDef="let r">{{ r.provinceCode }} / {{ r.wardCode || '—' }}</td>
+        </ng-container>
+        <ng-container matColumnDef="reason">
+          <th mat-header-cell *matHeaderCellDef>Lý do từ chối</th>
+          <td mat-cell *matCellDef="let r" class="rejected-portal__reason">{{ r.reviewNotes || '—' }}</td>
+        </ng-container>
+        <ng-container matColumnDef="action">
+          <th mat-header-cell *matHeaderCellDef></th>
+          <td mat-cell *matCellDef="let r">
+            <button mat-flat-button color="primary" (click)="edit(r)">
+              <mat-icon>edit</mat-icon> Sửa & gửi lại
+            </button>
+          </td>
+        </ng-container>
+        <tr mat-header-row *matHeaderRowDef="columns"></tr>
+        <tr mat-row *matRowDef="let row; columns: columns"></tr>
+      </table>
+    }
+  }
+</div>

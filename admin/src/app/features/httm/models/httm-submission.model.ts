@@ -102,3 +102,27 @@ export interface HttmSubmissionReviewResult {
   status: string;
   mergedFacilityId: string | null;
 }
+
+/** 1 dòng danh sách public đề xuất bị từ chối (lọc theo SĐT). Không có thông tin người gửi. */
+export interface HttmPublicRejectedSubmission {
+  id: string;
+  submissionType: 'update' | 'create_new';
+  name: string;
+  httmType: string | null;
+  provinceCode: string | null;
+  wardCode: string | null;
+  submittedAt: string;
+  reviewedAt: string | null;
+  reviewNotes: string | null;
+}
+
+/** Chi tiết public đề xuất bị từ chối để pre-fill form sửa lại. Không có thông tin người gửi. */
+export interface HttmPublicRejectedDetail {
+  id: string;
+  submissionType: 'update' | 'create_new';
+  facilityId: string | null;
+  proposed: HttmFacilityCreateRequest;
+  proposedImages: HttmSubmissionImage[];
+  proposedLicenses: HttmSubmissionLicense[];
+  reviewNotes: string | null;
+}
