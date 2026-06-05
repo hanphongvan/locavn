@@ -42,6 +42,11 @@ public interface IHttmSubmissionRepository
         string? wardCode,
         int limit,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Public: các đề xuất BỊ TỪ CHỐI của một SĐT người gửi (khớp chính xác). Không trả PII.</summary>
+    Task<IReadOnlyList<HttmPublicRejectedSubmissionDto>> SearchRejectedByPhoneAsync(
+        string phone,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed class SubmissionInsertRow

@@ -12,7 +12,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTabsModule } from '@angular/material/tabs';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 
 import { API_BASE_URL } from '../../core/tokens/api-base-url.token';
 import { DmsLogoComponent } from '../auth/components/dms-logo.component';
@@ -58,7 +58,12 @@ export class PublicFacilityUpdatePageComponent implements OnInit {
   private readonly api = inject(HttmSubmissionService);
   private readonly dialog = inject(MatDialog);
   private readonly snack = inject(MatSnackBar);
+  private readonly route = inject(ActivatedRoute);
   private readonly apiBase = inject(API_BASE_URL).replace(/\/$/, '');
+
+  /** Khi sửa lại 1 đề xuất bị từ chối: lý do từ chối để hiển thị banner. */
+  readonly rejectedReason = signal<string | null>(null);
+  readonly fromRejected = signal(false);
 
   readonly selectedFacility = signal<HttmPublicFacilityRow | null>(null);
   readonly loadingSnapshot = signal(false);
@@ -146,6 +151,49 @@ export class PublicFacilityUpdatePageComponent implements OnInit {
         complete: () => this.loadingWards.set(false),
       });
     });
+
+    // Mở từ trang "Đề xuất bị từ chối": pre-fill dữ liệu hồ sơ (KHÔNG load thông tin người gửi).
+    const qp = this.route.snapshot.queryParamMap;
+    const fromRejected = qp.get('fromRejected');
+    const phone = qp.get('phone');
+    if (fromRejected && phone) {
+      this.loadFromRejected(fromRejected, phone);
+    }
+  }
+
+  /** Tải đề xuất bị từ chối (xác thực bằng SĐT) và đổ vào form để sửa lại. */
+  private loadFromRejected(id: string, phone: string): void {
+    this.fromRejected.set(true);
+    this.loadingSnapshot.set(true);
+    this.api.getPublicRejectedDetail(id, phone).subscribe({
+      next: (d) => {
+        const p = d.proposed;
+        this.mode.set(d.submissionType);
+        // Với đề xuất cập nhật: giữ lại facilityId để submit gửi đúng facility gốc.
+        this.selectedFacility.set(
+          d.submissionType === 'update' && d.facilityId
+            ? {
+                id: d.facilityId,
+                name: p.name,
+                httmType: p.httmType,
+                status: p.status,
+                provinceCode: p.provinceCode,
+                districtCode: p.districtCode ?? null,
+                wardCode: p.wardCode ?? null,
+                addressDetail: p.addressDetail ?? null,
+              }
+            : null,
+        );
+        this.applyProposed(p);
+        this.applyAttachments(d.proposedImages, d.proposedLicenses);
+        this.rejectedReason.set(d.reviewNotes ?? null);
+      },
+      error: () =>
+        this.snack.open('Không tải được đề xuất bị từ chối (SĐT không khớp hoặc đề xuất không tồn tại).', 'Đóng', {
+          duration: 8000,
+        }),
+      complete: () => this.loadingSnapshot.set(false),
+    });
   }
 
   openSearch(): void {
@@ -216,19 +264,99 @@ export class PublicFacilityUpdatePageComponent implements OnInit {
     });
 
     // valueChanges đã trigger cascade load wards từ patchValue provinceCode ở trên.
-    // Đợi wards load xong (poll signal đến khi length > 0 hoặc loading=false) rồi set wardCode.
-    if (savedWardCode && d.provinceCode) {
-      const start = Date.now();
-      const poll = setInterval(() => {
-        if (this.wards().some((w) => w.code === savedWardCode)) {
-          this.form.patchValue({ wardCode: savedWardCode }, { emitEvent: false });
-          clearInterval(poll);
-        } else if (Date.now() - start > 5000 || (!this.loadingWards() && this.wards().length > 0)) {
-          // Quá 5s hoặc wards đã load nhưng không match → bỏ wardCode.
-          clearInterval(poll);
-        }
-      }, 100);
-    }
+    this.patchWardAfterLoad(savedWardCode, d.provinceCode);
+  }
+
+  /** Đổ dữ liệu hồ sơ từ 1 đề xuất bị từ chối (HttmFacilityCreateRequest) vào form. */
+  private applyProposed(p: HttmFacilityCreateRequest): void {
+    const savedWardCode = p.wardCode ?? null;
+    this.form.patchValue({
+      name: p.name,
+      httmType: p.httmType,
+      status: p.status,
+      provinceCode: p.provinceCode,
+      districtCode: p.districtCode,
+      wardCode: null, // patch sau khi load xong wards
+      addressDetail: p.addressDetail,
+      lat: p.lat,
+      lng: p.lng,
+      gpsAccuracy: p.gpsAccuracy,
+      landArea: p.landArea,
+      floorArea: p.floorArea,
+      floors: p.floors,
+      stallCount: p.stallCount,
+      avgStallArea: p.avgStallArea,
+      parkingSlots: p.parkingSlots,
+      yearEstablished: p.yearEstablished,
+      yearRenovated: p.yearRenovated,
+      ownerName: p.ownerName,
+      operatorName: p.operatorName,
+      fillRate: p.fillRate,
+      vendorCount: p.vendorCount,
+      avgRentPrice: p.avgRentPrice,
+      annualRevenue: p.annualRevenue,
+      hasBackupPower: p.hasBackupPower,
+      hasFireProtection: p.hasFireProtection,
+      buildingQuality: p.buildingQuality,
+      notes: p.notes,
+    });
+    this.patchWardAfterLoad(savedWardCode, p.provinceCode);
+  }
+
+  /** Đổ lại ảnh + giấy phép đã đính kèm của đề xuất bị từ chối vào các FormArray. */
+  private applyAttachments(
+    images: HttmSubmissionImage[],
+    licenses: HttmSubmissionLicense[],
+  ): void {
+    this.imagesArr.clear();
+    images.forEach((img, idx) => {
+      this.imagesArr.push(this.fb.group({
+        url: [img.url],
+        fileName: [this.fileNameFromUrl(img.url)],
+        imageType: [img.imageType ?? 'exterior'],
+        caption: [img.caption ?? ''],
+        takenDate: [img.takenDate ?? null],
+        sortOrder: [typeof img.sortOrder === 'number' ? img.sortOrder : idx],
+      }));
+    });
+
+    this.licensesArr.clear();
+    licenses.forEach((lic) => {
+      this.licensesArr.push(this.fb.group({
+        licenseType: [lic.licenseType ?? 'business'],
+        licenseNumber: [lic.licenseNumber ?? ''],
+        issuedDate: [lic.issuedDate ?? null],
+        expiryDate: [lic.expiryDate ?? null],
+        issuedBy: [lic.issuedBy ?? ''],
+        fileUrl: [lic.fileUrl ?? ''],
+        fileName: [this.fileNameFromUrl(lic.fileUrl)],
+        notes: [lic.notes ?? ''],
+      }));
+    });
+  }
+
+  private fileNameFromUrl(url: string | null | undefined): string {
+    if (!url) return '';
+    const parts = url.split('/');
+    return parts[parts.length - 1] || '';
+  }
+
+  /**
+   * Sau khi đổi provinceCode, wards load async → đợi load xong rồi set wardCode để mat-select
+   * hiển thị đúng option đã pre-fill.
+   */
+  private patchWardAfterLoad(savedWardCode: string | null | undefined, provinceCode: string | null | undefined): void {
+    if (!savedWardCode || !provinceCode) return;
+    const start = Date.now();
+    const poll = setInterval(() => {
+      if (this.wards().some((w) => w.code === savedWardCode)) {
+        this.form.patchValue({ wardCode: savedWardCode }, { emitEvent: false });
+        clearInterval(poll);
+      } else if (Date.now() - start > 5000 || (!this.loadingWards() && this.wards().length > 0)) {
+        // Quá 5s hoặc wards đã load nhưng không match → bỏ wardCode.
+        clearInterval(poll);
+      }
+    }, 100);
   }
 
   submit(): void {
