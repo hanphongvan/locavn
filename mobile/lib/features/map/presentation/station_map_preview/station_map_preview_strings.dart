@@ -8,7 +8,7 @@ abstract final class StationMapPreviewStrings {
   static const String statusClosedShort = 'Đóng cửa';
   static const String statusUnknownShort = 'Không rõ';
 
-  static const String labelRon95 = 'RON95';
+  static const String labelRon95 = 'E10';
   static const String labelDo = 'DO';
   static const String labelE5 = 'E5';
 

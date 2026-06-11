@@ -63,7 +63,7 @@ String cheapestFuelApiValue(CheapestFuelQuery q) => switch (q) {
     };
 
 String cheapestFuelTitle(CheapestFuelQuery q) => switch (q) {
-      CheapestFuelQuery.ron95 => 'RON 95 rẻ nhất',
+      CheapestFuelQuery.ron95 => 'E10 rẻ nhất',
       CheapestFuelQuery.diesel => 'Diesel rẻ nhất',
     };
 

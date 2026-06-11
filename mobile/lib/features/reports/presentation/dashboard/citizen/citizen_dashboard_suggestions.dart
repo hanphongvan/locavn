@@ -40,7 +40,7 @@ class CitizenDashboardSuggestions extends ConsumerWidget {
   static String _cheapestSubtitle(CitizenDashboardMapSuggestions d) {
     final s = d.cheapest;
     if (s != null) return _stationLocationLine(s);
-    return 'Chưa có giá RON95 trong danh sách đã lọc.';
+    return 'Chưa có giá E10 trong danh sách đã lọc.';
   }
 
   static String _stationTitle(CitizenMapStationSuggestion? s, String whenEmpty) {

@@ -83,7 +83,7 @@ class _StationMapBottomSheetState extends ConsumerState<StationMapBottomSheet> {
                       },
                     ),
                     ListTile(
-                      title: const Text('Giá RON 95 rẻ nhất'),
+                      title: const Text('Giá E10 rẻ nhất'),
                       trailing: current == MapStationListSort.priceRon95Asc
                           ? const Icon(Icons.check_rounded, color: MapScreenPalette.primaryBlue)
                           : null,

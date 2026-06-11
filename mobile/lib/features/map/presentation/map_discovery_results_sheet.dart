@@ -433,7 +433,7 @@ List<Widget> _standardPriceChips(BuildContext context, MapStationListRow row) {
   if (s.priceRon95 != null) {
     out.add(
       _PriceChip(
-        label: 'RON 95',
+        label: 'E10',
         value: formatVndCurrency(s.priceRon95),
         scheme: scheme,
         emphasized: em == 'ron95',
@@ -937,7 +937,7 @@ class _InStockPriceChipsRow extends StatelessWidget {
     if (s.priceRon95 != null) {
       chips.add(
         _InStockPriceChip(
-          label: 'RON 95',
+          label: 'E10',
           value: formatVndCurrency(s.priceRon95),
           emphasized: em == 'ron95',
           cheapestChromeHighlight: cheapestChromeHighlight,

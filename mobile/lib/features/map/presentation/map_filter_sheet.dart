@@ -345,7 +345,7 @@ class _MapFilterSheetBodyState extends ConsumerState<_MapFilterSheetBody> {
                                 const SizedBox(height: 22),
                                 FilterSection(
                                   title: 'Khoảng giá',
-                                  subtitle: 'Theo đơn giá RON95 hoặc diesel trên bản đồ (đồng/lít).',
+                                  subtitle: 'Theo đơn giá E10 hoặc diesel trên bản đồ (đồng/lít).',
                                   child: MapFilterPriceRangeSlider(
                                     minDong: _priceMinDong,
                                     maxDong: _priceMaxDong,
@@ -461,7 +461,7 @@ class _MapFilterSheetBodyState extends ConsumerState<_MapFilterSheetBody> {
                                     Expanded(
                                       child: OutlinedButton.icon(
                                         icon: const Icon(Icons.local_gas_station_outlined, size: 18),
-                                        label: const Text('RON 95'),
+                                        label: const Text('E10'),
                                         onPressed: () {
                                           Navigator.of(context).pop();
                                           unawaited(

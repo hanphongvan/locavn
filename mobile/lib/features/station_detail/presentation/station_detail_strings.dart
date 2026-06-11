@@ -23,7 +23,7 @@ abstract final class StationDetailStrings {
 
   static const String labelOpen = 'Mở cửa';
   static const String labelClose = 'Đóng cửa';
-  static const String labelRon95 = 'RON 95';
+  static const String labelRon95 = 'E10';
   static const String labelDo = 'DO';
   static const String priceRowFallback = 'Mặt hàng';
   static const String noPrices = 'Chưa có dữ liệu giá.';
