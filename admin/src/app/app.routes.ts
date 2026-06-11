@@ -23,6 +23,13 @@ export const routes: Routes = [
       import('./features/auth/access-denied-page.component').then((m) => m.AccessDeniedPageComponent),
   },
   {
+    path: 'reset-password',
+    loadComponent: () =>
+      import('./features/auth/reset-password/reset-password-page.component').then(
+        (m) => m.ResetPasswordPageComponent,
+      ),
+  },
+  {
     path: 'public/map',
     loadComponent: () =>
       import('./features/public-map/public-httm-map-page.component').then((m) => m.PublicHttmMapPageComponent),

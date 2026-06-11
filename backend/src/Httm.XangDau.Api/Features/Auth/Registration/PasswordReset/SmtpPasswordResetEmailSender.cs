@@ -26,7 +26,7 @@ public sealed class SmtpPasswordResetEmailSender(
         }
 
         var message = new MimeMessage();
-        message.From.Add(new MailboxAddress(smtp.FromName ?? "LocaVN", smtp.FromAddress));
+        message.From.Add(new MailboxAddress(smtp.FromName ?? "Quanh tôi", smtp.FromAddress));
         message.To.Add(MailboxAddress.Parse(toEmail));
         message.Subject = PasswordResetEmailTemplates.Subject;
         message.Body = new TextPart("plain") { Text = PasswordResetEmailTemplates.BuildPlainTextBody(resetLink) };
