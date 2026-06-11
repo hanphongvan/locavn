@@ -84,6 +84,7 @@ export const SHELL_NAV_MENU_GROUPS: readonly ShellNavMenuGroup[] = [
     roles: ADMIN_PORTAL_ROLES_ONLY,
     items: [
       { path: '/users', label: 'Người dùng', icon: 'group', roles: ADMIN_PORTAL_ROLES_ONLY },
+      { path: '/app-feedback', label: 'Góp ý ứng dụng', icon: 'feedback', roles: ADMIN_PORTAL_ROLES_ONLY },
       { path: '/demo-data', label: 'Demo Data', icon: 'science', roles: ADMIN_PORTAL_ROLES_ONLY },
     ],
   },

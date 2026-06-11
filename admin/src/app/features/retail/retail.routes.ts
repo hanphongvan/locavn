@@ -14,6 +14,8 @@ const surveysData = { portalRoles: SURVEY_PORTAL_ROLES };
 const fuelCatalogAdminData = { portalRoles: ADMIN_PORTAL_ROLES_ONLY };
 /** `/inventory-map` — chỉ Admin (`Loai === 1`); đồng bộ mục sidebar `Bản đồ tồn kho`. */
 const inventoryMapAdminData = { portalRoles: ADMIN_PORTAL_ROLES_ONLY };
+/** `/app-feedback` — chỉ Admin xem góp ý ứng dụng. */
+const appFeedbackAdminData = { portalRoles: ADMIN_PORTAL_ROLES_ONLY };
 
 /** Store / inventory / pricing: all portal roles; fuel product CRUD UI is ADMIN-only (GET still used from hubs). */
 export const RETAIL_SHELL_ROUTES: Routes = [
@@ -84,5 +86,14 @@ export const RETAIL_SHELL_ROUTES: Routes = [
     data: inventoryMapAdminData satisfies { portalRoles: typeof ADMIN_PORTAL_ROLES_ONLY },
     loadComponent: () =>
       import('../inventory-map/inventory-map-page.component').then((m) => m.InventoryMapPageComponent),
+  },
+  {
+    path: 'app-feedback',
+    canActivate: [portalRoleGuard],
+    data: appFeedbackAdminData,
+    loadComponent: () =>
+      import('../app-feedback/pages/app-feedback-list-page.component').then(
+        (m) => m.AppFeedbackListPageComponent,
+      ),
   },
 ];

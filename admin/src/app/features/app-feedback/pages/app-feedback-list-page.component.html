@@ -1,0 +1,85 @@
+<div class="feedback-page">
+  <header class="feedback-page__head">
+    <div>
+      <h1>Góp ý ứng dụng</h1>
+      <p class="feedback-page__sub">Phản ánh & đề xuất từ người dùng ứng dụng di động.</p>
+    </div>
+    <button mat-stroked-button (click)="reload()" [disabled]="loading()">
+      <mat-icon>refresh</mat-icon>
+      Tải lại
+    </button>
+  </header>
+
+  @if (loading()) {
+    <div class="feedback-page__center">
+      <mat-progress-spinner diameter="36" mode="indeterminate"></mat-progress-spinner>
+    </div>
+  } @else if (items().length === 0) {
+    <div class="feedback-page__center feedback-page__empty">
+      <mat-icon>inbox</mat-icon>
+      <p>Chưa có góp ý nào.</p>
+    </div>
+  } @else {
+    <div class="feedback-list">
+      @for (item of items(); track item.id) {
+        <mat-card class="feedback-card" appearance="outlined">
+          <div class="feedback-card__top">
+            <span class="chip chip--cat chip--cat-{{ item.category }}">{{ categoryLabel(item.category) }}</span>
+            <span class="chip chip--status chip--status-{{ item.status }}">{{ statusLabel(item.status) }}</span>
+            <span class="feedback-card__date">{{ item.createdAt | date: 'dd/MM/yyyy HH:mm' }}</span>
+          </div>
+
+          <p class="feedback-card__content">{{ item.content }}</p>
+
+          <div class="feedback-card__meta">
+            @if (item.contactEmail) {
+              <span class="meta"><mat-icon>email</mat-icon>{{ item.contactEmail }}</span>
+            }
+            @if (item.contactPhone) {
+              <span class="meta"><mat-icon>phone</mat-icon>{{ item.contactPhone }}</span>
+            }
+            @if (item.platform) {
+              <span class="meta"><mat-icon>devices</mat-icon>{{ item.platform }}</span>
+            }
+            <span class="meta">
+              <mat-icon>{{ item.fromAuthenticatedUser ? 'person' : 'person_outline' }}</mat-icon>
+              {{ item.fromAuthenticatedUser ? 'Đã đăng nhập' : 'Khách' }}
+            </span>
+          </div>
+
+          @if (item.imageCount > 0) {
+            <button mat-button color="primary" class="feedback-card__imgbtn" (click)="toggleImages(item)">
+              <mat-icon>{{ isExpanded(item.id) ? 'expand_less' : 'image' }}</mat-icon>
+              {{ isExpanded(item.id) ? 'Ẩn ảnh' : 'Xem ' + item.imageCount + ' ảnh' }}
+            </button>
+
+            @if (isExpanded(item.id)) {
+              @if (isLoadingImages(item.id)) {
+                <mat-progress-spinner diameter="24" mode="indeterminate"></mat-progress-spinner>
+              } @else {
+                <div class="feedback-card__images">
+                  @for (img of imagesFor(item.id); track img.id) {
+                    <a [href]="img.imageUrl" target="_blank" rel="noopener">
+                      <img [src]="img.imageUrl" alt="Ảnh góp ý" loading="lazy" />
+                    </a>
+                  }
+                </div>
+              }
+            }
+          }
+        </mat-card>
+      }
+    </div>
+
+    <div class="feedback-page__pager">
+      <span>{{ rangeStart() }}–{{ rangeEnd() }} / {{ totalCount() }}</span>
+      <button mat-icon-button (click)="prevPage()" [disabled]="page() <= 1" aria-label="Trang trước">
+        <mat-icon>chevron_left</mat-icon>
+      </button>
+      <span>Trang {{ page() }}/{{ totalPages() }}</span>
+      <button mat-icon-button (click)="nextPage()" [disabled]="page() >= totalPages()" aria-label="Trang sau">
+        <mat-icon>chevron_right</mat-icon>
+      </button>
+    </div>
+  }
+</div>
