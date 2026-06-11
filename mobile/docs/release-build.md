@@ -31,6 +31,8 @@ Tối thiểu phải có các key dưới đây. Đặc biệt **`GOOGLE_SERVER_
 
 > ⚠️ Web Client ID là loại `Web application` trên Google Cloud Console, **không phải** Android Client ID.
 
+> ℹ️ **Android lấy `API_BASE_URL` + `GOOGLE_SERVER_CLIENT_ID` từ `android/local.properties`** (gitignored), KHÔNG bắt buộc nằm trong `prod.json`/`dev.json`. [`android/app/build.gradle.kts`](../android/app/build.gradle.kts) có hàm `appendDartDefine(key)` (đọc `local.properties` → fallback env var) tự bơm 2 key này vào `dart-defines` mỗi lần build/run Android. Vì vậy build APK/AAB Android vẫn có Google Sign-In dù `prod.json` thiếu `GOOGLE_SERVER_CLIENT_ID`. **iOS thì khác** — iOS chỉ nhận qua `--dart-define-from-file` (prod.json) hoặc `ios/Flutter/Local.xcconfig`, nên iOS vẫn cần các key đó trong `prod.json`. → Khi kiểm tra "key X có cần trong prod.json không", phải xét cả `android/local.properties` + `appendDartDefine`, đừng chỉ nhìn `prod.json`.
+
 ### 0.2 Bump version pubspec
 
 Mỗi lần upload Play Console / TestFlight phải bump build number (số sau `+`). Trùng build number cũ → reject.
