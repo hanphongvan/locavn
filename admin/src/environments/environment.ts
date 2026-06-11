@@ -5,7 +5,7 @@
 export const environment = {
   production: false,
   /** Gốc API backend (ví dụ máy local ASP.NET). */
-  apiBaseUrl: 'http://localhost:5111',
+  apiBaseUrl: 'https://xd.dms.gov.vn',
   /**
    * Khớp `Admin:ApiKey` trên API (Development: `appsettings.Development.json`).
    * Production: đặt qua CI / thay thế file môi trường, không commit bí mật thật.

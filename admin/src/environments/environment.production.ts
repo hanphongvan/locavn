@@ -12,7 +12,7 @@
 export const environment = {
   production: true,
   /** Fallback nếu runtime-config.json không load được. */
-  apiBaseUrl: 'https://xdapi.dms.gov.vn',
+  apiBaseUrl: 'https://xd.dms.gov.vn',
   /** Để rỗng — admin API key phải đặt qua runtime-config.json trên server. */
   adminApiKey: '',
 };
