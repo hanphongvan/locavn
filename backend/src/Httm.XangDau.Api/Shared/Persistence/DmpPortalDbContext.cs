@@ -43,6 +43,9 @@ public sealed class DmpPortalDbContext : DbContext
     public DbSet<StationBadReport> StationBadReports => Set<StationBadReport>();
     public DbSet<StationBadReportImage> StationBadReportImages => Set<StationBadReportImage>();
 
+    public DbSet<AppFeedback> AppFeedbacks => Set<AppFeedback>();
+    public DbSet<AppFeedbackImage> AppFeedbackImages => Set<AppFeedbackImage>();
+
     public DbSet<FuelProduct> FuelProducts => Set<FuelProduct>();
     public DbSet<StationPrice> StationPrices => Set<StationPrice>();
     public DbSet<StationProductPrice> StationProductPrices => Set<StationProductPrice>();

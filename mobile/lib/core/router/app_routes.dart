@@ -23,7 +23,10 @@ enum AppRoute {
   myViolationReports('/account/my-violation-reports'),
 
   /// Đánh giá cây xăng đã gửi — `GET /api/my-reviews`.
-  myStationReviews('/account/my-station-reviews');
+  myStationReviews('/account/my-station-reviews'),
+
+  /// Góp ý ứng dụng — `POST /api/app-feedback` (gửi được ẩn danh).
+  appFeedback('/account/app-feedback');
 
   const AppRoute(this.path);
   final String path;

@@ -1,0 +1,141 @@
+.feedback-page {
+  padding: 20px 24px;
+  max-width: 900px;
+  margin: 0 auto;
+
+  &__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 18px;
+
+    h1 {
+      margin: 0;
+      font-size: 1.4rem;
+      font-weight: 700;
+    }
+  }
+
+  &__sub {
+    margin: 4px 0 0;
+    color: #64748b;
+    font-size: 0.9rem;
+  }
+
+  &__center {
+    display: flex;
+    justify-content: center;
+    padding: 48px 0;
+  }
+
+  &__empty {
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    color: #94a3b8;
+
+    mat-icon {
+      font-size: 40px;
+      width: 40px;
+      height: 40px;
+    }
+  }
+
+  &__pager {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 18px;
+    color: #475569;
+    font-size: 0.9rem;
+  }
+}
+
+.feedback-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.feedback-card {
+  padding: 16px;
+
+  &__top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+  }
+
+  &__date {
+    margin-left: auto;
+    color: #94a3b8;
+    font-size: 0.82rem;
+  }
+
+  &__content {
+    margin: 0 0 12px;
+    white-space: pre-wrap;
+    line-height: 1.5;
+    color: #1e293b;
+  }
+
+  &__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+
+    .meta {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      color: #475569;
+      font-size: 0.84rem;
+
+      mat-icon {
+        font-size: 17px;
+        width: 17px;
+        height: 17px;
+      }
+    }
+  }
+
+  &__imgbtn {
+    margin-top: 8px;
+  }
+
+  &__images {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 8px;
+    margin-top: 8px;
+
+    img {
+      width: 100%;
+      aspect-ratio: 1;
+      object-fit: cover;
+      border-radius: 8px;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+    }
+  }
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.chip--cat-0 { background: #fee2e2; color: #b91c1c; }   /* Báo lỗi */
+.chip--cat-1 { background: #dbeafe; color: #1d4ed8; }   /* Đề xuất */
+.chip--cat-2 { background: #f1f5f9; color: #475569; }   /* Khác */
+
+.chip--status-0 { background: #fef3c7; color: #b45309; } /* Chờ xử lý */
+.chip--status-1 { background: #e0e7ff; color: #4338ca; } /* Đang xử lý */
+.chip--status-2 { background: #dcfce7; color: #15803d; } /* Đã xử lý */

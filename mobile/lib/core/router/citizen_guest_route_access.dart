@@ -14,6 +14,8 @@ abstract final class CitizenGuestRouteAccess {
     if (path == AppRoute.map.path) return true;
     if (path.startsWith(AppRoute.stationDetailBase)) return true;
     if (path == AppRoute.more.path) return true;
+    // Góp ý ứng dụng: khách chưa đăng nhập vẫn gửi được (backend cho ẩn danh).
+    if (path == AppRoute.appFeedback.path) return true;
     return false;
   }
 }

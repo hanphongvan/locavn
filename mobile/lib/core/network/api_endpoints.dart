@@ -45,6 +45,15 @@ abstract final class ApiEndpoints {
   /// Báo vi phạm do tài khoản đã gửi (`MyBadReportsController`).
   static const myBadReports = '/api/my-bad-reports';
 
+  /// Góp ý về ứng dụng — gửi được ẩn danh (`AppFeedbackController`).
+  static const appFeedback = '/api/app-feedback';
+
+  /// Ảnh đính kèm góp ý — multipart, cho phép ẩn danh (`AppFeedbackController.UploadImage`).
+  static const appFeedbackUploadImage = '/api/app-feedback/upload-image';
+
+  /// Cờ cấu hình runtime cho app (`PublicAppConfigController`) — bật/tắt tính năng từ backend.
+  static const appConfig = '/api/app/config';
+
   static const pricesLatest = '/api/prices/latest';
   static String pricesByStation(int stationId) => '/api/prices/by-station/$stationId';
 
