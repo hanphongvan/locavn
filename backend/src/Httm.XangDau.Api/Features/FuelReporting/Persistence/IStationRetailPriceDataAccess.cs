@@ -16,6 +16,15 @@ public interface IStationRetailPriceDataAccess
         CancellationToken cancellationToken = default);
 }
 
-public sealed record StationMapRetailPriceRow(int DonViId, string ProductCode, decimal Price);
+public sealed class StationMapRetailPriceRow
+{
+    public int DonViId { get; init; }
+    public string ProductCode { get; init; } = string.Empty;
+    public decimal Price { get; init; }
+}
 
-public sealed record StationCheapestRetailRow(int DonViId, decimal Price);
+public sealed class StationCheapestRetailRow
+{
+    public int DonViId { get; init; }
+    public decimal Price { get; init; }
+}
