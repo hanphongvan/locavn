@@ -196,6 +196,11 @@ class AccountScreen extends ConsumerWidget {
                     icon: Icons.assignment_outlined,
                     label: 'Báo cáo của tôi',
                     onTap: () => context.push(AppRoute.myViolationReports.path),
+                  ),
+                  AccountMenuItem(
+                    icon: Icons.feedback_outlined,
+                    label: 'Góp ý ứng dụng',
+                    onTap: () => context.push(AppRoute.appFeedback.path),
                     showDividerBelow: false,
                   ),
                 ],

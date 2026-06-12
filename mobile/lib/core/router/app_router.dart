@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/app_feedback/presentation/app_feedback_page.dart';
+import '../../features/app_feedback/presentation/citizen_feedback_fab.dart';
 import '../../features/auth/presentation/login_page.dart';
 import '../../features/auth/presentation/change_password_page.dart';
 import '../../features/bad_reports/presentation/my_violation_reports_page.dart';
@@ -193,6 +195,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoute.myStationReviews.path,
         parentNavigatorKey: appRootNavigatorKey,
         builder: (context, state) => const MyStationReviewsPage(),
+      ),
+      GoRoute(
+        path: AppRoute.appFeedback.path,
+        parentNavigatorKey: appRootNavigatorKey,
+        builder: (context, state) => const AppFeedbackPage(),
       ),
       GoRoute(
         path: AppRoute.accessDenied,
@@ -530,6 +537,10 @@ class _MainTabShell extends ConsumerWidget {
 
     return Scaffold(
       body: navigationShell,
+      // Hiện/ẩn theo cờ backend + cờ người dùng tự ẩn (xem CitizenFeedbackFab).
+      // Căn phải-giữa: không đè nút zoom/vị trí (bottom-right) trên tab Bản đồ.
+      floatingActionButton: CitizenFeedbackFab(color: primaryNav),
+      floatingActionButtonLocation: kCenterRightFabLocation,
       bottomNavigationBar: Padding(
         padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
         child: ClipRRect(

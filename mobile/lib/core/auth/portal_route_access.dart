@@ -30,6 +30,11 @@ abstract final class PortalRouteAccess {
       return true;
     }
 
+    // Góp ý ứng dụng: mọi vai trò đăng nhập đều mở được (từ màn Tài khoản).
+    if (path == AppRoute.appFeedback.path) {
+      return true;
+    }
+
     if (path.startsWith(AppRoute.stationDetailBase)) {
       return true;
     }
